@@ -144,5 +144,5 @@ pnpm build
 
 ## 📜 License
 
-Currently licensed under the [MIT License](LICENSE).  
+Licensed under the [GNU AGPL-3.0-or-later](LICENSE), required because CiteDocs bundles AGPL-licensed Zotero components (web-library, pdf-reader).  
 *(Note: As analyzed in [ADR-001](docs/ADR-001-integration.md), relicensing CiteDocs to GNU AGPL-3.0 is recommended for complete legal compliance with integrated Zotero AGPL-3.0 components; pending final approval).*

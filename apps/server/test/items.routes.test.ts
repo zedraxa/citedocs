@@ -1,77 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/index.js";
-import { ItemRepository } from "../src/repositories/itemRepository.js";
-import { OwnershipError, NotFoundError } from "../src/repositories/errors.js";
+import { InMemoryItemRepository } from "../src/repositories/inMemoryItemRepository.js";
 import type { LibraryItem } from "../src/db/schema.js";
-
-class InMemoryItemRepository extends ItemRepository {
-  private itemsMap = new Map<string, LibraryItem>();
-
-  override async list(userId: string): Promise<LibraryItem[]> {
-    if (!userId) throw new OwnershipError("Unauthenticated: valid user ID is required");
-    return Array.from(this.itemsMap.values()).filter((item) => item.ownerUserId === userId);
-  }
-
-  override async getById(userId: string, itemId: string): Promise<LibraryItem | null> {
-    if (!userId) throw new OwnershipError("Unauthenticated: valid user ID is required");
-    const item = this.itemsMap.get(itemId);
-    if (!item) return null;
-    if (item.ownerUserId !== userId) {
-      throw new OwnershipError("Access denied: Library item belongs to another user");
-    }
-    return item;
-  }
-
-  override async create(
-    userId: string,
-    data: Partial<NewLibraryItem>
-  ): Promise<LibraryItem> {
-    if (!userId) throw new OwnershipError("Unauthenticated: valid user ID is required");
-    const id = `item-${Math.random().toString(36).substring(2, 9)}`;
-    const now = new Date();
-    const item: LibraryItem = {
-      id,
-      ownerUserId: userId,
-      zoteroKey: data.zoteroKey || null,
-      version: 0,
-      itemType: data.itemType || "journalArticle",
-      title: data.title || "Untitled",
-      parsedDate: data.parsedDate || null,
-      publicationTitle: data.publicationTitle || null,
-      doi: data.doi || null,
-      url: data.url || null,
-      abstractNote: data.abstractNote || null,
-      metadata: data.metadata || {},
-      dateAdded: now,
-      dateModified: now,
-    };
-    this.itemsMap.set(id, item);
-    return item;
-  }
-
-  override async update(
-    userId: string,
-    itemId: string,
-    data: Partial<NewLibraryItem>
-  ): Promise<LibraryItem> {
-    const existing = await this.getById(userId, itemId);
-    if (!existing) throw new NotFoundError(`Item ${itemId} not found`);
-    const updated: LibraryItem = {
-      ...existing,
-      ...data,
-      dateModified: new Date(),
-    };
-    this.itemsMap.set(itemId, updated);
-    return updated;
-  }
-
-  override async delete(userId: string, itemId: string): Promise<boolean> {
-    const existing = await this.getById(userId, itemId);
-    if (!existing) throw new NotFoundError(`Item ${itemId} not found`);
-    return this.itemsMap.delete(itemId);
-  }
-}
+import { TranslationClient } from "@citedocs/zotero-core";
+import type { ZoteroItem } from "@citedocs/shared";
 
 describe("GET/POST /api/items route with ownership & tenant isolation", () => {
   let app: FastifyInstance;
@@ -80,13 +13,65 @@ describe("GET/POST /api/items route with ownership & tenant isolation", () => {
   const studentAlice = "alice-uuid-001";
   const studentBob = "bob-uuid-002";
 
+  const natureDoiFixture: ZoteroItem = {
+    key: "NAT3392Y",
+    version: 1,
+    itemType: "journalArticle",
+    title: "The changing landscape of atherosclerosis",
+    creators: [
+      {
+        creatorType: "author",
+        firstName: "Peter",
+        lastName: "Libby",
+      },
+    ],
+    publicationTitle: "Nature",
+    volume: "592",
+    issue: "7855",
+    pages: "524-533",
+    date: "2021-04-21",
+    DOI: "10.1038/s41586-021-03392-y",
+    tags: [{ tag: "cardiology" }],
+    collections: [],
+  };
+
+  const mockFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+    if (url.includes("/search")) {
+      const body = String(init?.body || "");
+      if (body.includes("10.1038/s41586-021-03392-y")) {
+        return {
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: async () => [natureDoiFixture],
+        };
+      }
+    }
+    return {
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      text: async () => "Not found",
+    };
+  });
+
+  const mockClient = new TranslationClient({
+    baseUrl: "http://localhost:1969",
+    fetchFn: mockFetch as unknown as typeof fetch,
+  });
+
   beforeAll(async () => {
     inMemoryRepo = new InMemoryItemRepository();
-    app = await buildApp({ itemRepo: inMemoryRepo });
+    app = await buildApp({ itemRepo: inMemoryRepo, zoteroClient: mockClient });
   });
 
   afterAll(async () => {
     await app.close();
+  });
+
+  beforeEach(() => {
+    inMemoryRepo.clear();
+    vi.clearAllMocks();
   });
 
   it("rejects unauthenticated requests without X-User-Id header with 401", async () => {
@@ -123,7 +108,14 @@ describe("GET/POST /api/items route with ownership & tenant isolation", () => {
   });
 
   it("lists items belonging only to the requesting user", async () => {
-    // 1. Alice's items
+    // 1. Create item for Alice
+    await inMemoryRepo.create(studentAlice, {
+      title: "Alice's Paper",
+      itemType: "journalArticle",
+      version: 0,
+    });
+
+    // Alice's items
     const aliceRes = await app.inject({
       method: "GET",
       url: "/api/items",
@@ -233,5 +225,50 @@ describe("GET/POST /api/items route with ownership & tenant isolation", () => {
       headers: { "x-user-id": studentAlice },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  describe("Add by identifier integration in items route", () => {
+    it("POST /api/items/from-identifier requires auth", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/items/from-identifier",
+        payload: { identifier: "10.1038/s41586-021-03392-y" },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+
+    it("POST /api/items/from-identifier persists item owned by requesting user", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/api/items/from-identifier",
+        headers: { "x-user-id": studentAlice },
+        payload: { identifier: "10.1038/s41586-021-03392-y" },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const data = JSON.parse(res.body);
+      expect(data.success).toBe(true);
+      expect(data.item.id).toBeDefined();
+
+      const stored = await inMemoryRepo.getById(studentAlice, data.item.id);
+      expect(stored).not.toBeNull();
+      expect(stored!.ownerUserId).toBe(studentAlice);
+      expect(stored!.title).toBe("The changing landscape of atherosclerosis");
+      expect(stored!.publicationTitle).toBe("Nature");
+      expect(stored!.doi).toBe("10.1038/s41586-021-03392-y");
+      expect(stored!.parsedDate).toBe("2021-04-21");
+
+      const metadata = stored!.metadata as Record<string, unknown>;
+      expect(metadata.creators).toEqual(natureDoiFixture.creators);
+      expect(metadata.containerTitle).toBe("Nature");
+
+      // Bob cannot view Alice's newly imported item
+      const bobGet = await app.inject({
+        method: "GET",
+        url: `/api/items/${data.item.id}`,
+        headers: { "x-user-id": studentBob },
+      });
+      expect(bobGet.statusCode).toBe(403);
+    });
   });
 });

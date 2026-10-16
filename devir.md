@@ -526,7 +526,6 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 ### Açık Konular / Notlar:
 - Önceden var olan `packages/csl-engine` ve `apps/web` (outline/web) testlerindeki 5 saniyelik Vitest zaman aşımına bağlı timing-flakiness korundu (müdahale edilmedi, silinmedi).
 - `cd-wopi-host` dalı üzerindeki tüm WOPI host ve Collabora Online isterleri eksiksiz teslim edilmiştir.
-||||||| 4a8c8ef
 ## M0.5 — Güvenilir Test Altyapısı ve CI/CD Doğrulaması (2026-10-16, cd-m0-testinfra)
 
 - **Vitest & Test Ortamı Sertleştirildi:**

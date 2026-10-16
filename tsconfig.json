@@ -5,6 +5,7 @@
     { "path": "./packages/csl-engine" },
     { "path": "./packages/zotero-core" },
     { "path": "./packages/editor" },
+    { "path": "./packages/docx-exporter" },
     { "path": "./apps/server" },
     { "path": "./apps/web" }
   ]

@@ -998,7 +998,13 @@ function EditorRoute() {
 }
 
 /** Legacy TipTap demo editor: only reachable by authenticated users at /legacy-editor. */
-export const LegacyAppEditor = AppEditor;
+export function LegacyApp() {
+  return (
+    <AuthProvider>
+      <AppEditor />
+    </AuthProvider>
+  );
+}
 
 export function App() {
   const path = typeof window !== "undefined" ? window.location.pathname : "/";

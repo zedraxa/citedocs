@@ -1,7 +1,15 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { CollaboraFrame } from "./CollaboraFrame.js";
-import { sendActionSave, sendUnoCommand } from "./postMessage.js";
-import { useAuth } from "../auth/AuthContext.js";
+import { sendActionSave } from "./postMessage.js";
+import { useOptionalAuth } from "../auth/AuthContext.js";
+import {
+  insertCitationField,
+  updateCitationFields,
+  insertBibliographyField,
+  updateBibliographyField,
+  setZoteroPrefs,
+  escapeHtml,
+} from "./zoteroUno.js";
 import {
   FileText,
   Save,
@@ -19,7 +27,6 @@ import { ZoteroSidebar } from "../zotero/index.js";
 import type { ZoteroItemPayload } from "../zotero/types.js";
 import { AddByIdentifier, type AddByIdentifierItem } from "../components/AddByIdentifier.js";
 import {
-  CollaboraBridge,
   CollaboraCSLEngine,
   createZoteroCitationPayload,
   createLibreOfficeCitationMarkName,
@@ -105,6 +112,11 @@ function toCSLItem(
   };
 }
 
+function bibHtml(bib: { html?: string; entries: string[]; text: string }): string {
+  if (bib.html && bib.html.trim()) return bib.html;
+  return bib.entries.map((e) => `<p>${escapeHtml(e)}</p>`).join("");
+}
+
 export function CollaboraEditorPage({
   documentId = "demo-document",
   documentTitle = "Scientific Writing Assignment: Quantum Gravity & Spacetime",
@@ -157,17 +169,26 @@ export function CollaboraEditorPage({
       (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) ||
     "http://localhost:3000";
 
-  const { user: authUser } = useAuth();
+  const authUser = useOptionalAuth()?.user ?? null;
   const currentUserId = authUser?.id || "00000000-0000-0000-0000-000000000001";
   const currentUserName = authUser?.displayName || authUser?.email || "Anonymous";
 
-  // Bridge factory
+  // UNO-based Zotero field writer (replaces the Python-macro bridge; stock CODE has no pyuno).
+  // Single-field updates are applied by the sync effect below, which rewrites every field in order.
   const getBridge = useCallback(() => {
-    if (frameRef.current?.contentWindow) {
-      return new CollaboraBridge(frameRef.current.contentWindow, session?.collaboraUrl || "*");
-    }
-    return null;
-  }, [session?.collaboraUrl]);
+    const f = frameRef.current;
+    if (!f) return null;
+    const noop = (..._args: unknown[]) => undefined;
+    return {
+      insertCitation: (payload: ZoteroCitationPayload, text: string, _suffix?: string) =>
+        insertCitationField(f, payload, text),
+      updateCitation: noop,
+      removeCitation: noop,
+      insertBibliography: noop,
+      updateBibliography: noop,
+      setDocumentPrefs: noop,
+    };
+  }, []);
 
   // Fetch or fallback session
   useEffect(() => {
@@ -221,6 +242,92 @@ export function CollaboraEditorPage({
       active = false;
     };
   }, [documentId, apiBaseUrl, currentUserId, currentUserName]);
+
+  // Keep the document's Zotero fields + ZOTERO_PREF properties in sync with citation state.
+  const syncReadyRef = useRef(false);
+  useEffect(() => {
+    if (!documentLoaded || !syncReadyRef.current || !frameRef.current) return;
+    updateCitationFields(
+      frameRef.current,
+      documentCitations.map((c) => ({ payload: c.payload, text: c.formattedText })),
+    );
+    if (hasBibliography && documentCitations.length) {
+      try {
+        updateBibliographyField(frameRef.current, bibHtml(cslEngineRef.current.makeBibliography()));
+      } catch {
+        // ignore citeproc errors
+      }
+    }
+    setZoteroPrefs(frameRef.current, activeStyleId, hasBibliography);
+  }, [documentCitations, hasBibliography, activeStyleId, documentLoaded]);
+
+  // Restore citation state from the fields stored in the saved document.
+  useEffect(() => {
+    if (!documentLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${apiBaseUrl}/api/documents/${documentId}/citations`, {
+          credentials: "include",
+        });
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as {
+          citations: Array<{ payload: ZoteroCitationPayload | null; result: string }>;
+          bibliography: { result: string } | null;
+          style: string | null;
+        };
+        if (data.style) {
+          try {
+            cslEngineRef.current.switchStyle(data.style);
+            setActiveStyleId(data.style);
+          } catch {
+            // unknown style id: keep default
+          }
+        }
+        const restored: DocumentCitationItem[] = [];
+        data.citations.forEach((c, i) => {
+          if (!c.payload) return;
+          for (const it of c.payload.citationItems || []) {
+            const csl = it.itemData as CSLItem | undefined;
+            if (csl) {
+              knownItemsRef.current.set(String(csl.id), csl);
+              cslEngineRef.current.addItem(csl);
+            }
+          }
+          restored.push({
+            markName: c.payload.citationID || `restored-${i}`,
+            payload: c.payload,
+            formattedText: c.result || c.payload.properties?.plainCitation || "",
+          });
+        });
+        if (cancelled) return;
+        if (restored.length) {
+          try {
+            cslEngineRef.current.processCitationClusters(restored.map((r) => r.payload));
+          } catch {
+            // ignore
+          }
+          setDocumentCitations(restored);
+        }
+        if (data.bibliography) {
+          setHasBibliography(true);
+          setBibliographyMarkName("ZOTERO_BIBL");
+          try {
+            setBibliographyEntries(cslEngineRef.current.makeBibliography().entries);
+          } catch {
+            // ignore
+          }
+        }
+      } catch {
+        // restore is best-effort
+      } finally {
+        if (!cancelled) syncReadyRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [documentLoaded, apiBaseUrl, documentId]);
 
   const handleSave = () => {
     sendActionSave(frameRef.current);
@@ -315,13 +422,6 @@ export function CollaboraEditorPage({
         bridge.insertCitation(payload, formattedText, rndSuffix);
       }
 
-      // Visual immediate text insertion at cursor via UNO command
-      if (frameRef.current) {
-        sendUnoCommand(frameRef.current, ".uno:InsertText", {
-          Text: { type: "string", value: ` ${formattedText} ` },
-        });
-      }
-
       const newCit: DocumentCitationItem = {
         markName,
         payload,
@@ -386,12 +486,6 @@ export function CollaboraEditorPage({
 
         if (bridge) {
           bridge.insertCitation(payload, formattedText, rndSuffix);
-        }
-
-        if (frameRef.current) {
-          sendUnoCommand(frameRef.current, ".uno:InsertText", {
-            Text: { type: "string", value: ` ${formattedText} ` },
-          });
         }
 
         const newCit: DocumentCitationItem = {
@@ -527,23 +621,10 @@ export function CollaboraEditorPage({
         setBibliographyMarkName(markName);
         setHasBibliography(true);
 
-        if (bridge) {
-          bridge.insertBibliography(bib.text);
-        }
-
-        // Place bibliography heading and entries visually in editor at cursor
-        if (frameRef.current) {
-          sendUnoCommand(frameRef.current, ".uno:InsertText", {
-            Text: {
-              type: "string",
-              value: `\n\nReferences\n${bib.text}\n`,
-            },
-          });
-        }
+        insertBibliographyField(frameRef.current, bibHtml(bib));
       } else {
-        if (bridge) {
-          bridge.updateBibliography(markName, bib.text);
-        }
+        bridge?.updateBibliography(markName, bib.text);
+        updateBibliographyField(frameRef.current, bibHtml(bib));
       }
     } catch {
       // Graceful error handling

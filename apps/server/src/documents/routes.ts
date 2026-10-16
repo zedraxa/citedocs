@@ -1,3 +1,4 @@
+import { extractZoteroState } from "./zoteroFields.js";
 import type { FastifyPluginAsync } from "fastify";
 import multipart from "@fastify/multipart";
 import { requireAuth } from "../auth/middleware.js";
@@ -440,6 +441,25 @@ export const createDocumentRoutes = (
             return reply.status(404).send({ error: err.message });
           }
           throw err;
+        }
+      }
+    );
+
+    /**
+     * GET /api/documents/:id/citations
+     * Reads Zotero citation fields (ADDIN ZOTERO_ITEM / ZOTERO_BIBL) and ZOTERO_PREF document
+     * properties straight out of the saved .docx, so the editor can restore citation state on reload.
+     */
+    fastify.get<{ Params: DocumentParams }>(
+      "/api/documents/:id/citations",
+      async (req, reply) => {
+        const docWithRole = await documentRepo.getById(req.userId, req.params.id, req.user?.email);
+        if (!docWithRole) return reply.status(404).send({ error: "Document not found" });
+        try {
+          const file = await wopiStorage.getFile(req.params.id);
+          return reply.status(200).send(await extractZoteroState(file.buffer));
+        } catch {
+          return reply.status(200).send({ citations: [], bibliography: null, prefs: null, style: null });
         }
       }
     );

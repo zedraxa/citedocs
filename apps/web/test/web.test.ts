@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createElement, act } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "../src/App.js";
+import { LegacyApp as App } from "../src/App.js";
 
 describe("@citedocs/web", () => {
   beforeEach(() => {

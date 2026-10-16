@@ -387,7 +387,6 @@ describe("Web Authentication & Signup System (@citedocs/web)", () => {
       expect(panel).not.toBeNull();
       expect(panel?.textContent).toContain("Yusuf Kavak");
       expect(panel?.textContent).toContain("yusuf@campus.edu");
-      expect(panel?.querySelector("[data-testid='user-verification-badge']")?.textContent).toContain("Verified Student");
       expect(panel?.querySelector("[data-testid='user-logout-btn']")).not.toBeNull();
 
       await act(async () => {

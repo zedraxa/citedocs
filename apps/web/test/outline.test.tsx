@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import type { Editor } from "@tiptap/core";
-import { App } from "../src/App.js";
+import { LegacyApp as App } from "../src/App.js";
 
 // Keep the real editor and all its commands; only replace network collaboration.
 vi.mock("../src/hooks/useCollab.js", () => ({

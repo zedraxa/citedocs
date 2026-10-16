@@ -58,12 +58,34 @@ export function CollaboraFrame({
   // Submit the form into the iframe once actionUrl and accessToken are provided
   useEffect(() => {
     if (actionUrl && accessToken && formRef.current) {
-      try {
-        formRef.current.submit();
-        setFormSubmitted(true);
-      } catch (err) {
-        console.error("Failed to submit Collabora WOPI form into iframe:", err);
-      }
+      const form = formRef.current;
+      let cancelled = false;
+      (async () => {
+        // CODE always auto-shows its "Explore the new <version>" welcome dialog
+        // (welcome.enable=false is ignored in CODE builds). It is suppressed per browser via the
+        // WSDWelcomeVersion pref, which lives in localStorage of the Collabora origin. Collabora is
+        // served from our own origin, so we can pre-seed it before the iframe loads.
+        try {
+          const origin = new URL(actionUrl, window.location.href).origin;
+          if (origin === window.location.origin) {
+            const res = await fetch(`${origin}/hosting/capabilities`);
+            const caps = (await res.json()) as { productVersion?: string };
+            if (caps.productVersion) window.localStorage.setItem("WSDWelcomeVersion", caps.productVersion);
+          }
+        } catch {
+          // best-effort
+        }
+        if (cancelled) return;
+        try {
+          form.submit();
+          setFormSubmitted(true);
+        } catch (err) {
+          console.error("Failed to submit Collabora WOPI form into iframe:", err);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
   }, [actionUrl, accessToken]);
 

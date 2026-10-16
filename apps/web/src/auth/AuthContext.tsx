@@ -299,3 +299,8 @@ export function useAuth(): AuthContextValue {
   }
   return context;
 }
+
+/** Like useAuth, but returns null outside an AuthProvider (used by embeddable components). */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext) ?? null;
+}

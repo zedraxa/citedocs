@@ -56,7 +56,7 @@ describe("Collabora PostMessage Protocol & Utilities", () => {
         MessageId: "Send_UNO_Command",
         Values: {
           Command: ".uno:Save",
-          Args: { type: "json", value: { DontTerminateEdit: true } },
+          Args: { DontTerminateEdit: true },
         },
       }),
       "*",
@@ -74,7 +74,8 @@ describe("Collabora PostMessage Protocol & Utilities", () => {
         MessageId: "Action_Save",
         Values: {
           DontTerminateEdit: true,
-          DontSaveIfUnmodified: true,
+          DontSaveIfUnmodified: false,
+          Notify: true,
         },
       }),
       "*",

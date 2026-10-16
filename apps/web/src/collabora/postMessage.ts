@@ -85,7 +85,7 @@ export function sendUnoCommand(
       MessageId: "Send_UNO_Command",
       Values: {
         Command: command,
-        Args: args ? { type: "json", value: args } : undefined,
+        Args: args ?? undefined,
       },
     },
     targetOrigin,
@@ -106,7 +106,8 @@ export function sendActionSave(
       MessageId: "Action_Save",
       Values: {
         DontTerminateEdit: dontTerminateEdit,
-        DontSaveIfUnmodified: true,
+        DontSaveIfUnmodified: false,
+        Notify: true,
       },
     },
     targetOrigin,
@@ -206,6 +207,12 @@ export function useCollaboraPostMessage(options: UseCollaboraPostMessageOptions)
         const status = (values.Status as string) || "";
         setLoadingStatus(status);
         handlersRef.current.onLoadingStatus?.(status, values);
+
+        // Collabora only accepts host PostMessages after Host_PostmessageReady, which must be
+        // sent once the frame reports Frame_Ready (sending it on iframe onload is too early).
+        if (status === "Frame_Ready") {
+          postToCollabora(event.source as Window, { MessageId: "Host_PostmessageReady", Values: {} }, collaboraOrigin || "*");
+        }
 
         if (status === "Document_Loaded") {
           setIsDocumentLoaded(true);

@@ -3,7 +3,6 @@ import { buildApp } from "../src/index.js";
 import { InMemoryItemRepository } from "../src/repositories/inMemoryItemRepository.js";
 import { InMemoryZoteroCredentialRepository } from "../src/repositories/inMemoryZoteroRepository.js";
 import { ZoteroAccountService } from "../src/zotero/accountService.js";
-import { decryptAtRest } from "../src/db/crypto.js";
 
 describe("Zotero Account Linking API (apps/server)", () => {
   let itemRepo: InMemoryItemRepository;

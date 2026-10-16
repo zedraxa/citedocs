@@ -1,1 +1,1 @@
-{"root":["./src/factory.ts","./src/index.ts","./src/schema.ts","./src/types.ts","./src/extensions/citation.ts","./src/extensions/comments.ts","./src/extensions/suggestion.ts"],"version":"5.9.3"}
+{"root":["./src/csl.ts","./src/factory.ts","./src/index.ts","./src/schema.ts","./src/types.ts","./src/extensions/bibliography.ts","./src/extensions/citation.ts","./src/extensions/comments.ts","./src/extensions/suggestion.ts"],"version":"5.9.3"}

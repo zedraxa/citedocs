@@ -1,11 +1,16 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import type { TranslationClient } from "@citedocs/zotero-core";
 import { healthRoutes } from "./routes/health.js";
 import { cslRoutes } from "./routes/csl.js";
 import { zoteroRoutes } from "./routes/zotero.js";
 import { createCollabServer } from "./collab/server.js";
 
-export async function buildApp(): Promise<FastifyInstance> {
+export interface AppOptions {
+  zoteroClient?: TranslationClient;
+}
+
+export async function buildApp(options: AppOptions = {}): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: process.env.NODE_ENV !== "test",
   });
@@ -17,7 +22,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await fastify.register(healthRoutes);
   await fastify.register(cslRoutes);
-  await fastify.register(zoteroRoutes);
+  await fastify.register(zoteroRoutes, { client: options.zoteroClient });
 
   return fastify;
 }

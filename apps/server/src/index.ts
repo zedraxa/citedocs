@@ -21,11 +21,23 @@ import { ZoteroAccountService } from "./zotero/accountService.js";
 import { ZoteroProxyService } from "./zotero/proxyService.js";
 import { ZoteroOAuthService } from "./zotero/oauthService.js";
 import { ZoteroCredentialRepository } from "./repositories/zoteroRepository.js";
+import {
+  createPdfRoutes,
+  AttachmentRepository,
+  AnnotationRepository,
+  InMemoryAttachmentRepository,
+  InMemoryAnnotationRepository,
+  type AttachmentStorage,
+  InMemoryAttachmentStorage,
+  S3AttachmentStorage,
+  type ZoteroAnnotationSyncService,
+} from "./pdf/index.js";
 
 export * from "./db/index.js";
 export * from "./repositories/index.js";
 export * from "./zotero/index.js";
 export * from "./wopi/index.js";
+export * from "./pdf/index.js";
 export { createItemRoutes, itemRoutes };
 
 export interface BuildAppOptions {
@@ -38,9 +50,14 @@ export interface BuildAppOptions {
   wopiStorage?: WopiStorage;
   lockManager?: WopiLockManager;
   discoveryService?: CollaboraDiscoveryService;
+  attachmentRepo?: AttachmentRepository;
+  annotationRepo?: AnnotationRepository;
+  attachmentStorage?: AttachmentStorage;
+  pdfSyncService?: ZoteroAnnotationSyncService;
   secretKey?: string;
   serverUrl?: string;
 }
+
 
 /** @deprecated use BuildAppOptions */
 export type AppOptions = BuildAppOptions;
@@ -85,6 +102,32 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       discoveryService: options.discoveryService,
       secretKey: options.secretKey,
       serverUrl: options.serverUrl,
+    }),
+  );
+
+  const attachmentRepo =
+    options.attachmentRepo ||
+    (process.env.NODE_ENV === "test"
+      ? new InMemoryAttachmentRepository()
+      : new AttachmentRepository());
+  const annotationRepo =
+    options.annotationRepo ||
+    (process.env.NODE_ENV === "test"
+      ? new InMemoryAnnotationRepository()
+      : new AnnotationRepository());
+  const attachmentStorage =
+    options.attachmentStorage ||
+    (process.env.NODE_ENV === "test" || !process.env.S3_ENDPOINT
+      ? new InMemoryAttachmentStorage()
+      : new S3AttachmentStorage());
+
+  await fastify.register(
+    createPdfRoutes({
+      attachmentRepo,
+      annotationRepo,
+      storage: attachmentStorage,
+      syncService: options.pdfSyncService,
+      accountService: options.zoteroAccountService,
     }),
   );
 

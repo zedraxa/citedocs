@@ -316,5 +316,44 @@ export type NewCreator = InferInsertModel<typeof creators>;
 export type Attachment = InferSelectModel<typeof attachments>;
 export type NewAttachment = InferInsertModel<typeof attachments>;
 
+/**
+ * PDF Annotations (Zotero parity): highlights, underlines, notes, and image annotations
+ * strictly isolated per user and attachment.
+ */
+export const pdfAnnotations = pgTable(
+  "pdf_annotations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerUserId: uuid("owner_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    attachmentId: uuid("attachment_id")
+      .notNull()
+      .references(() => attachments.id, { onDelete: "cascade" }),
+    zoteroKey: text("zotero_key").notNull(),
+    version: integer("version").notNull().default(0),
+    parentItemKey: text("parent_item_key"),
+    annotationType: text("annotation_type").notNull().default("highlight"),
+    annotationText: text("annotation_text").notNull().default(""),
+    annotationComment: text("annotation_comment").notNull().default(""),
+    annotationColor: text("annotation_color").notNull().default("#ffd400"),
+    annotationPageLabel: text("annotation_page_label").notNull().default("1"),
+    annotationSortIndex: text("annotation_sort_index").notNull().default(""),
+    annotationPosition: jsonb("annotation_position").$type<Record<string, unknown>>(),
+    imagePath: text("image_path"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("pdf_annotations_owner_idx").on(table.ownerUserId),
+    index("pdf_annotations_attachment_idx").on(table.attachmentId),
+    index("pdf_annotations_owner_key_idx").on(table.ownerUserId, table.zoteroKey),
+  ]
+);
+
+export type PdfAnnotation = InferSelectModel<typeof pdfAnnotations>;
+export type NewPdfAnnotation = InferInsertModel<typeof pdfAnnotations>;
+
 export type ZoteroCredential = InferSelectModel<typeof zoteroCredentials>;
 export type NewZoteroCredential = InferInsertModel<typeof zoteroCredentials>;
+

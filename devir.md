@@ -60,3 +60,52 @@ Bir sonraki ajan doğrudan **Milestone 1 (M1: Editor Canvas & Collaborative Foun
 2. `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` komutlarını çalıştır ve yeşil olduğunu doğrula.
 3. TipTap v3 editörünü `apps/web` içinde canlı ProseMirror instance'ına bağla ve `y-prosemirror` ile Hocuspocus sunucusuna bağla.
 4. Docker üzerinde `translation-server` mikroservisini ayağa kaldırıp DOI çözümleme testlerini entegre et.
+
+---
+
+## 6. Milestone 2 Part A (Drizzle Data Layer & Row-Level Ownership) - Kayıt #002
+
+> **Kayıt No:** #002  
+> **Tarih:** 2026-10-16  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** M2 Part A (Drizzle ORM Persistence, PostgreSQL Schema, Migrations, Repository Ownership Isolation)
+
+### Yapılan İşler:
+1. **Drizzle ORM & Bağımlılıklar Eklendi:**
+   - `apps/server` paketine `drizzle-orm`, `drizzle-kit`, `pg`, `@types/pg` eklendi.
+   - `apps/server/drizzle.config.ts` yapılandırıldı (`dialect: "postgresql"`, `DATABASE_URL` docker-compose varsayılanları ile eşleştirildi).
+2. **Kapsamlı Drizzle Şeması Tanımlandı (`apps/server/src/db/schema.ts`):**
+   - `users`: Öğrenci hesapları.
+   - `documents`: `owner_user_id` ile kesin sahiplik, `yjs_state` (bytea), CSL stil tercihleri.
+   - `document_shares`: Açık işbirliği yetkileri (`owner`, `editor`, `commenter`, `viewer`).
+   - `library_items`: `owner_user_id` ile izole Zotero öğeleri, tip, meta veriler, indeksler.
+   - `collections` & `item_collections`: `owner_user_id` ile hiyerarşik klasörleme.
+   - `tags` & `item_tags`: `owner_user_id` ile etiketleme.
+   - `creators` & `item_creators`: `owner_user_id` ile yazarlar/çevirmenler ve sıralı ilişkiler.
+   - `attachments`: MinIO/S3 ek dosyaları (`owner_user_id`).
+   - `zotero_credentials`: `user_id`, `encrypted_api_key`, `encrypted_token`, senkronizasyon alanları.
+   - **Kesin Kural Doğrulandı:** Her veri satırı `owner_user_id` (veya `user_id`) taşımaktadır.
+3. **SQL Migrasyonları & Betikler:**
+   - `drizzle-kit generate` çalıştırıldı ve `apps/server/drizzle/0000_red_lionheart.sql` checked-in olarak üretildi.
+   - `src/db/migrate.ts` programatik migrasyon çalıştırıcısı yazıldı.
+   - `package.json` içine `db:generate` ve `db:migrate` komutları eklendi.
+4. **Güvenli Şifreleme Altyapısı (`apps/server/src/db/crypto.ts`):**
+   - Zotero API anahtarları için AES-256-GCM authenticated encryption/decryption helper uygulandı.
+5. **İnce Depo Katmanı ve Sahiplik Doğrulama (`apps/server/src/repositories/`):**
+   - `OwnershipError` (HTTP 403) ve `assertOwnership` yardımcısı.
+   - `ItemRepository`: Kullanıcılar arası veri erişimini kesin olarak engeller.
+   - `DocumentRepository`: Yalnızca belge sahibi ve yetkili işbirlikçilere erişim izni verir.
+   - `ZoteroCredentialRepository`: Kaydedilirken şifreler, çekilirken çözer.
+6. **Fastify Uç Noktaları ve Geçici Auth Stub:**
+   - `src/middleware/auth.ts`: `X-User-Id` başlığını okuyan ve yoksa 401 dönen geçici M2 auth ara katmanı.
+   - `src/routes/items.ts`: `GET /api/items`, `POST /api/items`, `GET /api/items/:id`, `PUT /api/items/:id`, `DELETE /api/items/:id` uç noktaları bağlandı.
+7. **Vitest Testleri (Testcontainers-free / Mocked & In-Memory):**
+   - `crypto.test.ts`: 6 test (şifreleme, çözme, kurcalama tespiti, özel anahtar).
+   - `ownership.test.ts`: 8 test (sahiplik ve belge paylaşım rolleri).
+   - `schema.test.ts`: 4 test (tüm tablolar, `ownerUserId` zorunluluğu, şifreli alanlar).
+   - `repositories.test.ts`: 18 test (ItemRepo, DocRepo, ZoteroRepo sahiplik kontrolleri).
+   - `items.routes.test.ts`: 6 test (401 yetkilendirme, izolasyon, 403 cross-user engelleme, 404).
+   - Monorepo genelinde 11 dosya, 68 test %100 yeşil; lint ve build sorunsuz.
+8. **Dokümantasyon:**
+   - `apps/server/README.md` oluşturuldu.
+

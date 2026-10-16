@@ -32,6 +32,7 @@ import {
 import { AddByIdentifier, type AddByIdentifierItem } from "./components/AddByIdentifier.js";
 
 import { OutlineSidebar } from "./components/OutlineSidebar.js";
+import { ZoteroSidebar } from "./zotero/index.js";
 
 const INITIAL_CONTENT = `
 <h1 style="text-align: center">Scientific Writing Assignment: Quantum Gravity &amp; Spacetime</h1>
@@ -53,6 +54,7 @@ export function App() {
   const [mode, setMode] = useState<"editing" | "suggesting" | "viewing">("editing");
   const [showOutline, setShowOutline] = useState(true);
   const [showPdfReader, setShowPdfReader] = useState(false);
+  const [showZoteroSidebar, setShowZoteroSidebar] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [cslStyle, setCslStyle] = useState("apa");
   const [citationSearchOpen, setCitationSearchOpen] = useState(false);
@@ -351,6 +353,22 @@ export function App() {
           >
             <FileText className="w-4 h-4 text-red-600" />
             <span>PDF Split Reader</span>
+          </button>
+
+          <button
+            onClick={() => setShowZoteroSidebar(!showZoteroSidebar)}
+            className={`flex items-center space-x-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors cursor-pointer ${
+              showZoteroSidebar
+                ? "bg-red-50 border-red-400 text-red-700 font-semibold"
+                : "border-gray-300 hover:bg-gray-50 text-gray-700"
+            }`}
+            data-testid="toggle-zotero-sidebar-btn"
+            title="Toggle Zotero Web Library Sidebar"
+          >
+            <span className="w-4 h-4 bg-[#c92c2c] text-white rounded flex items-center justify-center font-black text-[10px] leading-none">
+              Z
+            </span>
+            <span>Zotero Library</span>
           </button>
 
           {/* Presence Avatar List */}
@@ -675,6 +693,17 @@ export function App() {
             <EditorContent editor={editor} />
           </div>
         </main>
+
+        {/* Zotero Web-Library Embedded Sidebar */}
+        {showZoteroSidebar && (
+          <ZoteroSidebar
+            userId={currentUser.id}
+            isOpen={showZoteroSidebar}
+            onClose={() => setShowZoteroSidebar(false)}
+            onCiteItem={(item) => handleInsertCitation(item)}
+            onItemAdded={handleItemAdded}
+          />
+        )}
 
         {/* Right Sidebar: PDF Viewer or Comments Drawer */}
         {showPdfReader && (

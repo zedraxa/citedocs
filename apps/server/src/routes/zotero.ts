@@ -1,43 +1,32 @@
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { IdentifierLookupSchema } from "@citedocs/shared";
-import type { ZoteroItem, CSLItem } from "@citedocs/shared";
 import {
   TranslationClient,
   TranslationServerError,
   zoteroItemToCSL,
 } from "@citedocs/zotero-core";
-
-export interface StoredItemRecord {
-  id: string;
-  userId: string | null;
-  item: ZoteroItem;
-  csl: CSLItem;
-  createdAt: string;
-}
-
-/**
- * In-memory item store for cd-m2-identifier branch.
- * Full relational persistence with Postgres/Drizzle is maintained on branch cd-m2-drizzle.
- */
-export const memoryItemStore = new Map<string, StoredItemRecord>();
-
-export function clearItemStore(): void {
-  memoryItemStore.clear();
-}
+import { requireAuth } from "../middleware/auth.js";
+import { ItemRepository } from "../repositories/itemRepository.js";
 
 export interface ZoteroRouteOptions {
   client?: TranslationClient;
+  itemRepo?: ItemRepository;
 }
 
 export const zoteroRoutes: FastifyPluginAsync<ZoteroRouteOptions> = async (
   fastify,
   options,
 ) => {
+  // All Zotero translation and resolution endpoints require authentication
+  fastify.addHook("preHandler", requireAuth);
+
   const translationClient =
     options.client ||
     new TranslationClient({
       baseUrl: process.env.TRANSLATION_SERVER_URL || "http://localhost:1969",
     });
+
+  const itemRepo = options.itemRepo || new ItemRepository();
 
   const handleTranslate = async (request: FastifyRequest, reply: FastifyReply) => {
     const bodyObj =
@@ -69,41 +58,56 @@ export const zoteroRoutes: FastifyPluginAsync<ZoteroRouteOptions> = async (
     }
 
     const rawId = parseResult.data.identifier;
-    const rawUserId = request.headers["x-user-id"];
-    const userId =
-      typeof rawUserId === "string" && rawUserId.trim().length > 0
-        ? rawUserId.trim()
-        : null;
+    const userId = request.userId;
 
     try {
       // Fetch and normalize items via hardened TranslationClient
       const items = await translationClient.searchByIdentifier(rawId);
       const cslItems = items.map(zoteroItemToCSL);
 
-      // In-memory persistence stub respecting per-user data isolation
-      const now = new Date().toISOString();
+      // Persist items through ItemRepository strictly owned by the requesting student
+      const storedItems = [];
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         const csl = cslItems[i];
-        memoryItemStore.set(item.key, {
-          id: item.key,
-          userId,
-          item,
-          csl,
-          createdAt: now,
+
+        const stored = await itemRepo.create(userId, {
+          title: item.title || "Untitled",
+          itemType: item.itemType || "journalArticle",
+          publicationTitle: item.publicationTitle || null,
+          parsedDate: item.date || null,
+          doi: item.DOI || null,
+          url: item.url || null,
+          abstractNote: item.abstractNote || null,
+          zoteroKey: item.key || null,
+          version: item.version ?? 0,
+          metadata: {
+            ...item,
+            creators: item.creators || [],
+            tags: item.tags || [],
+            containerTitle: item.publicationTitle || null,
+            csl,
+          },
+        });
+
+        storedItems.push({
+          ...stored,
+          DOI: stored.doi || item.DOI,
+          date: stored.parsedDate || item.date,
+          creators: item.creators || [],
+          tags: item.tags || [],
+          publicationTitle: stored.publicationTitle || item.publicationTitle,
         });
       }
 
       return reply.status(200).send({
         success: true,
         userId,
-        items,
+        items: storedItems,
         cslItems,
-        item: items[0] || null,
+        item: storedItems[0] || null,
         csl: cslItems[0] || null,
         persisted: true,
-        persistenceMode: "in-memory",
-        todo: "TODO(persist): Full relational persistence with Postgres/Drizzle is developed on branch cd-m2-drizzle; this branch provides an in-memory session store.",
       });
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -129,24 +133,4 @@ export const zoteroRoutes: FastifyPluginAsync<ZoteroRouteOptions> = async (
 
   // Preserve backwards compatibility with M0 scaffolded endpoint
   fastify.post("/api/zotero/search", handleTranslate);
-
-  // Allow inspecting/listing stored items for the current user
-  fastify.get("/api/items", async (request, reply) => {
-    const rawUserId = request.headers["x-user-id"];
-    const userId =
-      typeof rawUserId === "string" && rawUserId.trim().length > 0
-        ? rawUserId.trim()
-        : null;
-
-    const allRecords = Array.from(memoryItemStore.values());
-    const filtered = userId
-      ? allRecords.filter((rec) => rec.userId === userId || rec.userId === null)
-      : allRecords;
-
-    return reply.status(200).send({
-      total: filtered.length,
-      userId,
-      items: filtered,
-    });
-  });
 };

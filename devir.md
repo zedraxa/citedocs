@@ -53,8 +53,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 
 ---
 
-## 5. Milestone 1 Part A — Tamamlanan İşler (Kayıt #002)
-## 5. Milestone 2 (Part B - Add-by-Identifier) Tamamlanan İşler (Kayıt #002)
+## 5. Milestone 1 Part A — TipTap v3 Editör Temeli (Kayıt #002)
 
 > **Kayıt No:** #002  
 > **Tarih:** 2026-10-16  
@@ -83,10 +82,65 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 1. `apps/web` içinde `y-prosemirror` / `@hocuspocus/provider` ve TipTap v3 `@tiptap/extension-collaboration` ile `@tiptap/extension-collaboration-caret` (v3 ismi, asla collaboration-cursor değil!) bağlantısını kur.
 2. `apps/server` içindeki Hocuspocus WebSocket sunucusu ile istemci bağlantısını gerçek zamanlı çok kullanıcılı testlerle doğrula.
 3. İstemci imleç renkleri ve kullanıcı varlık (awareness) durumlarını test et.
+
+---
+
+## 7. Milestone 2 Part A — Drizzle Data Layer & Row-Level Ownership (Kayıt #003)
+
+> **Kayıt No:** #003  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m2-drizzle` → `cd-m2-integrate`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** M2 Part A (Drizzle ORM Persistence, PostgreSQL Schema, Migrations, Repository Ownership Isolation)
+
+### Yapılan İşler:
+1. **Drizzle ORM & Bağımlılıklar Eklendi:**
+   - `apps/server` paketine `drizzle-orm`, `drizzle-kit`, `pg`, `@types/pg` eklendi.
+   - `apps/server/drizzle.config.ts` yapılandırıldı (`dialect: "postgresql"`, `DATABASE_URL` docker-compose varsayılanları ile eşleştirildi).
+2. **Kapsamlı Drizzle Şeması Tanımlandı (`apps/server/src/db/schema.ts`):**
+   - `users`: Öğrenci hesapları.
+   - `documents`: `owner_user_id` ile kesin sahiplik, `yjs_state` (bytea), CSL stil tercihleri.
+   - `document_shares`: Açık işbirliği yetkileri (`owner`, `editor`, `commenter`, `viewer`).
+   - `library_items`: `owner_user_id` ile izole Zotero öğeleri, tip, meta veriler, indeksler.
+   - `collections` & `item_collections`: `owner_user_id` ile hiyerarşik klasörleme.
+   - `tags` & `item_tags`: `owner_user_id` ile etiketleme.
+   - `creators` & `item_creators`: `owner_user_id` ile yazarlar/çevirmenler ve sıralı ilişkiler.
+   - `attachments`: MinIO/S3 ek dosyaları (`owner_user_id`).
+   - `zotero_credentials`: `user_id`, `encrypted_api_key`, `encrypted_token`, senkronizasyon alanları.
+   - **Kesin Kural Doğrulandı:** Her veri satırı `owner_user_id` (veya `user_id`) taşımaktadır.
+3. **SQL Migrasyonları & Betikler:**
+   - `drizzle-kit generate` çalıştırıldı ve `apps/server/drizzle/0000_red_lionheart.sql` checked-in olarak üretildi.
+   - `src/db/migrate.ts` programatik migrasyon çalıştırıcısı yazıldı.
+   - `package.json` içine `db:generate` ve `db:migrate` komutları eklendi.
+4. **Güvenli Şifreleme Altyapısı (`apps/server/src/db/crypto.ts`):**
+   - Zotero API anahtarları için AES-256-GCM authenticated encryption/decryption helper uygulandı.
+5. **İnce Depo Katmanı ve Sahiplik Doğrulama (`apps/server/src/repositories/`):**
+   - `OwnershipError` (HTTP 403) ve `assertOwnership` yardımcısı.
+   - `ItemRepository`: Kullanıcılar arası veri erişimini kesin olarak engeller.
+   - `DocumentRepository`: Yalnızca belge sahibi ve yetkili işbirlikçilere erişim izni verir.
+   - `ZoteroCredentialRepository`: Kaydedilirken şifreler, çekilirken çözer.
+6. **Fastify Uç Noktaları ve Geçici Auth Stub:**
+   - `src/middleware/auth.ts`: `X-User-Id` başlığını okuyan ve yoksa 401 dönen geçici M2 auth ara katmanı.
+   - `src/routes/items.ts`: `GET /api/items`, `POST /api/items`, `GET /api/items/:id`, `PUT /api/items/:id`, `DELETE /api/items/:id` uç noktaları bağlandı.
+7. **Vitest Testleri (Testcontainers-free / Mocked & In-Memory):**
+   - `crypto.test.ts`: 6 test (şifreleme, çözme, kurcalama tespiti, özel anahtar).
+   - `ownership.test.ts`: 8 test (sahiplik ve belge paylaşım rolleri).
+   - `schema.test.ts`: 4 test (tüm tablolar, `ownerUserId` zorunluluğu, şifreli alanlar).
+   - `repositories.test.ts`: 18 test (ItemRepo, DocRepo, ZoteroRepo sahiplik kontrolleri).
+   - `items.routes.test.ts`: 6 test (401 yetkilendirme, izolasyon, 403 cross-user engelleme, 404).
+   - Monorepo genelinde 11 dosya, 68 test %100 yeşil; lint ve build sorunsuz.
+8. **Dokümantasyon:**
+   - `apps/server/README.md` oluşturuldu.
+
+
+## 8. Milestone 2 Part B — Add-by-Identifier (Kayıt #004)
+
+> **Kayıt No:** #004  
+> **Tarih:** 2026-10-16  
 > **Dal:** `cd-m2-identifier`  
 > **Görev:** M2 Part B — Add-by-identifier (TranslationClient hardening, Fastify routes, Vitest DOI 10.1038/s41586-021-03392-y assertions)
 
-### 5.1 `@citedocs/zotero-core` İyileştirmeleri
+### 6.1 `@citedocs/zotero-core` İyileştirmeleri
 1. **TranslationClient Sertleştirildi:**
    - Zotero `translation-server` mikroservisinin `/search` endpoint'i `text/plain` gövdesi ve normalize edilmiş tanımlayıcı (DOI, ISBN, PMID, arXiv) bekleyecek şekilde güncellendi.
    - `/web` (text/plain URL), `/import` (raw BibTeX/RIS), `/export?format=<format>` (JSON item serileştirme) uçları tip güvenli hale getirildi.
@@ -99,24 +153,41 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - `title` ("The changing landscape of atherosclerosis"), `authors` ("Peter Libby"), `year` (2021) ve `DOI` alanlarının eksiksiz geldiği hem ZoteroItem hem CSLItem formatlarında doğrulandı.
    - `TRANSLATION_SERVER_URL` ortam değişkeniyle korunan canlı entegrasyon testi eklendi.
 
-### 5.2 `apps/server` Rota ve Güvenlik İyileştirmeleri
+### 6.2 `apps/server` Rota ve Güvenlik İyileştirmeleri
 1. **Yeni Fastify Rotaları:**
    - `POST /api/zotero/translate`: DOI/ISBN/PMID/arXiv/URL kabul eden ve Zotero + CSL metadata'sı dönen ana uç.
    - `POST /api/items/from-identifier`: REST standardı takma ad (alias) uç; `{ identifier }` veya `{ query }` gövdesi kabul eder.
    - `POST /api/zotero/search`: M0 geriye dönük uyumluluğu korundu.
-   - `GET /api/items`: Bellek içi oturum kayıtlarını kullanıcı bazlı listeleyen uç.
+   - `GET /api/items`: Bellek içi oturum kayıtlarını kullanıcı bazlı listeleyen uç (M2 entegrasyonunda Drizzle ItemRepository ile birleştirilmek üzere işaretlendi).
 2. **Per-Student Yetkilendirme Saplaması (`X-User-Id`):**
    - İstek başlığında gelen `X-User-Id` okunarak dönen yanıta ve bellek içi depoya işlenir; öğrenciler arası veri izolasyonu sağlanır.
-3. **Kalıcılık Stratejisi (Drizzle ile Uyum):**
-   - Bu daldaki dosya çakışmalarını önlemek adına tam veritabanı yazımı `cd-m2-drizzle` dalında Drizzle ORM ile geliştirilmektedir.
-   - Bu dalda `memoryItemStore` (`Map<string, StoredItemRecord>`) ile geçici oturum içi kalıcılık sağlandı ve `persisted: true`, `persistenceMode: "in-memory"`, `todo: "TODO(persist)..."` açıkça dokümante edildi.
 
 ---
 
-## 6. Sonraki Ajan İçin Devir Notları ve Doğrulama
-- `pnpm test`: 6 test dosyası, 41 test geçerli, 0 hata.
-- `pnpm lint`: Temiz (0 hata).
-- `pnpm typecheck`: `tsc -b` hatasız.
-- `pnpm build`: Tüm monorepo paketleri ve uygulamaları hatasız derleniyor.
-- `cd-m2-drizzle` dalı tamamlandığında `apps/server/src/routes/zotero.ts` içindeki `memoryItemStore` kısmı Drizzle repository metodlarıyla kolayca birleştirilebilir.
+## 9. Milestone 2 Entegrasyonu (Drizzle ItemRepository + Zotero Identifier Entegrasyonu) - Kayıt #005
+
+> **Kayıt No:** #004  
+> **Tarih:** 2026-10-16  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** M2 Entegrasyonu (Single Source of Truth, Row-Level Ownership & Per-Student Isolation)
+
+### Yapılan İşler:
+1. **Tek Doğruluk Kaynağı (Single Source of Truth) Kuruldu:**
+   - `apps/server/src/routes/zotero.ts` içindeki geçici `memoryItemStore`, `clearItemStore()` ve mükerrer `GET /api/items` kaldırıldı.
+   - Kütüphane kayıtları için `routes/items.ts` + `ItemRepository` tek yetkili ve tek doğruluk kaynağı haline getirildi.
+2. **Kimlik Doğrulama ve Sahiplik Zorunluluğu Genişletildi:**
+   - `POST /api/items/from-identifier`, `POST /api/zotero/translate` ve `POST /api/zotero/search` uçlarına `requireAuth` ara katmanı eklendi.
+   - `X-User-Id` başlığı eksik olan tüm istekler HTTP 401 Unauthorized ile reddedilir; anonim veri oluşturulamaz veya okunamaz.
+3. **Identifier Çözümleme ve Veritabanı Kalıcılığı:**
+   - `POST /api/items/from-identifier` (ve `translate`), tanımlayıcıyı (DOI/ISBN vb.) `TranslationClient` ile çözer ve dönen kaynakları `ItemRepository.create` aracılığıyla çağıran öğrencinin `ownerUserId` kimliğine bağlayarak eksiksiz meta veriyle (başlık, yazarlar, DOI, tarih, yayın/dergi başlığı, etiketler) kaydeder.
+   - Kaydedilen öğeler veritabanı `id` değerleriyle birlikte döndürülür.
+4. **Veritabanı Bağımsız Test Desteği (DB-Free InMemoryItemRepository):**
+   - Çalışan bir PostgreSQL gerektirmeden tam sahiplik ve tenant izolasyonu kurallarını denetleyen `InMemoryItemRepository` (`apps/server/src/repositories/inMemoryItemRepository.ts`) eklendi.
+   - `buildApp({ itemRepo, zoteroClient })` üzerinden test edilebilir mimari korundu; `buildApp()` parametresiz çağrıldığında varsayılan `ItemRepository` kullanarak rota çakışması olmadan ayağa kalktığı doğrulandı.
+5. **Kabul Testleri & Doğrulama:**
+   - DOI `10.1038/s41586-021-03392-y` ile `POST /api/items/from-identifier` çağrısının A kullanıcısı için `ItemRepository`'ye tüm meta verilerle kaydedildiği;
+   - `GET /api/items` çağrısında A kullanıcısının öğeyi gördüğü, B kullanıcısının boş liste aldığı;
+   - B kullanıcısı A'nın öğesine `GET /api/items/:id` ile erişmeye çalıştığında 403 Forbidden aldığı;
+   - `X-User-Id` olmadan yapılan isteklerin 401 Unauthorized döndüğü;
+   - `pnpm -r test`, `pnpm lint`, `pnpm typecheck`, `pnpm build` komutlarının monorepo kökünden %100 yeşil geçtiği doğrulandı.
 

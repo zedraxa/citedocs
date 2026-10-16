@@ -211,6 +211,20 @@ describe("Zotero Web API Proxy and Translation Server Proxy (apps/server)", () =
     expect(body.error).toContain("Translation server failed to resolve identifier");
   });
 
+  it("supports POST /search alias for translation-server lookup", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/search",
+      headers: { "x-user-id": userAlice },
+      payload: { identifier: "10.1038/s41586-021-03392-y" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const items = res.json();
+    expect(Array.isArray(items)).toBe(true);
+    expect(items[0].title).toBe("The Changing Landscape of Atherosclerosis");
+  });
+
   it("rejects empty identifier search with 400", async () => {
     const res = await app.inject({
       method: "POST",

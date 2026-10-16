@@ -147,9 +147,9 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
     }
   });
 
-  // 6. Translation-Server Search Proxy: POST /api/zotero/translation/search
+  // 6. Translation-Server Search Proxy: POST /api/zotero/translation/search and POST /search
   // Directly contacts the translation-server microservice at port 1969
-  fastify.post("/api/zotero/translation/search", async (request: FastifyRequest, reply: FastifyReply) => {
+  const handleTranslationSearch = async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as Record<string, unknown> | string | undefined;
     let identifier = "";
 
@@ -171,7 +171,10 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
 
     const result = await proxyService.searchTranslationServer(identifier);
     return reply.status(result.status).send(result.data);
-  });
+  };
+
+  fastify.post("/api/zotero/translation/search", handleTranslationSearch);
+  fastify.post("/search", handleTranslationSearch);
 
   // 7. Proxy Endpoint: ALL /api/zotero/proxy/* - Proxies to api.zotero.org using stored decrypted key
   fastify.all("/api/zotero/proxy/*", async (request: FastifyRequest, reply: FastifyReply) => {

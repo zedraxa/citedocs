@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/components/AddByIdentifier.tsx","./src/hooks/useCollab.ts"],"version":"5.9.3"}
+{"root":["./src/App.tsx","./src/main.tsx","./src/collabora/CollaboraEditorPage.tsx","./src/collabora/CollaboraFrame.tsx","./src/collabora/index.ts","./src/collabora/postMessage.ts","./src/components/AddByIdentifier.tsx","./src/components/OutlineSidebar.tsx","./src/hooks/useCollab.ts"],"version":"5.9.3"}

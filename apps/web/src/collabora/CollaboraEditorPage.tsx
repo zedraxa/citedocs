@@ -62,7 +62,7 @@ export function CollaboraEditorPage({
           setSession(data);
           setLoading(false);
         }
-      } catch (err: unknown) {
+      } catch {
         if (!active) return;
         // In local/test environments where API might be unreachable, provide a fallback session
         const fallbackCollabora = "http://localhost:9980";

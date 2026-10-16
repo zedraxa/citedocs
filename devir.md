@@ -844,3 +844,97 @@ Konteyner yığınının anlık bellek kullanımı `docker stats --no-stream` il
    ```bash
    docker compose -p citedocs-e2e down
    ```
+
+
+---
+
+## 16. Collabora Online Gerçek Zotero Atıf ve Kaynakça İş Akışı (Full CSL Citation Workflow) — Kayıt #012
+
+> **Kayıt No:** #012  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-cite-workflow`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Collabora Online editör sayfasında el yordamıyla oluşturulan sahte `(Author, Year)` mantığını kaldırıp; resmi CSL stilleri, citeproc-js, çoklu kaynak, sayfa/önek/sonek (locator/prefix/suffix), Zotero ReferenceMark/Word alan kodları uyumluluğu, atıf düzenleme/silme, stil seçici ve otomatik güncellenen kaynakça motorunu uçtan uca hayata geçirmek.
+
+### 16.1 Yapılan İşler ve Mimari Yenilikler
+
+1. **Python UNO LibreOffice Makrosu (`apps/collabora-scripts/`):**
+   - `zotero_collabora.py` içerisine atıf ve kaynakça silme işlevleri eklendi:
+     - `remove_citation(markName)`: Belgedeki ilgili LibreOffice Writer `ReferenceMark` veya `Bookmark` nesnesini bulup güvenli şekilde kaldırır; metin içeriğini temizler.
+     - `remove_bibliography(markName)`: Kaynakça yer imini ve biçimlendirilmiş kaynakça metnini belgeden siler.
+   - `apps/collabora-scripts/test_zotero_collabora.py` kapsamlı unit testleri yazıldı (`insert_citation`, `update_citation`, `remove_citation`, `insert_bibliography`, `remove_bibliography`, `set_document_prefs`, `get_document_fields` olmak üzere 7/7 test %100 yeşil).
+
+2. **CSL Motoru ve Zotero Alan Kodu Uyumluluğu (`packages/collabora-cite/`):**
+   - **Resmi CSL Stilleri:** APA 7th Edition ve Chicago Author-Date stillerinin yanına resmi CSL deposundan doğrulanmış IEEE, Vancouver, Harvard (Cite Them Right) ve MLA 9th Edition CSL XML içerikleri eklendi (`src/assets/styles.ts`).
+   - **`CollaboraCSLEngine` (`src/engine.ts`):**
+     - Çoklu kaynak (citation clusters) işleme motoru geliştirildi.
+     - Kaynak başına `locator` (sayfa, bölüm vb.), `label` (p., ch., sec.), `prefix` (ör. "bkz. "), `suffix` (ör. ", detaylar için") ve `suppressAuthor` (yazarı gizleyip sadece yılı basma) parametreleri citeproc-js motoruna tam adapte edildi.
+     - Dinamik CSL stili kaydı (`registerStyle(id, xml)`) ve anlık stil geçişi (`switchStyle(id)`) özellikleri eklendi.
+     - `makeBibliography()` ile seçili stile uygun otomatik kaynakça oluşturma sağlandı (IEEE ve Vancouver için numaralı, APA ve Harvard için alfabetik dizilim).
+   - **`CollaboraBridge` (`src/bridge.ts`):** `removeCitation(markName)` ve `removeBibliography(markName)` komutları eklendi.
+   - **`parser.ts` & `test/roundtrip.test.ts`:**
+     - Word (`ADDIN ZOTERO_ITEM CSL_CITATION`, `ADDIN ZOTERO_BIBL`, `ZOTERO_PREF`) ve LibreOffice (`ZOTERO_ITEM ... RND...`, `ZOTERO_BIBL ... RND...`) alan kodlarının çift yönlü ayrıştırma kuralları kusursuzlaştırıldı.
+     - `JSZip` ile `.odt` (OpenDocument Text) ve `.docx` (Office Open XML WordprocessingML) dosya arşivleri bellek içinde oluşturulup Zotero resmi spesifikasyonundaki alan kodlarıyla kaydedildi; ardından arşivlerden tekrar ayrıştırılarak masaüstü Zotero LibreOffice ve Word eklentileriyle birebir uyumluluk kanıtlandı.
+   - `packages/collabora-cite`: 6 test dosyasında **46 test %100 yeşil**.
+
+3. **Web Kullanıcı Deneyimi ve Arayüz Bileşenleri (`apps/web/src/collabora/`):**
+   - **`StyleSelector.tsx`:**
+     - Üst araç çubuğunda mevcut stili rozet olarak gösteren stil seçici.
+     - Tıklandığında en popüler 6 stili (APA 7th, Chicago, IEEE, Vancouver, Harvard, MLA) anında seçtiren popover menü.
+     - Resmi CSL deposundaki 10.000+ stili sunucu üzerinden arayan (`/api/csl/styles?q=...`), seçildiğinde XML'ini indirip motora kaydeden entegre arama kutusu.
+   - **`CitationEditorModal.tsx`:**
+     - Hem yeni atıf ekleme ("Insert Citation") hem mevcut atıfı düzenleme ("Edit Citation") modunu destekler.
+     - Tek bir atıf kümesine birden fazla kaynak ekleme / çıkarma (cluster).
+     - Kaynak başına sayfa numarası (locator), önek (prefix), sonek (suffix) ve yazarı gizle (suppress author) kontrolleri.
+     - Canlı CSL Önizlemesi (`citation-live-preview`): Kullanıcı yazdıkça seçili stilde atıfın belgede nasıl görüneceğini anlık hesaplar.
+     - Düzenleme modunda "Delete Citation" butonu ile atıfı belgeden kaldırma.
+   - **`DocumentCitationsDrawer.tsx`:**
+     - Belgedeki tüm atıfları sıralı listeleyen sağ çekmece paneli.
+     - Her kartta biçimlendirilmiş atıf metni, başlık, yazar ve etiketler (locator, prefix).
+     - Hızlı "Edit" ve "Delete" butonları.
+     - "Insert / Update Bibliography" butonu ve güncel kaynakça girdilerinin önizlemesi.
+   - **`CollaboraEditorPage.tsx` Entegrasyonu:**
+     - Eski mock `handleCiteItem` tamamen kaldırıldı.
+     - Zotero Library kenar çubuğundan "Cite" tıklandığında, Add-by-DOI modalından makale eklendiğinde ve PDF Okuyucudan "Cite this" tıklandığında (seçili metin ve sayfa numarasıyla birlikte) doğrudan `CollaboraCSLEngine` + `CollaboraBridge` çalıştırılır.
+     - Belgede imleç konumuna hem Python makrosu ile resmi Zotero ReferenceMark / Bookmark kaydedilir hem de anlık görsel yerleşim için `.uno:InsertText` komutu gönderilir.
+     - **Otomatik Kaynakça:** Atıf eklendiğinde, düzenlendiğinde, silindiğinde veya stil değiştirildiğinde kaynakça arka planda anında yeniden hesaplanır ve güncellenir.
+     - **Stil Değişimi:** Kullanıcı stili değiştirdiğinde (ör. APA'dan IEEE'ye), belgedeki tüm atıflar `[1]`, `[2]` formatına dönüştürülür, belge tercihleri (`ZOTERO_PREF`) güncellenir ve kaynakça numaralandırılır.
+
+4. **Uçtan Uca Duman Testi (`tools/e2e-smoke.sh`):**
+   - Step 12 eklendi: CSL stillerinin aranması, IEEE CSL XML'inin doğrulanması ve headless tarayıcıda CSL stil seçici / atıf yönetim kontrollerinin DOM'da render edilmesi test edildi.
+
+### 16.2 Kalite ve Test Sonuçları
+
+- **`pnpm lint`:** 0 hata, 0 uyarı.
+- **`pnpm typecheck` (`tsc -b`):** Tüm monorepo genelinde %100 hatasız.
+- **`pnpm build`:** Monorepo genelinde tüm 10 paket ve uygulama (`@citedocs/collabora-cite`, `@citedocs/csl-engine`, `@citedocs/shared`, `@citedocs/zotero-core`, `@citedocs/pdf-reader`, `@citedocs/docx-exporter`, `@citedocs/editor`, `apps/server`, `apps/web`) başarıyla derlendi.
+- **`pnpm test`:** Monorepo genelinde **40 test dosyası, 356 test %100 yeşil**.
+  - `packages/collabora-cite`: 46 test yeşil (roundtrip, engine, bridge, parser, fields, refresher).
+  - `apps/collabora-scripts`: 7 test yeşil (test_zotero_collabora.py).
+  - `apps/web`: 17 test yeşil (collabora.test.tsx + collabora-cite-workflow.test.tsx).
+
+### 16.3 Tarayıcıda Nasıl Denenir?
+
+1. **Geliştirme Ortamını Başlatma:**
+   ```bash
+   pnpm dev
+   ```
+2. **Collabora Online Editörünü Açma:**
+   Tarayıcınızda şu adrese gidin:
+   ```txt
+   http://localhost:5173/?editor=collabora
+   ```
+3. **Atıf Ekleme (3 Farklı Yol):**
+   - **Üst Çubuktan "Insert Citation":** Butona tıklayıp açılan modalda kütüphaneden kaynak seçin, sayfa numarası (ör. `525`), önek (ör. `bkz. `) girip anlık CSL önizlemesini izleyin ve "Insert Citation"a basın.
+   - **Zotero Library Kenar Çubuğundan:** Sağdaki Zotero listesinden herhangi bir makalenin yanındaki "Cite" butonuna tıklayın.
+   - **"Add by DOI":** Üst bardan "Add by DOI" butonuna tıklayıp `10.1038/s41586-021-03392-y` girin ve "Cite" butonuna basın.
+4. **Stil Değiştirme:**
+   - Üst bardaki CSL Stil Seçiciye ("APA 7th") tıklayın.
+   - Menüden "IEEE" seçin.
+   - Belgedeki `(Libby, 2021)` şeklindeki atıfın anında `[1]` formatına dönüştüğünü ve kaynakçanın numaralandığını görün.
+5. **Atıfı Düzenleme & Silme:**
+   - Üst bardaki "Citations (1)" butonuna tıklayarak sağ çekmeceyi açın.
+   - Kalem ikonuna (Edit) tıklayarak sayfayı veya öneki değiştirin, "Update Citation"a basın.
+   - Çöp kutusu ikonuna (Delete) tıklayarak atıfı belgeden silin; kaynakçanın otomatik temizlendiğini gözlemleyin.
+6. **Kaynakça Ekleme:**
+   - Çekmecedeki "Insert Bibliography" butonuna tıklayarak imleç konumuna seçili stilde tam kaynakça yerleştirin.

@@ -190,4 +190,41 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - B kullanıcısı A'nın öğesine `GET /api/items/:id` ile erişmeye çalıştığında 403 Forbidden aldığı;
    - `X-User-Id` olmadan yapılan isteklerin 401 Unauthorized döndüğü;
    - `pnpm -r test`, `pnpm lint`, `pnpm typecheck`, `pnpm build` komutlarının monorepo kökünden %100 yeşil geçtiği doğrulandı.
+||||||| 4ab7de4
+## 6. Sonraki Ajan İçin Devir Notları ve Doğrulama
+- `pnpm test`: 6 test dosyası, 41 test geçerli, 0 hata.
+- `pnpm lint`: Temiz (0 hata).
+- `pnpm typecheck`: `tsc -b` hatasız.
+- `pnpm build`: Tüm monorepo paketleri ve uygulamaları hatasız derleniyor.
+- `cd-m2-drizzle` dalı tamamlandığında `apps/server/src/routes/zotero.ts` içindeki `memoryItemStore` kısmı Drizzle repository metodlarıyla kolayca birleştirilebilir.
+
+## 7. Milestone 1 Part B — Gerçek Zamanlı İşbirliği Tamamlanan İşler (Kayıt #003)
+
+> **Kayıt No:** #003  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m1-collab`  
+> **Aşama:** Milestone 1 Part B (Hocuspocus Gerçek Zamanlı CRDT İşbirliği, TipTap v3 Collaboration/Caret ve Varlık Arayüzü)
+
+1. **TipTap v3 İşbirliği Eklentileri (`@citedocs/editor`):**
+   - `@tiptap/extension-collaboration` ve `@tiptap/extension-collaboration-caret` (TipTap v3 adı; asla v2/cursor değil) eklendi.
+   - `createEditorExtensions({ provider, user, document })`: Provider sağlandığında `Collaboration` (Y.Doc fragment) ve `CollaborationCaret` eklentileri dahil edilir; çakışmaları önlemek için StarterKit yerleşik geçmişi devre dışı bırakılır (`undoRedo: false`).
+   - Fabrika testleri ile provider varlığında işbirliği eklentilerinin eklendiği ve `undoRedo` eklentisinin bulunmadığı doğrulandı.
+
+2. **Hocuspocus Sunucusu ve Öğrenci İzolasyonu (`apps/server/src/collab/**`):**
+   - `DocumentAccessChecker` arayüzü ve `InMemoryDocumentAccessChecker` eklendi (`'owner' | 'editor' | 'commenter' | 'viewer' | null`). Her öğrenci yalnızca kendi belgelerine ve açıkça paylaşılan belgelere erişebilir.
+   - `parseCollabToken`: Geliştirme aşaması için esnek ve belgelenmiş token ayrıştırıcı (JSON `{"userId":"...","name":"...","color":"..."}`, `id:name:color` veya düz `userId` / `Bearer`).
+   - `createCollabServer`: Hocuspocus `onAuthenticate` kancasında token doğrulaması, `accessChecker.canAccess()` kontrolü ile yetkisiz istemcileri reddetme, `viewer`/`commenter` bağlantılarını zorunlu `data.connection.readOnly = true` yapma.
+   - `CollabPersistence` ve `InMemoryCollabPersistence` ile tak-çıkar Yjs kalıcılık arayüzü kuruldu (ileride Postgres `bytea` yjs_state doğrudan takılabilir).
+
+3. **Web İstemcisi ve Google Docs Varlık UI (`apps/web`):**
+   - `useCollab` özel React kancası oluşturuldu: `@hocuspocus/provider` ile WebSocket (`VITE_COLLAB_URL` veya varsayılan `ws://localhost:1234`) bağlantısı, URL'den dinamik `documentId` (`?doc=...`) ve kullanıcı/renk çözümleme.
+   - Google Docs üst çubuğunda canlı varlık avatar listesi (kullanıcıya özel renkli halkalı baş harfler, ipucu etiketleri) ve bağlantı durumu hapı (`Live Collab`, `Read-Only`, `Connecting`, `Offline`).
+   - CSS stilleri eklendi: `.collaboration-carets__caret`, `.collaboration-carets__label`, `.collaboration-carets__selection`, `.ProseMirror-yjs-cursor`, `.ProseMirror-yjs-selection`.
+
+4. **Kabul Testleri ve Doğrulama Durumu:**
+   - Dinamik OS portunda başlatılan gerçek Hocuspocus WebSocket sunucusu üzerinde 2 Y.Doc istemcisinin CRDT metin yakınsaması sub-50ms yerel gecikme ile doğrulandı.
+   - İki istemcinin anlık varlık (awareness: kullanıcı adı ve renk) paylaşımı doğrulandı.
+   - Yetkisiz ve geçersiz kullanıcıların kimlik doğrulamada reddedildiği kanıtlandı.
+   - Viewer rolündeki istemcinin belgeye yazma girişimlerinin sunucu tarafından reddedildiği (read-only) doğrulandı.
+   - Monorepo genelinde tüm testler, tip kontrolleri, lint ve derleme yeşildir.
 

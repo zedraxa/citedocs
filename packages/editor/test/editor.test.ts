@@ -207,4 +207,67 @@ describe("@citedocs/editor", () => {
     expect(dom[1]["data-comment-thread-id"]).toBe("thread-99");
     expect(dom[1]["class"]).toContain("citedocs-comment-highlight");
   });
+
+  it("includes Collaboration + CollaborationCaret when given a provider and has no history extension in that mode", async () => {
+    const Y = await import("yjs");
+    const ydoc = new Y.Doc();
+    const mockAwareness = {
+      clientID: 1,
+      states: new Map(),
+      on: () => {},
+      off: () => {},
+      getLocalState: () => ({}),
+      setLocalState: () => {},
+      setLocalStateField: () => {},
+      getStates: () => new Map(),
+    };
+    const mockProvider = {
+      document: ydoc,
+      awareness: mockAwareness,
+      on: () => {},
+      off: () => {},
+      destroy: () => {},
+    };
+
+    // 1. Without provider: has history, no collab
+    const standardExtensions = createEditorExtensions();
+    const standardNames = standardExtensions.map((e) => e.name);
+    expect(standardNames).not.toContain("collaboration");
+    expect(standardNames).not.toContain("collaborationCaret");
+    const standardStarterKit = standardExtensions.find((e) => e.name === "starterKit");
+    expect(standardStarterKit?.options.undoRedo).not.toBe(false);
+
+    // 2. With provider: has Collaboration and CollaborationCaret, undoRedo is false
+    const collabExtensions = createEditorExtensions({
+      provider: mockProvider,
+      user: { name: "Alice", color: "#3b82f6" },
+    });
+    const collabNames = collabExtensions.map((e) => e.name);
+    expect(collabNames).toContain("collaboration");
+    expect(collabNames).toContain("collaborationCaret");
+
+    // Assert StarterKit has disabled built-in undo/redo history in collab mode
+    const collabStarterKit = collabExtensions.find((e) => e.name === "starterKit");
+    expect(collabStarterKit?.options.undoRedo).toBe(false);
+
+    // Also verify sub-extensions in StarterKit do NOT contain 'undoRedo'
+    const starterKitExtension = collabStarterKit as unknown as {
+      config: { addExtensions: () => Array<{ name: string }> };
+    };
+    const subExtensions = starterKitExtension.config.addExtensions.call(collabStarterKit);
+    const subNames = subExtensions.map((e) => e.name);
+    expect(subNames).not.toContain("undoRedo");
+
+    // 3. Initialize real TipTap Editor instance in happy-dom with collab extensions
+    const editor = new Editor({
+      extensions: collabExtensions,
+    });
+    expect(editor.extensionManager.extensions.some((e) => e.name === "collaboration")).toBe(true);
+    expect(editor.extensionManager.extensions.some((e) => e.name === "collaborationCaret")).toBe(true);
+    expect(editor.extensionManager.extensions.some((e) => e.name === "undoRedo")).toBe(false);
+
+    editor.destroy();
+    ydoc.destroy();
+  });
 });
+

@@ -4,3 +4,6 @@ export * from "./extensions/suggestion.js";
 export * from "./extensions/comments.js";
 export * from "./factory.js";
 export * from "./types.js";
+export { Collaboration } from "@tiptap/extension-collaboration";
+export { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
+

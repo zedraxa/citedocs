@@ -87,27 +87,42 @@ Copy the example environment file:
 cp .env.example .env
 ```
 
-### 3. Start Local Infrastructure
+### 3. Start Full End-to-End Containerized Stack
 
-Launch PostgreSQL, MinIO object storage, and the Zotero translation microservice:
+To run the complete production-grade integration stack (Collabora Online CODE, WOPI Server, PostgreSQL, MinIO S3, Zotero Translation Server, Web Frontend) with Docker Compose:
+
+```bash
+docker compose -p citedocs-e2e up -d --build
+```
+
+- **CiteDocs Collabora Editor:** [`http://localhost:5173/?editor=collabora`](http://localhost:5173/?editor=collabora)
+- **Collabora Online (CODE):** `http://localhost:9982` (`http://localhost:9982/hosting/discovery`)
+- **CiteDocs REST API & WOPI Host:** `http://localhost:3000` (`http://localhost:3000/health`)
+- **Upstream Zotero Translation Server:** `http://localhost:1969`
+- **MinIO S3 Console:** `http://localhost:9001` (login: `citedocs_minio` / `citedocs_minio_password`)
+- **PostgreSQL Database:** `localhost:5432` (`citedocs`)
+
+To stop the stack when finished (preserving data volumes):
+```bash
+docker compose -p citedocs-e2e down
+```
+
+### 4. Run Automated E2E Smoke Test
+
+Verify the entire integration pipeline end-to-end (API health, translation-server DOI lookup, postgres storage, Collabora discovery, session generation, WOPI CheckFileInfo/GetFile/Lock/PutFile, web delivery, and headless browser rendering):
+
+```bash
+./tools/e2e-smoke.sh
+```
+
+### 5. Run Development Servers (Bare Metal)
+
+Alternatively, start only the backing services and run Node/Vite locally:
 
 ```bash
 docker compose up -d postgres minio translation-server
-```
-
-### 4. Run Development Servers
-
-Start both the Fastify/Hocuspocus backend and the Vite React frontend in parallel:
-
-```bash
 pnpm dev
 ```
-
-- **Web Application:** `http://localhost:5173`
-- **REST API:** `http://localhost:3000` (`http://localhost:3000/health`)
-- **Hocuspocus WebSocket:** `ws://localhost:1234`
-- **Zotero Translation Server:** `http://localhost:1969`
-- **MinIO Console:** `http://localhost:9001` (login: `citedocs_minio` / `citedocs_minio_password`)
 
 ---
 

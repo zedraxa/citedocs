@@ -4,8 +4,18 @@ import { healthRoutes } from "./routes/health.js";
 import { cslRoutes } from "./routes/csl.js";
 import { zoteroRoutes } from "./routes/zotero.js";
 import { createCollabServer } from "./collab/server.js";
+import { createItemRoutes, itemRoutes } from "./routes/items.js";
+import { ItemRepository } from "./repositories/itemRepository.js";
 
-export async function buildApp(): Promise<FastifyInstance> {
+export * from "./db/index.js";
+export * from "./repositories/index.js";
+export { createItemRoutes, itemRoutes };
+
+export interface BuildAppOptions {
+  itemRepo?: ItemRepository;
+}
+
+export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: process.env.NODE_ENV !== "test",
   });
@@ -18,6 +28,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(healthRoutes);
   await fastify.register(cslRoutes);
   await fastify.register(zoteroRoutes);
+  await fastify.register(createItemRoutes(options.itemRepo));
 
   return fastify;
 }

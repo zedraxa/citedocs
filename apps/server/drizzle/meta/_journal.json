@@ -8,6 +8,13 @@
       "when": 1792163224780,
       "tag": "0000_red_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792179620719,
+      "tag": "0001_condemned_namor",
+      "breakpoints": true
     }
   ]
 }

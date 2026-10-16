@@ -62,7 +62,17 @@ describe("Drizzle Schema & Row-Level Ownership Structure", () => {
 
     const documentSharesCols = getTableColumns(schema.documentShares);
     expect(documentSharesCols.userId).toBeDefined();
-    expect(documentSharesCols.userId.notNull).toBe(true);
+    expect(documentSharesCols.documentId).toBeDefined();
+    expect(documentSharesCols.documentId.notNull).toBe(true);
+    expect(documentSharesCols.role).toBeDefined();
+    expect(documentSharesCols.role.notNull).toBe(true);
+    expect(documentSharesCols.email).toBeDefined();
+    expect(documentSharesCols.createdBy).toBeDefined();
+
+    expect(documentsCols.s3ObjectKey).toBeDefined();
+    expect(documentsCols.fileSize).toBeDefined();
+    expect(documentsCols.mimeType).toBeDefined();
+    expect(documentsCols.deletedAt).toBeDefined();
   });
 
   it("stores sensitive Zotero credentials in encrypted fields", () => {

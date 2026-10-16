@@ -6,6 +6,10 @@ import { CollaboraDiscoveryService } from "./discovery.js";
 import { WopiFileNotFoundError } from "./storage/inMemoryStorage.js";
 import { exportDocumentToDocx } from "@citedocs/docx-exporter";
 
+import type { IDocumentRepository } from "../repositories/documentRepository.js";
+import { resolveExtension } from "../documents/templates.js";
+import { OwnershipError, NotFoundError } from "../repositories/errors.js";
+
 export interface WopiRoutesOptions {
   storage: WopiStorage;
   lockManager?: WopiLockManager;
@@ -13,6 +17,7 @@ export interface WopiRoutesOptions {
   secretKey?: string;
   postMessageOrigin?: string;
   serverUrl?: string;
+  documentRepo?: IDocumentRepository;
 }
 
 interface WopiQuery {
@@ -32,7 +37,7 @@ function getHeader(req: FastifyRequest, headerName: string): string | undefined 
 }
 
 export const createWopiRoutes = (options: WopiRoutesOptions): FastifyPluginAsync => {
-  const { storage } = options;
+  const { storage, documentRepo } = options;
   const lockManager = options.lockManager || new WopiLockManager();
   const discoveryService = options.discoveryService || new CollaboraDiscoveryService();
   const secretKey = options.secretKey;
@@ -91,9 +96,23 @@ export const createWopiRoutes = (options: WopiRoutesOptions): FastifyPluginAsync
         try {
           const metadata = await storage.getFileInfo(req.params.id);
 
+          let baseFileName = metadata.baseFileName;
+          let ownerId = metadata.ownerId;
+
+          if (documentRepo) {
+            const rawDoc = await documentRepo.findRawById(req.params.id);
+            if (rawDoc) {
+              ownerId = rawDoc.ownerUserId;
+              const ext = resolveExtension(rawDoc.mimeType);
+              baseFileName = rawDoc.title.toLowerCase().endsWith(ext)
+                ? rawDoc.title
+                : `${rawDoc.title}${ext}`;
+            }
+          }
+
           return reply.status(200).send({
-            BaseFileName: metadata.baseFileName,
-            OwnerId: metadata.ownerId,
+            BaseFileName: baseFileName,
+            OwnerId: ownerId,
             Size: metadata.size,
             UserId: tokenPayload.userId,
             UserFriendlyName: tokenPayload.userName,
@@ -188,6 +207,21 @@ export const createWopiRoutes = (options: WopiRoutesOptions): FastifyPluginAsync
         }
 
         const result = await storage.putFile(req.params.id, contentBuffer);
+
+        if (documentRepo) {
+          try {
+            await documentRepo.update(
+              tokenPayload.userId,
+              req.params.id,
+              {
+                fileSize: result.metadata.size,
+                updatedAt: new Date(),
+              }
+            );
+          } catch {
+            // Document might not exist in documentRepo or update ignored
+          }
+        }
 
         reply.header("X-WOPI-ItemVersion", result.metadata.version);
         return reply.status(200).send({
@@ -300,11 +334,56 @@ export const createWopiRoutes = (options: WopiRoutesOptions): FastifyPluginAsync
       const query = req.query || {};
       const body = (req.body as Record<string, string>) || {};
 
-      const userId =
-        getHeader(req, "x-user-id") || body.userId || query.userId || "anonymous-user";
-      const userName = body.userName || query.userName || userId;
+      let userId = req.userId;
+      let userName = req.user?.displayName || req.user?.email;
+      const userEmail = req.user?.email;
+
+      if (!userId) {
+        userId = getHeader(req, "x-user-id") || body.userId || query.userId || "anonymous-user";
+      }
+      if (!userName) {
+        userName = body.userName || query.userName || userId;
+      }
       const action = body.action || query.action || "edit";
-      const ext = body.ext || query.ext || "docx";
+      let ext = body.ext || query.ext || "docx";
+
+      let canWrite = action !== "view";
+
+      if (documentRepo) {
+        try {
+          const rawDoc = await documentRepo.findRawById(fileId);
+          if (rawDoc) {
+            if (rawDoc.deletedAt) {
+              return reply.status(404).send({ error: "Document not found" });
+            }
+            const docWithRole = await documentRepo.getById(userId, fileId, userEmail);
+            if (!docWithRole) {
+              return reply.status(404).send({ error: "Document not found" });
+            }
+
+            if (docWithRole.userRole === "viewer") {
+              canWrite = false;
+            } else {
+              canWrite = action !== "view";
+            }
+
+            if (docWithRole.mimeType) {
+              const resolvedExt = resolveExtension(docWithRole.mimeType);
+              if (resolvedExt) {
+                ext = resolvedExt.replace(/^\./, "");
+              }
+            }
+          }
+        } catch (err: unknown) {
+          if (err instanceof OwnershipError) {
+            return reply.status(403).send({ error: err.message });
+          }
+          if (err instanceof NotFoundError) {
+            return reply.status(404).send({ error: err.message });
+          }
+          throw err;
+        }
+      }
 
       // Ensure file exists in storage; if not, create an empty document placeholder
       try {
@@ -343,7 +422,7 @@ export const createWopiRoutes = (options: WopiRoutesOptions): FastifyPluginAsync
           fileId,
           userId,
           userName,
-          canWrite: action !== "view",
+          canWrite,
         },
         secretKey,
       );

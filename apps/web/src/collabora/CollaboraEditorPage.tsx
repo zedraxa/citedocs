@@ -25,6 +25,7 @@ export interface CollaboraEditorPageProps {
   documentTitle?: string;
   onBackToTipTap?: () => void;
   initialAttachment?: PdfAttachment | null;
+  onBackToDocuments?: () => void;
 }
 
 
@@ -41,6 +42,7 @@ export function CollaboraEditorPage({
   documentTitle = "Scientific Writing Assignment: Quantum Gravity & Spacetime",
   onBackToTipTap,
   initialAttachment,
+  onBackToDocuments,
 }: CollaboraEditorPageProps) {
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,6 +83,7 @@ export function CollaboraEditorPage({
       try {
         const res = await fetch(`${apiBaseUrl}/api/documents/${documentId}/collabora-session`, {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
             "X-User-Id": currentUserId,
@@ -194,7 +197,17 @@ export function CollaboraEditorPage({
       {/* Top Header */}
       <header className="h-14 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0 shadow-xs z-10">
         <div className="flex items-center gap-3">
-          {onBackToTipTap && (
+          {onBackToDocuments ? (
+            <button
+              onClick={onBackToDocuments}
+              title="Back to Documents"
+              data-testid="collabora-back-to-docs-btn"
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors flex items-center gap-1 text-xs font-medium cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Documents</span>
+            </button>
+          ) : onBackToTipTap ? (
             <button
               onClick={onBackToTipTap}
               title="Back to legacy editor"
@@ -202,7 +215,7 @@ export function CollaboraEditorPage({
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-          )}
+          ) : null}
 
           <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-xs">
             <FileText className="w-5 h-5" />

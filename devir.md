@@ -844,3 +844,171 @@ Konteyner yığınının anlık bellek kullanımı `docker stats --no-stream` il
    ```bash
    docker compose -p citedocs-e2e down
    ```
+
+
+---
+
+## 16. Kullanıcı Bazlı Bulut Belge Depolama, Paylaşım ve Kota Yönetimi (Per-User Cloud Document Storage & Explicit Sharing) — Kayıt #012
+
+> **Kayıt No:** #012  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-docs-sharing`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** Kullanıcı Bazlı Bulut Depolama, Rol Tabanlı Açık Paylaşım (Viewer/Editor), WOPI İzin Eşleme, 5 GB Depolama Kotası ve Web UI
+
+### 1. Yapılan İşler
+
+1. **Sunucu Veritabanı ve Şema Genişletmesi (`apps/server/src/db/schema.ts`):**
+   - **`documents` Tablosu:**
+     - `id`: UUID birincil anahtar (varsayılan rastgele).
+     - `ownerUserId`: `users.id` referansı (foreign key cascade).
+     - `title`: Belge başlığı (varchar 255).
+     - `s3ObjectKey`: S3/MinIO nesne anahtarı (text).
+     - `fileSize`: Bayt cinsinden dosya boyutu (integer, varsayılan 0).
+     - `mimeType`: MIME türü (varchar 128, varsayılan docx).
+     - `createdAt` / `updatedAt`: Zaman damgaları.
+     - `deletedAt`: Yumuşak silme (soft delete) için boş bırakılabilir zaman damgası.
+     - `documents_deleted_at_idx`: Performanslı filtreleme için indeks.
+   - **`document_shares` Tablosu:**
+     - `id`: UUID birincil anahtar.
+     - `documentId`: `documents.id` referansı.
+     - `userId`: Kayıtlı kullanıcı referansı (`users.id`, e-posta davetleri için nullable).
+     - `email`: Davet edilen e-posta adresi (varchar 255).
+     - `role`: Rol ('viewer' | 'editor').
+     - `createdBy`: Paylaşımı oluşturan kullanıcı (`users.id`).
+     - `createdAt` / `updatedAt`: Zaman damgaları.
+     - `(document_id, email)` ve `created_by` üzerinde kompozit indeksler.
+   - **Drizzle Migration:** `apps/server/drizzle/0001_condemned_namor.sql` oluşturuldu.
+
+2. **Kota Muhasebesi ve Yükleme Denetimi (`apps/server/src/documents/quota.ts`):**
+   - Öğrenciler için tamamen ücretsiz, ödeme duvarı veya gizli katmanlar barındırmayan eşitlikçi kota politikası.
+   - `STORAGE_QUOTA_BYTES`: Ortam değişkeni ile yapılandırılabilir varsayılan 5 GB (5 * 1024 * 1024 * 1024 bayt).
+   - `MAX_UPLOAD_SIZE_BYTES`: Ortam değişkeni ile yapılandırılabilir varsayılan 100 MB tekil dosya yükleme sınırı.
+   - `assertUserQuota`: Belge oluşturma veya yükleme öncesinde mevcut kullanım + yeni dosya boyutunu denetler; aşımda `StorageQuotaExceededError` (HTTP 413) fırlatır.
+   - `getQuotaInfo`: Kullanılan, toplam, kalan ve yüzde alanlarını döndürür.
+
+3. **Şablon Üretimi (`apps/server/src/documents/templates.ts`):**
+   - Harici LibreOffice veya MS Word çalışma ortamına bağımlı kalmadan, `jszip` motoruyla saf bellek içinde geçerli, bozulmamış standart `.docx` ve `.odt` zip arşivleri üretilir (`[Content_Types].xml`, `word/document.xml`, `content.xml`, `manifest.xml`).
+   - MIME türü ve uzantı eşleme yardımcıları (`resolveDocumentMimeType`, `resolveDocumentExtension`).
+
+4. **Çift Depo Katmanı (`IDocumentRepository`, `DocumentRepository` ve `InMemoryDocumentRepository`):**
+   - `IDocumentRepository` sözleşmesi; `listOwned`, `listSharedWith`, `getById`, `findRawById`, `getStorageUsage`, `create`, `update`, `delete` (soft delete), `hardDelete`, `share`, `unshare`, `listShares`.
+   - `DocumentRepository`: Drizzle PostgreSQL sorguları, soft-delete (`deletedAt IS NULL`) filtreleri, silinen belgelerin paylaşımlarını gizleme, e-posta veya kullanıcı kimliği üzerinden yetkilendirme.
+   - `InMemoryDocumentRepository`: PostgreSQL gerektirmeden çevrimdışı, bağımsız test koşumu için tam ACID uyumlu bellek içi tak-çıkar depo. `DATABASE_URL` tanımlıysa Postgres, tanımsızsa bellek içi depo otomatik seçilir.
+
+5. **WOPI İzin ve Oturum Entegrasyonu (`apps/server/src/wopi/routes.ts`):**
+   - `createWopiRoutes` artık `documentRepo` bağımlılığı almaktadır.
+   - `CheckFileInfo`:
+     - `OwnerId`: Belge sahibinin kullanıcı kimliği.
+     - `UserId`: İstek yapan kullanıcının kimliği.
+     - `UserFriendlyName`: Kullanıcının görünen adı veya e-postası.
+     - `UserCanWrite`: Belge sahibi veya `editor` rolüne sahip kullanıcılar için `true`; `viewer` rolüne sahip kullanıcılar için katı `false`.
+   - `PutFile`:
+     - Token'ın `canWrite` alanı `false` ise HTTP 403 Forbidden ile yazma engellenir.
+     - Dosya kaydedildiğinde belgenin veritabanındaki `fileSize` ve `updatedAt` değerleri otomatik güncellenir.
+   - `POST /api/documents/:id/collabora-session`:
+     - Çağıran kullanıcının sahiplik veya paylaşım yetkisini denetler.
+     - Yetkisiz yabancı kullanıcılar için HTTP 403 Forbidden döndürür.
+     - Silinmiş belgeler için HTTP 404 Not Found döndürür.
+     - İzleyicilere (`viewer`) otomatik olarak salt okunur (`canWrite: false`) Collabora erişim token'ı tahsis eder.
+     - Geriye dönük uyumluluk: Veritabanında kayıtlı olmayan salt WOPI test dosyaları için doğrudan depolama token'ı üretilmeye devam eder.
+
+6. **REST API Rotaları (`apps/server/src/documents/routes.ts`):**
+   - Tüm rotalar `requireAuth` ara katmanı ile gerçek oturum koruması altındadır.
+   - Sıkı kullanıcı izolasyonu: Hiçbir kullanıcı başka bir kullanıcının belgesini açıkça paylaşılmadıkça listeleyemez, açamaz (403), düzenleyemez, silemez veya paylaşamaz.
+   - `@fastify/multipart` ve dinamik yükleme sınırı yapılandırması (100 MB).
+   - Uç Noktalar:
+     - `GET /api/documents`: Kullanıcının sahip olduğu belgeleri ve 5 GB kota durumunu listeler (`?search=`).
+     - `GET /api/documents/shared-with-me`: Kullanıcıyla paylaşılan belgeleri ve rolleri listeler (`?search=`).
+     - `GET /api/documents/quota`: Anlık kota durumunu döndürür.
+     - `POST /api/documents`: Boş `.docx` veya `.odt` belgesi oluşturur ve S3/MinIO'ya yazar.
+     - `POST /api/documents/upload`: İzin verilen uzantılarda (`.docx`, `.odt`, `.pdf`) dosya yükler, kota kontrolü yapar.
+     - `GET /api/documents/:id`: Belge meta verisini ve kullanıcının rolünü getirir (izin yoksa 403, silinmişse 404).
+     - `PATCH /api/documents/:id`: Belgeyi yeniden adlandırır (yalnızca sahip veya düzenleyici).
+     - `DELETE /api/documents/:id`: Belgeyi yumuşak siler (soft delete - yalnızca sahip).
+     - `GET /api/documents/:id/download`: Belgenin ham ikili dosyasını indirir.
+     - `POST /api/documents/:id/shares`: E-posta ve rol belirterek belgeyi paylaşır (yalnızca sahip).
+     - `GET /api/documents/:id/shares`: Belgenin mevcut paylaşımlarını listeler (yalnızca sahip).
+     - `DELETE /api/documents/:id/shares/:shareId`: Paylaşımı kaldırır (yalnızca sahip).
+
+7. **İstemci Arayüzü Mimarisi (`apps/web/src/documents/**`):**
+   - `DocumentsPage.tsx`:
+     - Mobil, tablet ve masaüstü uyumlu responsive tasarım.
+     - 5 GB ücretsiz öğrenci kotası ilerleme çubuğu ve kullanım göstergesi.
+     - "Belgelerim" ve "Benimle Paylaşılanlar" sekmeleri.
+     - Anlık arama/filtreleme çubuğu.
+     - Yeni Belge açılır menüsü: Boş Word (`.docx`) veya Boş LibreOffice (`.odt`) oluşturma.
+     - Dosya Yükle butonu: Sürükle-bırak & dosya seçici (`.docx`, `.odt`, `.pdf`).
+     - Belge kartları: Biçim ikonu, dosya boyutu, son güncelleme tarihi, Collabora Online'da Aç butonu, İndir, Yeniden Adlandır, Paylaş ve Sil eylemleri.
+     - Paylaşılan belgelerde rol rozeti (`Görüntüleyici` / `Düzenleyici`) ve paylaşan kişi bilgisi.
+   - `ShareDialog.tsx`:
+     - E-posta adresi ve rol seçimi (`Görüntüleyici` / `Düzenleyici`).
+     - Mevcut paylaşımlar listesi ve anlık paylaşım kaldırma.
+   - `RenameDialog.tsx`:
+     - Belge başlığını değiştiren modal dialog.
+   - `i18n.ts`:
+     - Türkçe ve İngilizce tam metin sözlüğü (`docTranslations`).
+     - Akıllı dil algılama (`getDocumentLanguage`), tek tıkla dil geçişi, `formatBytes` bayt biçimlendirici.
+   - `App.tsx` & `CollaboraEditorPage.tsx` & `UserMenu.tsx` Entegrasyonu:
+     - `App.tsx` içine asgari ekleme (~20 satır): `/documents` rotası bağlandı.
+     - TipTap düzenleyici üst çubuğuna ve kullanıcı açılır menüsüne (`UserMenu`) "Belgelerim / Documents" bağlantısı eklendi.
+     - `CollaboraEditorPage` içine `onBackToDocuments` geri dönüş butonu ve `credentials: "include"` oturum çerezi desteği eklendi.
+     - Belgeler sayfasından seçilen belge, Collabora Online düzenleyicide doğrudan açılır (`/?editor=collabora&doc=<id>&title=<title>`).
+
+### 2. REST API Sözleşmesi (API Contract)
+
+| Uç Nokta | Metot | Rol / İzin | Açıklama |
+|---|---|---|---|
+| `/api/documents` | `GET` | Oturum sahibi | Sahip olunan belgeleri ve kota durumunu döner (`?search=`) |
+| `/api/documents/shared-with-me` | `GET` | Oturum sahibi | Kullanıcıyla açıkça paylaşılan belgeleri döner (`?search=`) |
+| `/api/documents/quota` | `GET` | Oturum sahibi | 5 GB kota kullanım detayını döner |
+| `/api/documents` | `POST` | Oturum sahibi | Boş `.docx` veya `.odt` belgesi oluşturur (`{ title?, format?: "docx"\|"odt" }`) |
+| `/api/documents/upload` | `POST` | Oturum sahibi | Dosya yükler (`multipart/form-data` veya binary stream, maks 100 MB) |
+| `/api/documents/:id` | `GET` | Sahip / Paylaşılan | Belge detayını ve kullanıcının erişim yetkisini döner (Yabancı: 403, Silinmiş: 404) |
+| `/api/documents/:id` | `PATCH` | Sahip / Düzenleyici | Belge başlığını günceller (`{ title: string }`) |
+| `/api/documents/:id` | `DELETE` | Yalnızca Sahip | Belgeyi yumuşak siler (soft delete) |
+| `/api/documents/:id/download` | `GET` | Sahip / Paylaşılan | Belgenin orijinal dosya akışını indirir |
+| `/api/documents/:id/shares` | `GET` | Yalnızca Sahip | Belgenin mevcut paylaşımlarını listeler |
+| `/api/documents/:id/shares` | `POST` | Yalnızca Sahip | Belgeyi e-posta ile paylaşır (`{ email: string, role: "viewer"\|"editor" }`) |
+| `/api/documents/:id/shares/:shareId` | `DELETE` | Yalnızca Sahip | Belgenin bir paylaşımını iptal eder |
+| `/api/documents/:id/collabora-session` | `POST` | Sahip / Paylaşılan | Collabora Online için WOPI token ve actionUrl üretir (Viewer için UserCanWrite=false) |
+
+### 3. Nasıl Doğrulanır?
+
+```bash
+# 1. Monorepo kökünden tüm testleri çalıştır (36 test dosyası, 355 testin tamamı)
+pnpm test
+
+# 2. Yalnızca belge depolama ve paylaşım sunucu testlerini çalıştır (25 test)
+pnpm --filter @citedocs/server exec vitest run test/documents.test.ts
+
+# 3. Yalnızca web belgelerim arayüzü testlerini çalıştır (18 test)
+pnpm --filter @citedocs/web exec vitest run test/documents.test.tsx
+
+# 4. Lint ve Tip Kontrolü
+pnpm lint
+pnpm typecheck
+
+# 5. Üretim Derlemesi
+pnpm build
+```
+
+### 4. Test Sonuçları & Kalite Güvencesi
+
+- **Monorepo Testleri:** 36 test dosyası, 355 test %100 yeşil (1 skipped perf).
+- **`apps/server` Testleri:** 13 test dosyası, 157 test %100 yeşil:
+  - `test/documents.test.ts`: 25/25 test (Kullanıcı izolasyonu, yabancı kullanıcının 403 alması, izleyicinin salt okunur olması, kota aşımı 413, yumuşak silme, e-posta paylaşımı, WOPI CheckFileInfo ve PutFile entegrasyonu).
+  - `test/wopi.test.ts`: 32/32 test.
+  - `test/repositories.test.ts`: 18/18 test.
+  - `test/schema.test.ts`: 4/4 test.
+- **`apps/web` Testleri:** 7 test dosyası, 62 test %100 yeşil:
+  - `test/documents.test.tsx`: 18/18 test (Belgelerim listeleme, Benimle Paylaşılanlar sekmesi, 5 GB kota barı, boş .docx/.odt oluşturma, dosya yükleme, arama filtreleme, TR/EN dil seçimi, yeniden adlandırma dialogu, e-posta paylaşım ve kaldırma dialogu, Collabora'da açma tetikleyicisi, düzenleyiciye geri dönüş).
+- **`pnpm lint`:** 0 hata, 0 uyarı.
+- **`pnpm typecheck` (`tsc -b`):** 0 hata, katı TypeScript doğrulaması tamam.
+- **`pnpm build`:** Tüm paketler (`@citedocs/shared`, `@citedocs/collabora-cite`, `@citedocs/csl-engine`, `@citedocs/zotero-core`, `@citedocs/editor`, `@citedocs/docx-exporter`, `@citedocs/pdf-reader`) ve uygulamalar (`@citedocs/server`, `@citedocs/web`) hatasız derleniyor.
+
+### 5. Korunan Alanlar ve Notlar
+
+- Kural gereğince `packages/editor`, `packages/pdf-reader`, `apps/web/src/pdf*`, `apps/server/src/pdf*`, `docker-compose*.yml`, `SPEC.md` ve `docs/ARCHITECTURE.md` dosyalarına kesinlikle dokunulmamıştır.
+- **Docker Compose / MinIO Notu:** Canlı ortamda S3/MinIO için `S3_ENDPOINT`, `S3_BUCKET` (varsayılan `citedocs-documents`), `STORAGE_QUOTA_BYTES` (varsayılan 5368709120) ve `MAX_UPLOAD_SIZE_BYTES` (varsayılan 104857600) ortam değişkenleri tanımlanmalıdır. Bucket henüz oluşturulmamışsa depolama katmanı nesne yükleme anında otomatik olarak oluşturur veya hata durumunda açık log üretir.
+- **Git:** Değişiklikler küçük mantıksal commit'ler halinde `cd-docs-sharing` dalında yerel olarak saklanmıştır; push veya deploy yapılmamıştır.

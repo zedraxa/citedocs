@@ -28,12 +28,14 @@ import {
   Quote,
   Code,
   Sparkles,
+  FolderOpen,
 } from "lucide-react";
 import { AddByIdentifier, type AddByIdentifierItem } from "./components/AddByIdentifier.js";
 
 import { OutlineSidebar } from "./components/OutlineSidebar.js";
 import { ZoteroSidebar } from "./zotero/index.js";
 import { CollaboraEditorPage } from "./collabora/index.js";
+import { DocumentsPage } from "./documents/index.js";
 import {
   AuthProvider,
   UserMenu,
@@ -60,10 +62,14 @@ const INITIAL_CONTENT = `
 `;
 
 function AppEditor() {
-
-  const [docTitle, setDocTitle] = useState(
-    "Scientific Writing Assignment: Quantum Gravity & Spacetime",
-  );
+  const [docTitle, setDocTitle] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const title = params.get("title");
+      if (title) return title;
+    }
+    return "Scientific Writing Assignment: Quantum Gravity & Spacetime";
+  });
   const [mode, setMode] = useState<"editing" | "suggesting" | "viewing">("editing");
   const [showOutline, setShowOutline] = useState(true);
   const [showPdfReader, setShowPdfReader] = useState(false);
@@ -247,6 +253,9 @@ function AppEditor() {
         documentId={documentId}
         documentTitle={docTitle}
         onBackToTipTap={() => setActiveEditor("tiptap")}
+        onBackToDocuments={() => {
+          window.location.href = "/documents";
+        }}
       />
     );
   }
@@ -335,6 +344,17 @@ function AppEditor() {
 
         {/* Right side controls */}
         <div className="flex items-center space-x-3">
+          {/* Documents Page Link */}
+          <a
+            href="/documents"
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full border border-gray-300 hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors"
+            title="My Documents & Cloud Storage"
+            data-testid="header-documents-btn"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-blue-600" />
+            <span>Documents</span>
+          </a>
+
           {/* Collabora Online Toggle */}
           <button
             onClick={() => setActiveEditor("collabora")}
@@ -955,6 +975,15 @@ export function App() {
         <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
           <VerifyEmailPage standalone />
         </div>
+      ) : path === "/documents" ? (
+        <DocumentsPage
+          onOpenDocument={(doc) => {
+            window.location.href = `/?editor=collabora&doc=${doc.id}&title=${encodeURIComponent(doc.title)}`;
+          }}
+          onNavigateToEditor={() => {
+            window.location.href = "/";
+          }}
+        />
       ) : (
         <AppEditor />
       )}

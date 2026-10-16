@@ -1,0 +1,198 @@
+import { useState, useRef, useEffect } from "react";
+import {
+  LogOut,
+  CheckCircle2,
+  AlertTriangle,
+  Globe,
+  LogIn,
+  UserPlus,
+} from "lucide-react";
+import { useAuth } from "./AuthContext.js";
+
+export interface UserMenuProps {
+  currentUser?: { name: string; color: string; id: string };
+}
+
+export function UserMenu({ currentUser }: UserMenuProps) {
+  const { user, isAuthenticated, logout, lang, setLang, t, openModal } = useAuth();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const displayName = user?.displayName || user?.email?.split("@")[0] || currentUser?.name || "Student";
+  const email = user?.email || "";
+  const avatarColor = currentUser?.color || "#2563eb";
+
+  const initials = displayName
+    .split(" ")
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "U";
+
+  const toggleLang = () => {
+    setLang(lang === "tr" ? "en" : "tr");
+  };
+
+  const handleLogout = async () => {
+    setDropdownOpen(false);
+    await logout();
+  };
+
+  if (!isAuthenticated && !user) {
+    return (
+      <div className="flex items-center space-x-2">
+        {/* Language switch button */}
+        <button
+          onClick={toggleLang}
+          data-testid="lang-toggle-btn"
+          className="flex items-center space-x-1 text-xs font-semibold px-2 py-1 rounded-full border border-gray-300 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
+          title={`Switch language: currently ${lang.toUpperCase()}`}
+        >
+          <Globe className="w-3.5 h-3.5 text-gray-500" />
+          <span>{lang === "tr" ? "TR" : "EN"}</span>
+        </button>
+
+        {/* Log In Button */}
+        <button
+          onClick={() => openModal("login")}
+          data-testid="header-login-btn"
+          className="flex items-center space-x-1 text-xs font-medium px-3 py-1.5 rounded-full border border-gray-300 hover:bg-gray-50 text-gray-700 transition-colors cursor-pointer"
+        >
+          <LogIn className="w-3.5 h-3.5" />
+          <span>{t("login")}</span>
+        </button>
+
+        {/* Sign Up Button */}
+        <button
+          onClick={() => openModal("signup")}
+          data-testid="header-signup-btn"
+          className="flex items-center space-x-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition-colors shadow-sm cursor-pointer"
+        >
+          <UserPlus className="w-3.5 h-3.5" />
+          <span>{t("signup")}</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
+      {/* Trigger: Student Avatar */}
+      <button
+        onClick={() => setDropdownOpen(!dropdownOpen)}
+        data-testid="user-menu-btn"
+        className="flex items-center space-x-1.5 p-0.5 rounded-full hover:ring-2 hover:ring-blue-400 focus:outline-none transition-all cursor-pointer"
+        title={`Account: ${displayName}`}
+        aria-expanded={dropdownOpen}
+      >
+        <div
+          style={{ backgroundColor: avatarColor }}
+          className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-sm select-none"
+        >
+          {initials}
+        </div>
+      </button>
+
+      {/* Dropdown Menu */}
+      {dropdownOpen && (
+        <div
+          data-testid="user-dropdown-panel"
+          className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-gray-200 py-2.5 z-50 text-gray-800 animate-in fade-in slide-in-from-top-2 duration-150"
+        >
+          {/* User Profile Header */}
+          <div className="px-4 py-2 border-b border-gray-100 flex items-center space-x-3">
+            <div
+              style={{ backgroundColor: avatarColor }}
+              className="w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-sm ring-2 ring-gray-100 shadow-sm flex-shrink-0"
+            >
+              {initials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-gray-900 truncate">
+                {displayName}
+              </p>
+              {email && (
+                <p className="text-xs text-gray-500 truncate" title={email}>
+                  {email}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Verification Status */}
+          <div className="px-4 py-2.5 border-b border-gray-100">
+            {user?.emailVerified ? (
+              <div
+                data-testid="user-verification-badge"
+                className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2.5 py-1 rounded-lg border border-green-200 font-medium"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+                <span>{t("verifiedBadge")}</span>
+              </div>
+            ) : (
+              <div
+                data-testid="user-verification-badge"
+                className="flex items-center justify-between gap-1 text-xs text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 font-medium"
+              >
+                <div className="flex items-center gap-1.5 truncate">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                  <span className="truncate">{t("unverifiedBadge")}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    openModal("verify-email");
+                  }}
+                  className="text-[11px] font-bold text-blue-700 hover:underline flex-shrink-0 cursor-pointer ml-1"
+                >
+                  {t("verifyNow")}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Action Items */}
+          <div className="py-1">
+            {/* Language Switch */}
+            <button
+              onClick={toggleLang}
+              data-testid="dropdown-lang-toggle-btn"
+              className="w-full flex items-center justify-between px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Globe className="w-4 h-4 text-gray-500" />
+                <span>{t("language")}</span>
+              </div>
+              <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]">
+                {lang === "tr" ? "Türkçe" : "English"}
+              </span>
+            </button>
+          </div>
+
+          {/* Logout Action */}
+          <div className="pt-1 border-t border-gray-100">
+            <button
+              onClick={handleLogout}
+              data-testid="user-logout-btn"
+              className="w-full flex items-center gap-2 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 text-red-500" />
+              <span>{t("logout")}</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

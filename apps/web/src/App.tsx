@@ -33,6 +33,16 @@ import { AddByIdentifier, type AddByIdentifierItem } from "./components/AddByIde
 
 import { OutlineSidebar } from "./components/OutlineSidebar.js";
 import { ZoteroSidebar } from "./zotero/index.js";
+import {
+  AuthProvider,
+  UserMenu,
+  AuthModal,
+  LoginPage,
+  SignupPage,
+  ForgotPasswordPage,
+  ResetPasswordPage,
+  VerifyEmailPage,
+} from "./auth/index.js";
 
 const INITIAL_CONTENT = `
 <h1 style="text-align: center">Scientific Writing Assignment: Quantum Gravity &amp; Spacetime</h1>
@@ -47,7 +57,8 @@ const INITIAL_CONTENT = `
 <p>Kavak, Y. (2026). Autonomous scientific writing systems &amp; collaborative CRDTs. <em>Journal of Open Scientific Systems</em>, 12(3), 45–62.</p>
 `;
 
-export function App() {
+function AppEditor() {
+
   const [docTitle, setDocTitle] = useState(
     "Scientific Writing Assignment: Quantum Gravity & Spacetime",
   );
@@ -403,18 +414,7 @@ export function App() {
             <span>Share</span>
           </button>
 
-          <div
-            style={{ backgroundColor: currentUser.color }}
-            className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-sm select-none"
-            title={`Active user: ${currentUser.name}`}
-          >
-            {currentUser.name
-              .split(" ")
-              .map((n) => n[0])
-              .slice(0, 2)
-              .join("")
-              .toUpperCase() || "ME"}
-          </div>
+          <UserMenu currentUser={currentUser} />
         </div>
       </header>
 
@@ -904,6 +904,39 @@ export function App() {
           <span>Style: {cslStyle.toUpperCase()}</span>
         </div>
       </footer>
+      <AuthModal />
     </div>
   );
 }
+
+export function App() {
+  const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  return (
+    <AuthProvider>
+      {path === "/login" ? (
+        <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
+          <LoginPage standalone />
+        </div>
+      ) : path === "/signup" ? (
+        <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
+          <SignupPage standalone />
+        </div>
+      ) : path === "/forgot-password" ? (
+        <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
+          <ForgotPasswordPage standalone />
+        </div>
+      ) : path === "/reset-password" ? (
+        <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
+          <ResetPasswordPage standalone />
+        </div>
+      ) : path === "/verify-email" ? (
+        <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
+          <VerifyEmailPage standalone />
+        </div>
+      ) : (
+        <AppEditor />
+      )}
+    </AuthProvider>
+  );
+}
+

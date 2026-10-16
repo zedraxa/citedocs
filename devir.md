@@ -48,15 +48,48 @@
 
 ## 4. Test ve Doğrulama Durumu
 
-Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıldı. Bağımlılıkların yüklenmesi ve tüm testlerin çalıştırılması bir sonraki adımda doğrulanacaktır.
+Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıldı ve tümü yeşildir.
 
 ---
 
-## 5. Sonraki Ajan İçin Yol Haritası ve Görevler
+## 5. Milestone 2 (Part B - Add-by-Identifier) Tamamlanan İşler (Kayıt #002)
 
-Bir sonraki ajan doğrudan **Milestone 1 (M1: Editor Canvas & Collaborative Foundation)** ve **Milestone 2 (M2: Zotero Data Layer & Translation Server)** üzerinde çalışabilir:
+> **Kayıt No:** #002  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m2-identifier`  
+> **Görev:** M2 Part B — Add-by-identifier (TranslationClient hardening, Fastify routes, Vitest DOI 10.1038/s41586-021-03392-y assertions)
 
-1. `pnpm install` çalıştırarak monorepo kütüphane bağlarını kesinleştir.
-2. `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` komutlarını çalıştır ve yeşil olduğunu doğrula.
-3. TipTap v3 editörünü `apps/web` içinde canlı ProseMirror instance'ına bağla ve `y-prosemirror` ile Hocuspocus sunucusuna bağla.
-4. Docker üzerinde `translation-server` mikroservisini ayağa kaldırıp DOI çözümleme testlerini entegre et.
+### 5.1 `@citedocs/zotero-core` İyileştirmeleri
+1. **TranslationClient Sertleştirildi:**
+   - Zotero `translation-server` mikroservisinin `/search` endpoint'i `text/plain` gövdesi ve normalize edilmiş tanımlayıcı (DOI, ISBN, PMID, arXiv) bekleyecek şekilde güncellendi.
+   - `/web` (text/plain URL), `/import` (raw BibTeX/RIS), `/export?format=<format>` (JSON item serileştirme) uçları tip güvenli hale getirildi.
+   - `translateAndConvert(identifier)` metodu ile hem ZoteroItem hem CSLItem çıktılarını aynı anda dönebilen yardımcı eklendi.
+   - `normalizeIdentifier`: `https://doi.org/`, `http://dx.doi.org/`, `doi:`, `arxiv:`, `pmid:`, `isbn:` ön eklerini otomatik temizleme mantığı eklendi.
+   - `normalizeZoteroItem` & `generateZoteroKey`: Eksik veya boş dönen çevirici çıktılarında Zotero standardı 8 karakterlik büyük harf alfanümerik anahtar (`generateZoteroKey()`) ve varsayılan alanlar otomatik dolduruldu.
+   - `TranslationServerError`: HTTP status code ve upstream gövde metnini içeren özel hata sınıfı eklendi; `AbortController` ile timeout desteği sağlandı.
+2. **Kabul Testi ve DOI Doğrulaması:**
+   - Nature makalesi olan DOI `10.1038/s41586-021-03392-y` için mock test fiksürü yazıldı.
+   - `title` ("The changing landscape of atherosclerosis"), `authors` ("Peter Libby"), `year` (2021) ve `DOI` alanlarının eksiksiz geldiği hem ZoteroItem hem CSLItem formatlarında doğrulandı.
+   - `TRANSLATION_SERVER_URL` ortam değişkeniyle korunan canlı entegrasyon testi eklendi.
+
+### 5.2 `apps/server` Rota ve Güvenlik İyileştirmeleri
+1. **Yeni Fastify Rotaları:**
+   - `POST /api/zotero/translate`: DOI/ISBN/PMID/arXiv/URL kabul eden ve Zotero + CSL metadata'sı dönen ana uç.
+   - `POST /api/items/from-identifier`: REST standardı takma ad (alias) uç; `{ identifier }` veya `{ query }` gövdesi kabul eder.
+   - `POST /api/zotero/search`: M0 geriye dönük uyumluluğu korundu.
+   - `GET /api/items`: Bellek içi oturum kayıtlarını kullanıcı bazlı listeleyen uç.
+2. **Per-Student Yetkilendirme Saplaması (`X-User-Id`):**
+   - İstek başlığında gelen `X-User-Id` okunarak dönen yanıta ve bellek içi depoya işlenir; öğrenciler arası veri izolasyonu sağlanır.
+3. **Kalıcılık Stratejisi (Drizzle ile Uyum):**
+   - Bu daldaki dosya çakışmalarını önlemek adına tam veritabanı yazımı `cd-m2-drizzle` dalında Drizzle ORM ile geliştirilmektedir.
+   - Bu dalda `memoryItemStore` (`Map<string, StoredItemRecord>`) ile geçici oturum içi kalıcılık sağlandı ve `persisted: true`, `persistenceMode: "in-memory"`, `todo: "TODO(persist)..."` açıkça dokümante edildi.
+
+---
+
+## 6. Sonraki Ajan İçin Devir Notları ve Doğrulama
+- `pnpm test`: 6 test dosyası, 41 test geçerli, 0 hata.
+- `pnpm lint`: Temiz (0 hata).
+- `pnpm typecheck`: `tsc -b` hatasız.
+- `pnpm build`: Tüm monorepo paketleri ve uygulamaları hatasız derleniyor.
+- `cd-m2-drizzle` dalı tamamlandığında `apps/server/src/routes/zotero.ts` içindeki `memoryItemStore` kısmı Drizzle repository metodlarıyla kolayca birleştirilebilir.
+

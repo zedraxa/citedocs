@@ -1,79 +1,89 @@
 # CiteDocs: System Architecture & Technical Design (ARCHITECTURE)
 
-> **Version:** 1.0.0  
+> **Version:** 2.0.0  
 > **Status:** Standardized Architecture Document  
 > **Repository Topology:** TypeScript pnpm Monorepo  
-> **Binding Architecture Direction:** See [ADR-001: Integration Architecture](file:///home/yusuf/projects/citedocs-wt/adr-proto/docs/ADR-001-integration.md) (Collabora Online CODE + Open-Source Zotero Suite)
+> **Binding Architecture Direction:** See [ADR-001: Integration Architecture](ADR-001-integration.md) (Collabora Online CODE + Open-Source Zotero Suite)
 
 ---
 
 > [!IMPORTANT]
 > **Architectural Direction Update (ADR-001):**  
-> CiteDocs does **not** reimplement a bespoke word processor or reference manager. Instead, it embeds and integrates real open-source components: **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage for document authoring, and the **official Zotero open-source suite** (`zotero/web-library`, `zotero/translation-server`, `citeproc-js` + CSL styles, `zotero/pdf-reader`, and Zotero field codes `ADDIN ZOTERO_ITEM CSL_CITATION` / `ADDIN ZOTERO_BIBL`). The bespoke TipTap editor (`packages/editor`) is officially classified as **legacy** (frozen, do not extend). Full architectural details, topology, sequence diagrams, license analysis, and migration plans are specified in [docs/ADR-001-integration.md](file:///home/yusuf/projects/citedocs-wt/adr-proto/docs/ADR-001-integration.md).
+> CiteDocs does **not** reimplement a bespoke word processor or reference manager. Instead, it embeds and integrates real open-source components: **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage for document authoring, and the **official Zotero open-source suite** (`zotero/web-library`, `zotero/translation-server`, `citeproc-js` + CSL styles, `zotero/pdf-reader`, and Zotero field codes `ADDIN ZOTERO_ITEM CSL_CITATION` / `ADDIN ZOTERO_BIBL`). The bespoke TipTap editor (`packages/editor`) is officially classified as **legacy** (frozen, do not extend). Full architectural details, topology, sequence diagrams, license analysis, and migration plans are specified in [docs/ADR-001-integration.md](ADR-001-integration.md).
 
 ---
 
 ## 1. System Architecture Overview
 
-CiteDocs is architected as a modular, decoupled, event-driven web application. It combines a high-performance client-side rich-text editor engine with an asynchronous real-time collaboration backend, a dedicated bibliographic citation processor, and a microservice-based translation and synchronization subsystem.
+CiteDocs is architected as an integration-first web application. It embeds Collabora Online (CODE) via WOPI for enterprise-grade document authoring and orchestrates the official open-source Zotero suite for reference management, identifier translation, and PDF reading.
 
 ### 1.1 High-Level Component Topology
 
 ```mermaid
-graph TD
-    subgraph ClientLayer["Client Layer (Any Browser / Desktop / Tablet / Phone)"]
-        UI["CiteDocs Web App (Vite + React 19)"]
-        Editor["TipTap v3 + ProseMirror Canvas"]
-        CRDT["Yjs Client (Doc State + UndoManager)"]
-        PDFViewer["PDF.js Reader & Annotation Canvas"]
-        CSLClient["Client CSL Cache & Citation Store"]
-        PWA["PWA Service Worker & IndexedDB (y-indexeddb)"]
+flowchart TD
+    subgraph ClientBrowser["User Browser (Zero Local Installation)"]
+        CiteDocsApp["CiteDocs Shell (React 19 / Vite SPA)"]
+        WebLibSidebar["Zotero Web Library Sidebar (zotero/web-library)"]
+        PDFReaderModal["Zotero PDF Reader (zotero/pdf-reader)"]
+        CollaboraIframe["Collabora Online CODE Canvas (iframe)"]
 
-        UI --> Editor
-        Editor <--> CRDT
-        UI --> PDFViewer
-        UI --> CSLClient
-        CRDT <--> PWA
+        CiteDocsApp <-->|DOM Event / State| WebLibSidebar
+        CiteDocsApp <-->|DOM Event / State| PDFReaderModal
+        CiteDocsApp <-->|PostMessage Bus| CollaboraIframe
     end
 
-    subgraph EdgeLayer["Edge / Ingress Layer"]
-        Nginx["Reverse Proxy / Nginx / Caddy (SSL & Routing)"]
+    subgraph EdgeGateway["Ingress & Edge Layer"]
+        ReverseProxy["Reverse Proxy / Nginx / Traefik (HTTPS / WSS)"]
     end
 
-    subgraph ServiceLayer["Service & Application Layer"]
-        CollabServer["Hocuspocus Collab Server (Node.js/Fastify)"]
-        APIServer["CiteDocs REST API Server (Fastify)"]
+    subgraph CiteDocsBackend["CiteDocs Application Services (apps/server)"]
+        FastifyServer["Fastify REST & API Gateway"]
+        WOPIHost["WOPI Host Service (/wopi/files/*)"]
+        AuthService["Auth & Multi-Tenant Manager (Argon2id, OAuth)"]
+        ZoteroSyncWorker["Zotero 2-Way Sync Engine (Web API v3)"]
+        CSLEngine["CSL Engine (@citedocs/collabora-cite / citeproc-js)"]
+    end
+
+    subgraph ExternalContainers["Open-Source Microservices (Docker Compose)"]
+        CollaboraCODE["Collabora Online CODE Server (Docker: port 9980)"]
         TransServer["Zotero Translation Server (Docker: port 1969)"]
-        SyncWorker["Zotero 2-Way Sync Engine (Background Worker)"]
     end
 
-    subgraph StorageLayer["Data & Persistence Layer"]
-        Postgres[("PostgreSQL 16 (Relational Metadata + Yjs Bytea)")]
-        Redis[("Redis 7 (Pub/Sub + Collab Awareness + Task Queue)")]
-        S3Storage[("S3-Compatible Storage (MinIO / AWS S3 / Cloudflare R2)")]
+    subgraph StorageTier["Persistence Tier"]
+        PostgresDB[("PostgreSQL 16 (Users, Items, Shares, WOPI Locks)")]
+        ObjectStore[("S3 / MinIO (DOCX, ODT, PDFs, Attachments)")]
     end
 
-    subgraph ExternalServices["External Ecosystem"]
-        ZoteroOrg["zotero.org Web API v3"]
-        AcademicAPIs["Crossref / DataCite / PubMed / arXiv / Unpaywall"]
-        CSLRepo["Citation Style Language GitHub Repos"]
+    subgraph ExternalEcosystem["External Ecosystem"]
+        ZoteroCloud["Official zotero.org API v3"]
+        AcademicAPIs["Crossref / PubMed / arXiv / Unpaywall"]
+        CSLGitHub["Official CSL Styles & Locales Repos"]
     end
 
-    ClientLayer <==>|WebSocket WSS| Nginx
-    ClientLayer <==>|HTTPS REST| Nginx
-    Nginx <--> CollabServer
-    Nginx <--> APIServer
+    %% Client to Ingress
+    CiteDocsApp <==>|HTTPS / REST| ReverseProxy
+    CollaboraIframe <==>|WSS / WOPI Tile Stream| ReverseProxy
 
-    CollabServer <--> Postgres
-    CollabServer <--> Redis
-    APIServer <--> Postgres
-    APIServer <--> S3Storage
-    APIServer <--> TransServer
-    SyncWorker <--> Postgres
-    SyncWorker <--> ZoteroOrg
-    SyncWorker <--> S3Storage
+    %% Ingress to Services
+    ReverseProxy <--> FastifyServer
+    ReverseProxy <--> CollaboraCODE
+
+    %% Collabora to WOPI Host
+    CollaboraCODE <==>|WOPI REST (CheckFileInfo / GetFile / PutFile)| WOPIHost
+
+    %% Backend to Microservices & Storage
+    FastifyServer <--> PostgresDB
+    WOPIHost <--> ObjectStore
+    FastifyServer <--> ObjectStore
+    FastifyServer <--> TransServer
+    FastifyServer <--> CSLEngine
+    ZoteroSyncWorker <--> PostgresDB
+    ZoteroSyncWorker <--> ObjectStore
+
+    %% External Connections
     TransServer <--> AcademicAPIs
-    APIServer <--> CSLRepo
+    ZoteroSyncWorker <--> ZoteroCloud
+    CSLEngine <--> CSLGitHub
 ```
 
 ---
@@ -86,20 +96,19 @@ graph TD
 - **Rationale:**
   - Strict dependency isolation prevents phantom dependencies.
   - Fast, space-efficient hardlink caching.
-  - Clean separation of concern across reusable packages (`@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/zotero-core`, `@citedocs/editor`, `@citedocs/docx-exporter`, `@citedocs/database`).
+  - Clean separation of concern across reusable packages (`@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/collabora-cite`, `@citedocs/zotero-core`, `@citedocs/editor`, `@citedocs/docx-exporter`, `@citedocs/database`).
 
 ### 2.2 Frontend Framework: Vite + React 19 vs. Next.js 15
 
 - **Selected:** **Vite + React 19 SPA/PWA** (with TailwindCSS and Lucide Icons).
 - **Deep Justification:**
-  1. **Editor Runtimes are 100% Client-Side:** ProseMirror, TipTap, Yjs, PDF.js, and `citeproc-js` require direct browser DOM and canvas access. Next.js SSR provides no value for an authenticated document editing canvas and requires tedious `'use client'` workarounds and dynamic imports.
-  2. **Superior PWA & Offline Experience:** Vite integrates cleanly with Workbox to provide instant PWA application shell caching and offline IndexedDB synchronization (`y-indexeddb`).
-  3. **Instant Development Feedback:** esbuild/Vite HMR renders modifications in $<50\text{ ms}$, ensuring a frictionless developer experience when building intricate UI interactions.
-  4. **Decoupled WebSocket Collab:** Collaborative document synchronization requires long-lived stateful WebSocket connections. Next.js serverless functions cannot host persistent WebSockets, necessitating an independent collaboration server regardless.
-  5. **Resource Efficiency:** The static Vite build compiles to pure HTML/JS/CSS served via Nginx in $<10\text{ MB}$ RAM, drastically reducing hosting costs compared to running continuous Node.js SSR pods.
+  1. **Editor Runtimes are 100% Client-Side:** Collabora iframe integration, PDF.js, and `citeproc-js` require direct browser DOM access. Next.js SSR provides no value for an authenticated document editing canvas.
+  2. **Superior PWA & Offline Experience:** Vite integrates cleanly with Workbox to provide instant PWA application shell caching.
+  3. **Instant Development Feedback:** esbuild/Vite HMR renders modifications in $<50\text{ ms}$.
+  4. **Resource Efficiency:** The static Vite build compiles to pure HTML/JS/CSS served via Nginx in $<10\text{ MB}$ RAM.
 
 ### 2.3 Editor Engine: Collabora Online (CODE) & Legacy TipTap v3
-- **Primary Editor (Standardized per ADR-001):** **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage protocol (see [ADR-001](file:///home/yusuf/projects/citedocs-wt/adr-proto/docs/ADR-001-integration.md)).
+- **Primary Editor (Standardized per ADR-001):** **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage protocol (see [ADR-001](ADR-001-integration.md)).
 - **Legacy Editor (`@citedocs/editor`):** TipTap v3 headless core + custom ProseMirror extensions + `y-prosemirror`. **Classified as LEGACY:** preserved for backward compatibility and migration; frozen, do not extend.
 - **Rationale for Collabora Online:** Delivers genuine 100% Google Docs / Microsoft Word / LibreOffice parity (A4/Letter physical pagination, complex tables, footnote balancing, track changes) and native OpenDocument / DOCX field codes (`ADDIN ZOTERO_ITEM CSL_CITATION`) without reimplementing a word processor.
 

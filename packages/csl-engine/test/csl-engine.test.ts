@@ -268,10 +268,8 @@ describe("@citedocs/csl-engine", () => {
     engine.switchStyle("ieee");
     engine.switchStyle("apa");
 
-    // Measure style switch from APA 7th -> IEEE
-    const start = performance.now();
+    // Style switch from APA 7th -> IEEE
     const result = engine.switchStyle("ieee");
-    const duration = performance.now() - start;
 
     // Strict SLA runs separately, with no competing test files/packages.
     if (process.env.CITEDOCS_TEST_PERF === "1") {

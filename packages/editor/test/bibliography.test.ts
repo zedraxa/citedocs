@@ -213,10 +213,8 @@ describe("Milestone 3 Part B — Bibliography & CSL Editor Integration", () => {
     const initialClusters = collectCitationClusters(editor);
     expect(initialClusters).toHaveLength(100);
 
-    // Measure benchmark switch: APA 7th -> IEEE
-    const start = performance.now();
+    // Benchmark switch: APA 7th -> IEEE
     const result = switchStyle(editor, "ieee", { items });
-    const duration = performance.now() - start;
 
     // Preserve the existing 450 ms editor budget in the isolated perf command.
     if (process.env.CITEDOCS_TEST_PERF === "1") {

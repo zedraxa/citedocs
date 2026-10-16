@@ -47,6 +47,9 @@ export function updateCitationFields(t: Target, list: Array<{ payload: unknown; 
       value: list.map((c) => citationFieldArgs(c.payload, c.text)),
     },
   });
+  // Updating fields leaves the cursor inside the last updated field result.
+  sendUnoCommand(t, ".uno:GoRight");
+  return true;
 }
 
 /** Inserts the bibliography field at the end of the document. */
@@ -64,6 +67,8 @@ export function updateBibliographyField(t: Target, html: string) {
     FieldCommandPrefix: S(BIBL_PREFIX),
     Fields: { type: "[][]com.sun.star.beans.PropertyValue", value: [bibliographyFieldArgs(html)] },
   });
+  sendUnoCommand(t, ".uno:GoRight");
+  return true;
 }
 
 export function zoteroPrefsXml(styleId: string, hasBibliography: boolean, locale = "en-US") {

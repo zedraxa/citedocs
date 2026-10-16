@@ -245,12 +245,17 @@ export function CollaboraEditorPage({
 
   // Keep the document's Zotero fields + ZOTERO_PREF properties in sync with citation state.
   const syncReadyRef = useRef(false);
+  // Set by restyle / edit / delete: every citation field must be rewritten in document order.
+  const rewriteCitationsRef = useRef(false);
   useEffect(() => {
     if (!documentLoaded || !syncReadyRef.current || !frameRef.current) return;
-    updateCitationFields(
-      frameRef.current,
-      documentCitations.map((c) => ({ payload: c.payload, text: c.formattedText })),
-    );
+    if (rewriteCitationsRef.current) {
+      rewriteCitationsRef.current = false;
+      updateCitationFields(
+        frameRef.current,
+        documentCitations.map((c) => ({ payload: c.payload, text: c.formattedText })),
+      );
+    }
     if (hasBibliography && documentCitations.length) {
       try {
         updateBibliographyField(frameRef.current, bibHtml(cslEngineRef.current.makeBibliography()));
@@ -472,6 +477,7 @@ export function CollaboraEditorPage({
           bridge.updateCitation(markName, payload, formattedText);
         }
 
+        rewriteCitationsRef.current = true;
         setDocumentCitations((prev) => {
           const next = prev.map((c) =>
             c.markName === markName ? { ...c, payload, formattedText } : c,
@@ -514,6 +520,7 @@ export function CollaboraEditorPage({
         bridge.removeCitation(markName);
       }
 
+      rewriteCitationsRef.current = true;
       setDocumentCitations((prev) => {
         const next = prev.filter((c) => c.markName !== markName);
 
@@ -551,6 +558,7 @@ export function CollaboraEditorPage({
         cslEngineRef.current.registerStyle(newStyleId, styleXml);
       }
       cslEngineRef.current.switchStyle(newStyleId);
+      rewriteCitationsRef.current = true;
       setActiveStyleId(newStyleId);
 
       const bridge = getBridge();

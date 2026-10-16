@@ -29,6 +29,59 @@ export interface BibliographyResult {
   text: string;
 }
 
+export interface StyleOption {
+  id: string;
+  name: string;
+  shortTitle?: string;
+  category: "author-date" | "numeric" | "note";
+  description: string;
+}
+
+export const POPULAR_STYLES: StyleOption[] = [
+  {
+    id: "apa",
+    name: "APA 7th Edition",
+    shortTitle: "APA 7th",
+    category: "author-date",
+    description: "American Psychological Association 7th edition (Author, Year)",
+  },
+  {
+    id: "chicago-author-date",
+    name: "Chicago Manual of Style 17th (Author-Date)",
+    shortTitle: "Chicago",
+    category: "author-date",
+    description: "Chicago author-date referencing format",
+  },
+  {
+    id: "ieee",
+    name: "IEEE",
+    shortTitle: "IEEE",
+    category: "numeric",
+    description: "Institute of Electrical and Electronics Engineers [1]",
+  },
+  {
+    id: "vancouver",
+    name: "Vancouver",
+    shortTitle: "Vancouver",
+    category: "numeric",
+    description: "Biomedical & health sciences numbered citations",
+  },
+  {
+    id: "harvard-cite-them-right",
+    name: "Harvard (Cite Them Right)",
+    shortTitle: "Harvard",
+    category: "author-date",
+    description: "Harvard author-date referencing style",
+  },
+  {
+    id: "modern-language-association",
+    name: "MLA 9th Edition",
+    shortTitle: "MLA 9th",
+    category: "author-date",
+    description: "Modern Language Association 9th edition (Author Page)",
+  },
+];
+
 let activeItemMap: Map<string, CSLItem> | null = null;
 
 const sharedSys = {
@@ -64,9 +117,21 @@ function getPooledEngine(styleXml: string, lang: string): InstanceType<typeof CS
 }
 
 export class CollaboraCSLEngine {
+  private static customStyles: Map<string, string> = new Map();
+
+  public static registerStyle(id: string, xml: string): void {
+    CollaboraCSLEngine.customStyles.set(id.toLowerCase(), xml);
+    CollaboraCSLEngine.customStyles.set(id, xml);
+  }
+
+  public registerStyle(id: string, xml: string): void {
+    CollaboraCSLEngine.registerStyle(id, xml);
+  }
+
   private itemMap: Map<string, CSLItem> = new Map();
   private styleXml: string;
   private lang: string;
+  private activeStyleId: string;
   private engine!: InstanceType<typeof CSL.Engine>;
 
   constructor(
@@ -74,6 +139,7 @@ export class CollaboraCSLEngine {
     lang = "en-US",
     initialItems: CSLItem[] = [],
   ) {
+    this.activeStyleId = styleIdOrXml;
     this.styleXml = this.resolveStyleXml(styleIdOrXml);
     this.lang = lang;
 
@@ -84,9 +150,19 @@ export class CollaboraCSLEngine {
     this.initEngine();
   }
 
+  public getActiveStyleId(): string {
+    return this.activeStyleId;
+  }
+
   private resolveStyleXml(styleIdOrXml: string): string {
     if (styleIdOrXml.includes("<style") || styleIdOrXml.trimStart().startsWith("<")) {
       return styleIdOrXml;
+    }
+    const custom =
+      CollaboraCSLEngine.customStyles.get(styleIdOrXml.toLowerCase()) ||
+      CollaboraCSLEngine.customStyles.get(styleIdOrXml);
+    if (custom) {
+      return custom;
     }
     const found = BUNDLED_STYLES[styleIdOrXml.toLowerCase()] || BUNDLED_STYLES[styleIdOrXml];
     if (found) {
@@ -277,6 +353,7 @@ export class CollaboraCSLEngine {
    * Switch the active CSL style and optional locale.
    */
   public switchStyle(newStyleIdOrXml: string, newLang?: string): void {
+    this.activeStyleId = newStyleIdOrXml;
     this.styleXml = this.resolveStyleXml(newStyleIdOrXml);
     if (newLang) {
       this.lang = newLang;

@@ -20,14 +20,19 @@ The `zotero_collabora.py` script manipulates these structures via the LibreOffic
    - Finds an existing ReferenceMark by name.
    - Updates the visible anchor string to the new formatted text.
    - Updates the ReferenceMark name if the payload or style changed.
-3. **`insert_bibliography(formattedText, markName=None, biblJson=None, rndSuffix=None)`**
+3. **`remove_citation(markName)`**
+   - Finds an existing ReferenceMark by name.
+   - Clears its anchor text content and removes the ReferenceMark.
+4. **`insert_bibliography(formattedText, markName=None, biblJson=None, rndSuffix=None)`**
    - Inserts formatted bibliography text at the view cursor inside a Bookmark.
-4. **`update_bibliography(markName, newMarkName=None, formattedText=None)`**
+5. **`update_bibliography(markName, newMarkName=None, formattedText=None)`**
    - Updates the bibliography text in place.
-5. **`get_document_fields()`**
+6. **`remove_bibliography(markName)`**
+   - Clears bibliography anchor text and removes the Bookmark/ReferenceMark.
+7. **`get_document_fields()`**
    - Enumerates all ReferenceMarks and Bookmarks starting with `ZOTERO_ITEM`, `ZOTERO_BIBL`, or `ZOTERO_PREF`.
    - Returns a structured JSON list with each field's name and anchor text.
-6. **`set_document_prefs(prefJson, markName=None)`**
+8. **`set_document_prefs(prefJson, markName=None)`**
    - Stores active CSL style and locale preferences in a `ZOTERO_PREF` ReferenceMark at the document start.
 
 ## Testing

@@ -158,6 +158,9 @@ if [ -n "$CHROME_BIN" ]; then
   DOM_DUMP=$("$CHROME_BIN" --headless=new --dump-dom --virtual-time-budget=5000 "${WEB_URL}/?editor=collabora" 2>/dev/null || true)
   if echo "$DOM_DUMP" | grep -q 'collabora-iframe' && echo "$DOM_DUMP" | grep -q 'zotero-sidebar'; then
     pass "Headless browser confirmed both collabora-iframe and zotero-sidebar rendered in DOM"
+    if echo "$DOM_DUMP" | grep -q 'csl-style-selector'; then
+      pass "Headless browser confirmed CSL style selector and citation workflow controls rendered"
+    fi
   else
     warn "Headless browser ran, but specific DOM testids were not found in time-budget."
   fi
@@ -165,8 +168,25 @@ else
   warn "No headless Chrome/Chromium found on PATH; skipped headless browser check."
 fi
 
+# 12. CSL Styles Repository & Citation Workflow API Check
+echo "Step 12: Checking CSL Styles Registry & Citation API..."
+CSL_RESP=$(curl -sf "${SERVER_URL}/api/csl/styles?q=ieee" || true)
+if echo "$CSL_RESP" | grep -q '"id":"ieee"'; then
+  pass "CSL Style Registry search resolved 'ieee' style"
+else
+  warn "CSL Style search API not reached or empty: $CSL_RESP"
+fi
+
+CSL_STYLE_XML=$(curl -sf "${SERVER_URL}/api/csl/styles/ieee" || true)
+if echo "$CSL_STYLE_XML" | grep -q '<style'; then
+  pass "CSL Style detail returned valid CSL XML for IEEE"
+else
+  warn "CSL Style XML endpoint not reached: $CSL_STYLE_XML"
+fi
+
 echo -e "\n${GREEN}===================================================${NC}"
 echo -e "${GREEN}   ALL E2E INTEGRATION CHECKS PASSED SUCCESSFULLY  ${NC}"
 echo -e "${GREEN}===================================================${NC}\n"
 echo -e "You can try CiteDocs in your browser now at:"
 echo -e "  ${BLUE}${WEB_URL}/?editor=collabora${NC}\n"
+

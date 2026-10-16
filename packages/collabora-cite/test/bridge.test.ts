@@ -2,8 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 import {
   buildInsertCitationMessage,
   buildUpdateCitationMessage,
+  buildRemoveCitationMessage,
   buildInsertBibliographyMessage,
   buildUpdateBibliographyMessage,
+  buildRemoveBibliographyMessage,
   buildSetDocumentPrefsMessage,
   buildGetDocumentFieldsMessage,
   buildUnoInsertFieldMessage,
@@ -111,5 +113,35 @@ describe("Collabora Bridge & PostMessage Payloads (bridge.ts)", () => {
     const parsed = JSON.parse(payload);
     expect(parsed.MessageId).toBe("CallPythonScript");
     expect(parsed.Function).toBe("insert_citation");
+  });
+
+  it("buildRemoveCitationMessage and bridge.removeCitation produce CallPythonScript payload", () => {
+    const markName = "ZOTERO_ITEM CSL_CITATION {} RND12345";
+    const msg = buildRemoveCitationMessage(markName);
+    expect(msg.MessageId).toBe("CallPythonScript");
+    expect(msg.Function).toBe("remove_citation");
+    expect(msg.Values.markName.value).toBe(markName);
+
+    const mockSender: CollaboraPostMessageSender = { postMessage: vi.fn() };
+    const bridge = new CollaboraBridge(mockSender, "*");
+    bridge.removeCitation(markName);
+    expect(mockSender.postMessage).toHaveBeenCalledTimes(1);
+    const parsed = JSON.parse((mockSender.postMessage as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+    expect(parsed.Function).toBe("remove_citation");
+  });
+
+  it("buildRemoveBibliographyMessage and bridge.removeBibliography produce CallPythonScript payload", () => {
+    const markName = "ZOTERO_BIBL {} RNDBIB12";
+    const msg = buildRemoveBibliographyMessage(markName);
+    expect(msg.MessageId).toBe("CallPythonScript");
+    expect(msg.Function).toBe("remove_bibliography");
+    expect(msg.Values.markName.value).toBe(markName);
+
+    const mockSender: CollaboraPostMessageSender = { postMessage: vi.fn() };
+    const bridge = new CollaboraBridge(mockSender, "*");
+    bridge.removeBibliography(markName);
+    expect(mockSender.postMessage).toHaveBeenCalledTimes(1);
+    const parsed = JSON.parse((mockSender.postMessage as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+    expect(parsed.Function).toBe("remove_bibliography");
   });
 });

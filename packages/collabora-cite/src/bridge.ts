@@ -132,6 +132,21 @@ export function buildUpdateCitationMessage(
 }
 
 /**
+ * Build PostMessage payload to remove an existing in-text citation ReferenceMark.
+ */
+export function buildRemoveCitationMessage(
+  markName: string,
+  options?: {
+    scriptFile?: string;
+  },
+): CallPythonScriptMessage {
+  const scriptFile = options?.scriptFile ?? DEFAULT_COLLABORA_SCRIPT;
+  return createCallPythonScriptPayload(scriptFile, "remove_citation", {
+    markName,
+  });
+}
+
+/**
  * Build PostMessage payload to insert the bibliography via the LibreOffice Python macro.
  */
 export function buildInsertBibliographyMessage(
@@ -170,6 +185,21 @@ export function buildUpdateBibliographyMessage(
     markName,
     newMarkName: options?.newMarkName ?? markName,
     formattedText,
+  });
+}
+
+/**
+ * Build PostMessage payload to remove an existing bibliography bookmark/mark.
+ */
+export function buildRemoveBibliographyMessage(
+  markName: string,
+  options?: {
+    scriptFile?: string;
+  },
+): CallPythonScriptMessage {
+  const scriptFile = options?.scriptFile ?? DEFAULT_COLLABORA_SCRIPT;
+  return createCallPythonScriptPayload(scriptFile, "remove_bibliography", {
+    markName,
   });
 }
 
@@ -276,6 +306,14 @@ export class CollaboraBridge {
     return msg;
   }
 
+  public removeCitation(markName: string): CallPythonScriptMessage {
+    const msg = buildRemoveCitationMessage(markName, {
+      scriptFile: this.scriptFile,
+    });
+    this.send(msg);
+    return msg;
+  }
+
   public insertBibliography(
     formattedText: string,
     biblPayload?: ZoteroBibliographyPayload,
@@ -290,6 +328,14 @@ export class CollaboraBridge {
 
   public updateBibliography(markName: string, formattedText: string): CallPythonScriptMessage {
     const msg = buildUpdateBibliographyMessage(markName, formattedText, {
+      scriptFile: this.scriptFile,
+    });
+    this.send(msg);
+    return msg;
+  }
+
+  public removeBibliography(markName: string): CallPythonScriptMessage {
+    const msg = buildRemoveBibliographyMessage(markName, {
       scriptFile: this.scriptFile,
     });
     this.send(msg);

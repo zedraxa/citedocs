@@ -6,7 +6,7 @@ export default defineConfig({
   // Test the current workspace sources, even before the first build.
   resolve: {
     alias: Object.fromEntries(
-      ["shared", "csl-engine", "zotero-core", "editor", "docx-exporter", "pdf-reader"].map(
+      ["shared", "csl-engine", "zotero-core", "editor", "docx-exporter", "pdf-reader", "collabora-cite"].map(
         (name) => [
           `@citedocs/${name}`,
           fileURLToPath(new URL(`./packages/${name}/src/index.ts`, import.meta.url)),

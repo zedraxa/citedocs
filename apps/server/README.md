@@ -61,9 +61,11 @@ X-User-Id: student-uuid-123
 
 ## 4. Endpoints
 
-- `GET /health`: Healthcheck endpoint.
-- `GET /api/csl/styles`: List available CSL styles with search support.
-- `POST /api/zotero/search`: DOI / ISBN resolution proxy via translation-server.
+- `GET /health`: Healthcheck endpoint (public).
+- `GET /api/csl/styles`: List available CSL styles with search support (public).
+- `POST /api/zotero/translate`: DOI / ISBN / identifier resolution via translation-server, persisted to `ItemRepository` (auth required via `X-User-Id`).
+- `POST /api/items/from-identifier`: REST alias to resolve and persist item by identifier into `ItemRepository` (auth required via `X-User-Id`).
+- `POST /api/zotero/search`: Backward-compatible resolution endpoint (auth required via `X-User-Id`).
 - `GET /api/items`: List library items owned by the authenticated user (`?itemType=...&q=...`).
 - `POST /api/items`: Create a library item for the authenticated user.
 - `GET /api/items/:id`: Get a specific library item (rejection with 403 if owned by another user).

@@ -30,10 +30,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     credentials: true,
   });
 
+  const itemRepo = options.itemRepo || new ItemRepository();
+
   await fastify.register(healthRoutes);
   await fastify.register(cslRoutes);
-  await fastify.register(zoteroRoutes, { client: options.zoteroClient });
-  await fastify.register(createItemRoutes(options.itemRepo));
+  await fastify.register(zoteroRoutes, {
+    client: options.zoteroClient,
+    itemRepo,
+  });
+  await fastify.register(createItemRoutes(itemRepo));
 
   return fastify;
 }

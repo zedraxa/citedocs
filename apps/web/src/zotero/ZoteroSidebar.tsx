@@ -10,6 +10,7 @@ export interface ZoteroSidebarProps {
   onClose: () => void;
   onCiteItem: (item: ZoteroItemPayload) => void;
   onItemAdded?: (item: ZoteroItemPayload) => void;
+  onOpenPdf?: (attachment: { id: string; title: string; downloadUrl: string; itemId?: string }) => void;
   iframeSrc?: string;
   width?: number | string;
 }
@@ -20,9 +21,11 @@ export function ZoteroSidebar({
   onClose,
   onCiteItem,
   onItemAdded,
+  onOpenPdf,
   iframeSrc = "/zotero-weblib/index.html",
   width = 460,
 }: ZoteroSidebarProps) {
+
   const [account, setAccount] = useState<ZoteroAccountInfo | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
@@ -68,13 +71,18 @@ export function ZoteroSidebar({
           onItemAdded(item);
         }
       }
+
+      if (data.type === "CITEDOCS_OPEN_PDF" && data.attachment && onOpenPdf) {
+        onOpenPdf(data.attachment);
+      }
     };
 
     window.addEventListener("message", handleMessage);
     return () => {
       window.removeEventListener("message", handleMessage);
     };
-  }, [onCiteItem, onItemAdded]);
+  }, [onCiteItem, onItemAdded, onOpenPdf]);
+
 
   if (!isOpen) return null;
 

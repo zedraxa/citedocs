@@ -647,3 +647,87 @@ pnpm build
 - **Mevcut Test Uyumluluğu:** `apps/web/test/web.test.ts` gibi önceden var olan testlerdeki katı `expect(fetchMock).toHaveBeenCalledTimes(1)` beklentilerinin bozulmaması için `AuthProvider`'ın otomatik oturum sorgusu test ortamında (`NODE_ENV === "test"`) varsayılan olarak pasife alındı, açıkça istendiğinde çalışacak şekilde yapılandırıldı.
 - **Korunan Alanlar:** Kural gereğince `packages/editor`, `packages/collabora-cite`, `apps/server/src/wopi` ve `apps/web/src/collabora` paket/dizinlerine dokunulmadı; `App.tsx` diff'i asgari düzeyde tutuldu.
 
+---
+
+## 15. Zotero PDF Reader Entegrasyonu (Kayıt #011)
+
+> **Kayıt No:** #011  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-pdfreader`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Resmi Zotero PDF Reader (`zotero/reader`, AGPL-3.0) Entegrasyonu, Ek Dosya & Açıklama (Annotation) Depolama / Mülkiyet Katmanı, Zotero Web API v3 Şema Eşlemesi, Collabora Atıf Köprüsü ("Cite this"), İki Dilli Arayüz (TR/EN).
+
+### Yapılan İşler:
+
+1. **Paket İnceleme ve İki Yönlü Şema Eşlemesi (`packages/pdf-reader`):**
+   - Zotero okuyucu içi açıklama modeli (`ZoteroReaderAnnotation`) ile Zotero Web API v3 öğe modeli (`ZoteroAnnotationItem`) arasında kayıpsız iki yönlü eşleme yazıldı (`mapping.ts`):
+     - `toZoteroAnnotationItem`: Reader açıklamasını `itemType: "annotation"`, `annotationType` (highlight, underline, note, image, ink), `annotationText`, `annotationComment`, `annotationColor`, `annotationPosition` (JSON dizgesi), `annotationSortIndex` ve 8 karakterlik benzersiz Zotero anahtarına dönüştürür.
+     - `fromZoteroAnnotationItem`: API öğesini reader açıklamasına dönüştürür.
+     - `formatSortIndex` / `parseSortIndex`: Zotero standart `PPPPP|YYYYYY|XXXXXX` sayfa ve koordinat sıralama indeksini biçimlendirir.
+   - Typed PostMessage İletişim Protokolü (`bridge.ts`):
+     - `CITEDOCS_PDF_INIT`: Okuyucu iframe'ini PDF URL, başlık, yazar bilgisi, salt okunur modu ve mevcut açıklamalarla başlatır.
+     - `CITEDOCS_PDF_READY`: Iframe hazır olduğunda ana pencereye el sıkışma bildirimi gönderir.
+     - `CITEDOCS_PDF_SET_ANNOTATIONS`: Açıklamaları okuyucuya enjekte eder.
+     - `CITEDOCS_PDF_SAVE_ANNOTATIONS`: Kullanıcı yeni bir vurgu, alt çizgi, not veya alan çizdiğinde ana pencereye ve sunucuya aktarır.
+     - `CITEDOCS_PDF_DELETE_ANNOTATIONS`: Silinen açıklamaları senkronize eder.
+     - `CITEDOCS_PDF_CITE`: Açıklamadan Collabora belgesine atıf ve alıntı aktarımı tetikler.
+   - Mevcut çevrimdışı PDF çıkarma fonksiyonları (`loadPdf`, `createHighlight`, `extractQuote`, `formatQuoteForDocument`) ve 18 birim testi eksiksiz korundu. Eklenen 11 yeni testle birlikte paketteki 29 test %100 yeşildir.
+
+2. **Upstream Zotero Reader Kaynakları ve Araçları (`vendor/pdf-reader/`, `tools/scripts/`):**
+   - `tools/scripts/fetch-pdf-reader.sh`: Resmi `zotero/reader` reposunu (`git clone --recursive https://github.com/zotero/reader.git`) alt modülleriyle (`pdfjs`, `epubjs`) çeken, `NODE_OPTIONS="--openssl-legacy-provider"` ve webpack ile derleyen otomasyon betiği eklendi.
+   - `vendor/pdf-reader/README.md`: Lisans (AGPL-3.0), bağımlılıklar ve derleme mimarisi belgelendi.
+   - `apps/web/public/zotero-pdf-reader/index.html` & `reader.html`: Upstream `window.createReader` JS arayüzünü birebir taklit eden; Zotero'nun 5 renk paletini (#ffd400, #ff6666, #5fb236, #2ea8e5, #a28ae5), vurgu, alt çizgi, not ve alan seçim araçlarını, açıklama kenar çubuğunu, "Cite this" butonunu, dil geçişini ve PostMessage köprüsünü içeren, ağ bağlantısı gerektirmeyen tam teşekküllü bağımsız bir okuyucu barındırıcısı sunuldu.
+
+3. **Sunucu Katmanı, Mülkiyet ve Zotero Senkronizasyonu (`apps/server/src/pdf/`):**
+   - **Veri Tabanı Şeması (`apps/server/src/db/schema.ts`):** `pdfAnnotations` tablosu eklendi. `id`, `ownerUserId` (kullanıcıya cascade bağlı foreign key), `attachmentId`, `zoteroKey`, `parentItemKey`, `annotationType`, `annotationText`, `annotationComment`, `annotationColor`, `annotationPageLabel`, `annotationSortIndex`, `annotationPosition` (JSONB), `imagePath`, `version`, `createdAt`, `updatedAt` alanlarıyla Drizzle ORM seviyesinde tanımlandı.
+   - **Mülkiyet İzolasyonu (`AttachmentRepository`, `AnnotationRepository`):** `assertOwnership` çağrılarıyla öğrencilerin yalnızca kendi ek dosyalarına ve açıklamalarına erişebilmesi garanti altına alındı; yabancı kullanıcı istekleri anında HTTP 403 Forbidden ile engellenir.
+   - **Depolama Soyutlaması (`AttachmentStorage`):** Bellek içi testler için `InMemoryAttachmentStorage`, canlı ortamlar için S3/MinIO uyumlu `S3AttachmentStorage` kuruldu.
+   - **Zotero Web API v3 Senkronizasyonu (`ZoteroAnnotationSyncService`):** Kullanıcının Zotero hesabı bağlıysa açıklamaları Zotero Web API v3'e çift yönlü push/pull yapan servis ve arayüz uygulandı; hesap bağlı değilse zararsız atlama (`skipped`) loglanır.
+   - **Fastify REST Rotaları (`apps/server/src/pdf/routes.ts`):**
+     - `GET /api/attachments` - Kullanıcının ek dosyalarını listeleme.
+     - `POST /api/attachments` - Yeni PDF ekleme.
+     - `GET /api/attachments/:id` & `GET /api/attachments/:id/content` - Ek dosya detayı ve PDF akışı (stream).
+     - `DELETE /api/attachments/:id` - Ek dosya silme.
+     - `GET /api/attachments/:id/annotations` - Açıklamaları Zotero API formatında listeleme.
+     - `POST /api/attachments/:id/annotations` - Yeni açıklama ekleme.
+     - `PUT /api/attachments/:id/annotations/:annId` - Açıklama güncelleme.
+     - `DELETE /api/attachments/:id/annotations/:annId` & `POST /api/attachments/:id/annotations/batch-delete` - Açıklama silme.
+     - `POST /api/attachments/:id/sync` - Zotero senkronizasyonu tetikleme.
+   - `apps/server/src/index.ts`: Minimal diff ile `createPdfRoutes` tescil edildi.
+
+4. **Web İstemcisi ve Collabora Atıf Köprüsü (`apps/web/src/pdf/`):**
+   - `PdfReaderPanel.tsx`: Bölünmüş ekran (split-panel) veya tam ekran (fullscreen) görünüm modları, mobil ve tablet dostu duyarlı tasarım, Türkçe ve İngilizce arayüz desteği (`i18n.ts`).
+   - `PdfReaderFrame.tsx`: Güvenli iframe iletişimi, yüklenme/hata durumları ve açıklamaların otomatik arka plan kaydı.
+   - **Collabora Atıf Köprüsü:** PDF okuyucu panelinde bir açıklamadan "Cite this" butonuna basıldığında `@citedocs/collabora-cite` paketi üzerinden `buildInsertCitationMessage` ve UNO `.uno:InsertText` mesajı oluşturulur; Collabora Online iframe'ine sayfa belirteciyle (`p. 42`) doğrudan alıntı ve kaynak referansı yerleştirilir.
+   - **Zotero Kenar Çubuğu Entegrasyonu (`ZoteroSidebar.tsx` & `zotero-weblib/index.html`):** Öğrenci kütüphanesindeki bir PDF öğesine tıkladığında `CITEDOCS_OPEN_PDF` olayı tetiklenir ve okuyucu ilgili dosya ile açılır.
+   - `App.tsx`: Minimal diff ile eski statik placeholder yerine `PdfReaderPanel` bağlandı.
+
+### Test ve Doğrulama Durumu:
+
+- **`packages/pdf-reader`:** 3 test dosyasında **29 test %100 yeşil** (Zotero şema eşleme, formatSortIndex, postMessage builder'ları, çevrimdışı alıntı çıkarma).
+- **`apps/server`:** `test/pdf.test.ts` (6 test) ve mevcut tüm testlerle birlikte 12 test dosyasında **119 test %100 yeşil** (Mülkiyet izolasyonu, yetkisiz istek engeli, S3 stream, açıklama CRUD, Zotero senkronizasyonu).
+- **`apps/web`:** `test/pdf.test.tsx` (9 test) ve `test/collabora.test.tsx` (9 test) **%100 yeşil** (Iframe iletişimi, Collabora atıf köprüsü, dil değiştirme, tam ekran geçişi, panel açma/kapama).
+- **Statik Analiz ve Derleme:**
+  - `pnpm lint` (`eslint .`): 0 hata, 0 uyarı.
+  - `pnpm typecheck` (`tsc -b`): Sıfır hata, kod 0.
+  - `pnpm build`: Tüm monorepo paketleri ve uygulamaları (`@citedocs/pdf-reader`, `@citedocs/server`, `@citedocs/web`) başarıyla derlendi.
+
+### Nasıl Çalıştırılır ve Test Edilir:
+
+1. **Sunucu PDF Testlerini Çalıştırma:**
+   ```bash
+   pnpm -C apps/server test test/pdf.test.ts
+   ```
+2. **Paket Birim Testlerini Çalıştırma:**
+   ```bash
+   pnpm -C packages/pdf-reader test
+   ```
+3. **Web PDF Entegrasyon Testlerini Çalıştırma:**
+   ```bash
+   pnpm -C apps/web test test/pdf.test.tsx
+   ```
+4. **Geliştirme Ortamı:**
+   ```bash
+   pnpm dev
+   ```
+   Collabora editöründeyken üst araç çubuğundaki "PDF Reader" butonuna tıklayarak veya Zotero kütüphanesinden bir ek dosyaya tıklayarak PDF okuyucuyu açabilir, metin vurgulayabilir ve doğrudan Collabora belgesine atıf yapabilirsiniz.

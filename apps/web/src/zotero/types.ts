@@ -40,9 +40,19 @@ export type WebLibraryPostMessage =
       item: ZoteroItemPayload;
     }
   | {
+      type: "CITEDOCS_OPEN_PDF";
+      attachment: {
+        id: string;
+        title: string;
+        downloadUrl: string;
+        itemId?: string;
+      };
+    }
+  | {
       type: "CITEDOCS_SET_CONFIG";
       config: Partial<ZoteroConfigInfo>;
     }
   | {
       type: "CITEDOCS_REFRESH";
     };
+

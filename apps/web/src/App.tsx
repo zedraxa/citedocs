@@ -44,6 +44,7 @@ import {
   ResetPasswordPage,
   VerifyEmailPage,
 } from "./auth/index.js";
+import { PdfReaderPanel, type PdfAttachment } from "./pdf/index.js";
 
 const INITIAL_CONTENT = `
 <h1 style="text-align: center">Scientific Writing Assignment: Quantum Gravity &amp; Spacetime</h1>
@@ -66,7 +67,9 @@ function AppEditor() {
   const [mode, setMode] = useState<"editing" | "suggesting" | "viewing">("editing");
   const [showOutline, setShowOutline] = useState(true);
   const [showPdfReader, setShowPdfReader] = useState(false);
+  const [activePdfAttachment, setActivePdfAttachment] = useState<PdfAttachment | null>(null);
   const [showZoteroSidebar, setShowZoteroSidebar] = useState(false);
+
   const [showComments, setShowComments] = useState(false);
   const [cslStyle, setCslStyle] = useState("apa");
   const [citationSearchOpen, setCitationSearchOpen] = useState(false);
@@ -733,44 +736,32 @@ function AppEditor() {
             onClose={() => setShowZoteroSidebar(false)}
             onCiteItem={(item) => handleInsertCitation(item)}
             onItemAdded={handleItemAdded}
+            onOpenPdf={(att) => {
+              setActivePdfAttachment(att);
+              setShowPdfReader(true);
+            }}
           />
         )}
 
-        {/* Right Sidebar: PDF Viewer or Comments Drawer */}
+        {/* Right Sidebar: Zotero PDF Reader Panel */}
         {showPdfReader && (
-          <aside className="w-96 bg-white border-l border-gray-300 flex flex-col h-full shadow-lg">
-            <div className="p-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-              <div className="flex items-center space-x-2">
-                <FileText className="w-4 h-4 text-red-600" />
-                <span className="text-xs font-semibold truncate max-w-[200px]">
-                  hawking1974.pdf
-                </span>
-              </div>
-              <button
-                onClick={() => setShowPdfReader(false)}
-                className="text-gray-400 hover:text-gray-600 text-xs"
-              >
-                Close &times;
-              </button>
-            </div>
-            <div className="flex-1 p-4 bg-gray-100 flex flex-col items-center justify-center text-center">
-              <div className="w-full bg-white p-6 shadow rounded border border-gray-300 text-left text-xs leading-5">
-                <p className="font-bold mb-2">NATURE VOL. 248 MARCH 1 1974</p>
-                <p className="bg-yellow-100 p-1 rounded mb-2">
-                  &ldquo;In this letter I describe a mechanism by which a black hole can emit
-                  radiation with a thermal spectrum...&rdquo;
-                </p>
-                <button
-                  onClick={handleInsertQuote}
-                  className="w-full bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-300 py-1 rounded text-[11px] font-semibold mt-2 transition-colors"
-                >
-                  + Insert Quote into Document
-                </button>
-              </div>
-            </div>
-          </aside>
+          <PdfReaderPanel
+            userId={currentUser.id}
+            attachment={
+              activePdfAttachment || {
+                id: "hawking1974-pdf",
+                title: "hawking1974.pdf",
+                contentType: "application/pdf",
+                downloadUrl: "/api/attachments/hawking1974-pdf/content",
+              }
+            }
+            isOpen={showPdfReader}
+            onClose={() => setShowPdfReader(false)}
+            onCiteAnnotation={() => handleInsertQuote()}
+          />
         )}
       </div>
+
 
       {/* ZOTERO MODAL: QUICK CITATION & ADD BY IDENTIFIER */}
       {citationSearchOpen && (

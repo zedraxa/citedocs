@@ -177,3 +177,8 @@ export async function loadPdf(data: ArrayBuffer | Uint8Array): Promise<PdfDocume
     },
   };
 }
+
+export * from "./types.js";
+export * from "./mapping.js";
+export * from "./bridge.js";
+

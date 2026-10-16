@@ -1,13 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { CollaboraFrame } from "./CollaboraFrame.js";
 import { sendActionSave } from "./postMessage.js";
-import { FileText, Save, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { FileText, Save, ArrowLeft, CheckCircle2, BookOpen } from "lucide-react";
+import { PdfReaderPanel, type PdfAttachment } from "../pdf/index.js";
 
 export interface CollaboraEditorPageProps {
   documentId?: string;
   documentTitle?: string;
   onBackToTipTap?: () => void;
+  initialAttachment?: PdfAttachment | null;
 }
+
 
 interface SessionData {
   actionUrl: string;
@@ -21,13 +24,25 @@ export function CollaboraEditorPage({
   documentId = "demo-document",
   documentTitle = "Scientific Writing Assignment: Quantum Gravity & Spacetime",
   onBackToTipTap,
+  initialAttachment,
 }: CollaboraEditorPageProps) {
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documentLoaded, setDocumentLoaded] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showPdfReader, setShowPdfReader] = useState(false);
+  const [pdfAttachment] = useState<PdfAttachment | null>(
+    initialAttachment || {
+      id: "demo-pdf",
+      title: "QuantumGravityReview.pdf",
+      contentType: "application/pdf",
+      downloadUrl: "/api/attachments/demo-pdf/content",
+    },
+  );
   const frameRef = useRef<HTMLIFrameElement | null>(null);
+
+
 
   const apiBaseUrl =
     (typeof import.meta !== "undefined" &&
@@ -126,6 +141,21 @@ export function CollaboraEditorPage({
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
+            onClick={() => setShowPdfReader(!showPdfReader)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors cursor-pointer border ${
+              showPdfReader
+                ? "bg-red-50 text-red-700 border-red-300 hover:bg-red-100"
+                : "text-slate-700 bg-slate-100 border-slate-200 hover:bg-slate-200"
+            }`}
+            data-testid="toggle-pdf-reader-btn"
+            title="Open Zotero PDF Reader in split panel"
+          >
+            <BookOpen className="w-4 h-4 text-red-600" />
+            <span>PDF Reader</span>
+          </button>
+
+          <button
             onClick={handleSave}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
           >
@@ -145,34 +175,49 @@ export function CollaboraEditorPage({
       </header>
 
       {/* Editor Body */}
-      <main className="flex-1 w-full relative bg-slate-200">
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-600 text-sm">
-            Initializing Collabora Online session...
-          </div>
-        )}
+      <div className="flex-1 w-full flex relative bg-slate-200 overflow-hidden">
+        <main className="flex-1 h-full relative">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-600 text-sm">
+              Initializing Collabora Online session...
+            </div>
+          )}
 
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-rose-50 text-rose-700 text-sm">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-rose-50 text-rose-700 text-sm">
+              {error}
+            </div>
+          )}
 
-        {session && (
-          <CollaboraFrame
-            actionUrl={session.actionUrl}
-            accessToken={session.accessToken}
-            accessTokenTtl={session.accessTokenTtl}
-            collaboraOrigin={session.collaboraUrl}
-            className="w-full h-full"
-            onDocumentLoaded={() => setDocumentLoaded(true)}
-            onSaveResponse={() => {
-              setSaveSuccess(true);
-              setTimeout(() => setSaveSuccess(false), 2000);
-            }}
+          {session && (
+            <CollaboraFrame
+              iframeRef={frameRef}
+              actionUrl={session.actionUrl}
+              accessToken={session.accessToken}
+              accessTokenTtl={session.accessTokenTtl}
+              collaboraOrigin={session.collaboraUrl}
+              className="w-full h-full"
+              onDocumentLoaded={() => setDocumentLoaded(true)}
+              onSaveResponse={() => {
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 2000);
+              }}
+            />
+          )}
+
+        </main>
+
+        {showPdfReader && (
+          <PdfReaderPanel
+            userId="yusuf-kavak"
+            attachment={pdfAttachment}
+            isOpen={showPdfReader}
+            onClose={() => setShowPdfReader(false)}
+            collaboraIframeRef={frameRef}
           />
         )}
-      </main>
+      </div>
     </div>
+
   );
 }

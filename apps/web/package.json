@@ -9,10 +9,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@citedocs/collabora-cite": "workspace:*",
     "@citedocs/csl-engine": "workspace:*",
     "@citedocs/editor": "workspace:*",
+    "@citedocs/pdf-reader": "workspace:*",
     "@citedocs/shared": "workspace:*",
     "@citedocs/zotero-core": "workspace:*",
+
     "@hocuspocus/provider": "^2.15.3",
     "@tiptap/core": "^3.32.0",
     "@tiptap/extension-collaboration": "^3.32.0",

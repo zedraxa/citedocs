@@ -241,11 +241,15 @@
 
     <!-- Inspector Pane -->
     <div class="pane-details" id="pane-details">
-      <div class="detail-section">
+      <div class="detail-section" style="display: flex; flex-direction: column; gap: 6px;">
         <button class="cite-btn" id="btn-cite-action">
           + Cite in Document
         </button>
+        <button class="cite-btn" id="btn-open-pdf" style="background: #2e7d32;">
+          📄 Open PDF / PDF Oku
+        </button>
       </div>
+
 
       <div class="detail-section">
         <div class="detail-title" id="item-title">Select an item</div>
@@ -395,7 +399,24 @@
       }, "*");
     }
 
+    function openPdfForSelectedItem() {
+      if (!selectedItem) return;
+
+      // Dispatch official postMessage to open PDF reader in CiteDocs shell
+      window.parent.postMessage({
+        type: "CITEDOCS_OPEN_PDF",
+        attachment: {
+          id: selectedItem.id + "-pdf",
+          title: `${selectedItem.title}.pdf`,
+          downloadUrl: `/api/attachments/${selectedItem.id}-pdf/content`,
+          itemId: selectedItem.id
+        }
+      }, "*");
+    }
+
     document.getElementById("btn-cite-action").addEventListener("click", citeSelectedItem);
+    document.getElementById("btn-open-pdf").addEventListener("click", openPdfForSelectedItem);
+
 
     document.getElementById("search-box").addEventListener("input", (e) => {
       activeFilter = e.target.value;

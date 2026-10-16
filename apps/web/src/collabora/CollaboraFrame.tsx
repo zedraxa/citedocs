@@ -12,6 +12,7 @@ export interface CollaboraFrameProps extends CollaboraPostMessageHandlers {
   className?: string;
   title?: string;
   onFrameReady?: () => void;
+  iframeRef?: React.RefObject<HTMLIFrameElement | null>;
 }
 
 /**
@@ -32,11 +33,13 @@ export function CollaboraFrame({
   onSaveResponse,
   onMessage,
   onFrameReady,
+  iframeRef: externalIframeRef,
 }: CollaboraFrameProps) {
   const uniqueId = useId().replace(/[:]/g, "_");
   const frameName = `collabora-frame-${uniqueId}`;
 
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const internalIframeRef = useRef<HTMLIFrameElement | null>(null);
+  const iframeRef = externalIframeRef || internalIframeRef;
   const formRef = useRef<HTMLFormElement | null>(null);
   const [formSubmitted, setFormSubmitted] = useState(false);
 

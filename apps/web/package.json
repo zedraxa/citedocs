@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@citedocs/collabora-cite": "workspace:*",
     "@citedocs/csl-engine": "workspace:*",
     "@citedocs/editor": "workspace:*",
     "@citedocs/shared": "workspace:*",

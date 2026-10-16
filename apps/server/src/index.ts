@@ -84,7 +84,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       lockManager: options.lockManager,
       discoveryService: options.discoveryService,
       secretKey: options.secretKey,
-      serverUrl: options.serverUrl,
+      serverUrl: options.serverUrl || process.env.WOPI_SERVER_URL,
     }),
   );
 

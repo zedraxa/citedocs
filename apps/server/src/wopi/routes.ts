@@ -4,6 +4,7 @@ import { WopiLockManager } from "./lockManager.js";
 import { createWopiToken, verifyWopiToken, WopiTokenError } from "./token.js";
 import { CollaboraDiscoveryService } from "./discovery.js";
 import { WopiFileNotFoundError } from "./storage/inMemoryStorage.js";
+import { exportDocumentToDocx } from "@citedocs/docx-exporter";
 
 export interface WopiRoutesOptions {
   storage: WopiStorage;
@@ -310,7 +311,29 @@ export const createWopiRoutes = (options: WopiRoutesOptions): FastifyPluginAsync
         await storage.getFileInfo(fileId);
       } catch (err: unknown) {
         if (err instanceof WopiFileNotFoundError && storage.createFile) {
-          await storage.createFile(fileId, `${fileId}.${ext}`, userId, Buffer.alloc(0));
+          let initialBuffer = Buffer.alloc(0);
+          if (ext === "docx") {
+            try {
+              initialBuffer = Buffer.from(
+                await exportDocumentToDocx({
+                  title: fileId,
+                  paragraphs: [
+                    {
+                      children: [
+                        {
+                          type: "text",
+                          text: "Welcome to CiteDocs. Start writing your academic document...",
+                        },
+                      ],
+                    },
+                  ],
+                }),
+              );
+            } catch {
+              initialBuffer = Buffer.alloc(0);
+            }
+          }
+          await storage.createFile(fileId, `${fileId}.${ext}`, userId, initialBuffer);
         }
       }
 
@@ -342,7 +365,7 @@ export const createWopiRoutes = (options: WopiRoutesOptions): FastifyPluginAsync
         wopiSrc,
         accessToken: tokenResult.token,
         accessTokenTtl: tokenResult.expiresAt,
-        collaboraUrl: process.env.COLLABORA_URL || "http://localhost:9980",
+        collaboraUrl: process.env.COLLABORA_PUBLIC_URL || process.env.COLLABORA_URL || "http://localhost:9980",
       });
     };
 

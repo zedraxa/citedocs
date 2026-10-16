@@ -199,6 +199,9 @@ importers:
       '@citedocs/csl-engine':
         specifier: workspace:*
         version: link:../../packages/csl-engine
+      '@citedocs/docx-exporter':
+        specifier: workspace:*
+        version: link:../../packages/docx-exporter
       '@citedocs/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -248,6 +251,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@citedocs/collabora-cite':
+        specifier: workspace:*
+        version: link:../../packages/collabora-cite
       '@citedocs/csl-engine':
         specifier: workspace:*
         version: link:../../packages/csl-engine

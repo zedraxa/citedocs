@@ -5,9 +5,10 @@ COPY pnpm-lock.yaml* pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY packages/ ./packages/
 COPY apps/web/ ./apps/web/
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @citedocs/web build
+RUN pnpm --filter @citedocs/web... build
 
 FROM nginx:alpine AS runner
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

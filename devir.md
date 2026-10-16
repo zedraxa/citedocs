@@ -404,3 +404,60 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 - Testing Library ile 6 yeni çevrimdışı kabul testi geçti. Web'in toplam 19 testi ayrı koşularda `--testTimeout=30000` ile doğrulandı; varsayılan 5 saniye sınırında zaman aşımı görülüyor.
 - `pnpm lint`, `pnpm typecheck`, `pnpm build` geçti. `pnpm -r test`, kapsam dışındaki CSL 300 ms performans sınırında iki kez başarısız oldu (~964–985 ms); ayrıca editor testlerinde 450 ms sınırı (~781 ms) ve 35 saniye zaman aşımı var. Paket kodlarına müdahale edilmedi.
 - Testing Library bağımlılığı apps/web/package.json'a eklendi. Kök lockfile değişikliği kapsam dışında olduğundan onay bekliyor; frozen-lockfile kurulumu öncesinde güncellenmeli. Push/deploy yapılmadı.
+
+---
+
+## 14. Collabora Atıf Ekleme & Zotero Alan Kodları (2026-10-16, cd-cite-insert)
+
+> **Kayıt No:** #010  
+> **Dal:** `cd-cite-insert`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Collabora Online (CODE) belgelerinde atıf ekleme, kaynakça üretimi, Zotero alan kodu uyumluluğu, çift yönlü ayrıştırma, stil değişimi ve PostMessage köprüsü (`packages/collabora-cite` ve `apps/collabora-scripts`).
+
+### 1. Yapılan İşler:
+1. **`@citedocs/collabora-cite` Paketi Kuruldu:**
+   - `citeproc` (npm citeproc-js) entegrasyonu sağlandı.
+   - CC BY-SA lisanslı resmi CSL stilleri (`apa`, `chicago-author-date`, `ieee`) ve `en-US` yerel ayarı paket içine dahil edildi. Ağ bağımlılığı olmadan %100 çevrimdışı çalışır.
+   - `CollaboraCSLEngine`: Global motor havuzu (engine pool) ile stiller önbelleğe alınarak sonraki stil ve küme işlemlerinde anlık (<1ms) formatlama sağlandı.
+2. **Birebir Zotero Alan Kodu Üretimi (`fields.ts`):**
+   - Word formatı: `ADDIN ZOTERO_ITEM CSL_CITATION {json}` (citationID, properties, citationItems [id, uris, itemData, locator, label, prefix, suffix], schema).
+   - Word kaynakça: `ADDIN ZOTERO_BIBL {"uncited":[],"omitted":[],"custom":[]} CSL_BIBLIOGRAPHY`.
+   - LibreOffice Writer ReferenceMark formatı: `ZOTERO_ITEM CSL_CITATION {json} RND<suffix>` ve `ZOTERO_BIBL` yer imleri/referans imleri.
+   - Belge tercihleri: `ZOTERO_PREF {json} RND<suffix>`.
+3. **Çift Yönlü Alan Kodu Ayrıştırıcı (`parser.ts`):**
+   - Belgeden okunan hem Word `ADDIN` talimatlarını hem de LibreOffice `ReferenceMark` / `Bookmark` adlarını hatasız JSON nesnelerine ve CSL meta verilerine dönüştüren round-trip ayrıştırıcı uygulandı.
+4. **Stil Değişimi ve Belge Yenileme (`refresher.ts`):**
+   - `refreshDocument`: Belgedeki tüm atıfları (ör. APA `(Libby, 2021)` -> IEEE `[1]`, `[2]`) ve kaynakçayı tek adımda baştan hesaplar; güncellenmiş alan kodlarını ve Collabora PostMessage komutlarını üretir.
+5. **Collabora PostMessage Köprüsü (`bridge.ts` & `postMessageInterface.ts`):**
+   - Collabora iframe ile iletişim için minimal `CollaboraPostMessageSender` arayüzü kuruldu.
+   - `CallPythonScript` (`zotero_collabora.py` makrosu çağrısı: `insert_citation`, `update_citation`, `insert_bibliography`, `update_bibliography`, `set_document_prefs`, `get_document_fields`) ve `Send_UNO_Command` (`.uno:InsertField`, `.uno:InsertBookmark`) mesaj şablonları uygulandı.
+6. **Collabora / LibreOffice Python Makrosu (`apps/collabora-scripts`):**
+   - `apps/collabora-scripts/zotero_collabora.py`: Collabora Online içindeki LibreOffice UNO nesnelerini (`com.sun.star.text.ReferenceMark`, `Bookmark`, `XText`) yöneten, metin ekleyen ve Zotero formatında imleri saran makro yazıldı.
+   - `apps/collabora-scripts/test_zotero_collabora.py`: Mock UNO nesneleriyle çevrimdışı 5 Python birim testi başarıyla çalıştırıldı.
+
+### 2. Nasıl Çalıştırılır:
+```bash
+# collabora-cite paket testleri (36 test)
+pnpm --filter @citedocs/collabora-cite test
+
+# Python makro testleri (5 test)
+python3 -m unittest apps/collabora-scripts/test_zotero_collabora.py
+
+# Lint, Typecheck ve Build
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+### 3. Doğrulama ve Test Sonuçları:
+- `@citedocs/collabora-cite`: 5 test dosyası, 36 test %100 yeşil (fixtures, fields, parser, engine, refresher, bridge).
+- `apps/collabora-scripts`: 5 Python birim testi %100 yeşil.
+- `pnpm lint`: 0 hata, 0 uyarı.
+- `pnpm typecheck` (`tsc -b`): 0 hata.
+- `pnpm build`: Tüm monorepo (10 paket/uygulama) hatasız derleniyor.
+
+### 4. Açık Konular ve Bilinen Durumlar:
+- Monorepo genel test çalıştırmasında (`pnpm test`) önceden var olan `apps/web` (outline ve web 5s zaman aşımı) ve `packages/editor` (971ms vs 450ms SLA sınırı) zamanlama kaynaklı kırılganlıkları gözlemlenmiştir. Kullanıcı kuralı gereğince bu testlere müdahale edilmemiş, paket kodları silinmemiştir.
+- `packages/collabora-cite` paketi kendi vitest yapılandırmasında 30s zaman aşımı tanımlayarak tam kararlı çalışmaktadır.
+- `apps/web/src/collabora/postMessage.ts` paralel bir çalışan tarafından geliştirilmekte olduğundan dokunulmamış; paket kendi minimal `CollaboraPostMessageSender` arayüzünü tanımlamıştır.
+

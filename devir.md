@@ -458,116 +458,72 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 - **Zaman Aşımı / Kırılganlık Raporu:** Önceki adımlardan devralınan `apps/web` ve `packages/editor` testleri ağır yük altında varsayılan 5000ms Vitest zaman aşımına uğramaktadır (web outline/mount testleri 5 saniyeyi aşabilmekte, CSL/editor 300ms SLA testi sistem yükünde ~524ms-1147ms sürebilmektedir). Bu testler silinmedi veya değiştirilmedi, bilinen durum olarak korundu.
 - **Paralel Çalışmalar:** Diğer dallar (`cd-wopi-host`, `cd-zotero-weblib`, `cd-cite-insert`) ADR-001'de belirlenen sözleşmeye uygun şekilde kodlama süreçlerini sürdürmektedir.
 - **Onay Bekleyen Konu:** CiteDocs'un AGPL-3.0 olarak yeniden lisanslanması kullanıcı onayına bağlıdır; onay verildiğinde `LICENSE` dosyası eklenecek ve `package.json` alanları güncellenecektir.
-||||||| 4a8c8ef
-## 14. Collabora Atıf Ekleme & Zotero Alan Kodları (2026-10-16, cd-cite-insert)
-
-> **Kayıt No:** #010  
-> **Dal:** `cd-cite-insert`  
-> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
-> **Görev:** Collabora Online (CODE) belgelerinde atıf ekleme, kaynakça üretimi, Zotero alan kodu uyumluluğu, çift yönlü ayrıştırma, stil değişimi ve PostMessage köprüsü (`packages/collabora-cite` ve `apps/collabora-scripts`).
-
-### 1. Yapılan İşler:
-1. **`@citedocs/collabora-cite` Paketi Kuruldu:**
-   - `citeproc` (npm citeproc-js) entegrasyonu sağlandı.
-   - CC BY-SA lisanslı resmi CSL stilleri (`apa`, `chicago-author-date`, `ieee`) ve `en-US` yerel ayarı paket içine dahil edildi. Ağ bağımlılığı olmadan %100 çevrimdışı çalışır.
-   - `CollaboraCSLEngine`: Global motor havuzu (engine pool) ile stiller önbelleğe alınarak sonraki stil ve küme işlemlerinde anlık (<1ms) formatlama sağlandı.
-2. **Birebir Zotero Alan Kodu Üretimi (`fields.ts`):**
-   - Word formatı: `ADDIN ZOTERO_ITEM CSL_CITATION {json}` (citationID, properties, citationItems [id, uris, itemData, locator, label, prefix, suffix], schema).
-   - Word kaynakça: `ADDIN ZOTERO_BIBL {"uncited":[],"omitted":[],"custom":[]} CSL_BIBLIOGRAPHY`.
-   - LibreOffice Writer ReferenceMark formatı: `ZOTERO_ITEM CSL_CITATION {json} RND<suffix>` ve `ZOTERO_BIBL` yer imleri/referans imleri.
-   - Belge tercihleri: `ZOTERO_PREF {json} RND<suffix>`.
-3. **Çift Yönlü Alan Kodu Ayrıştırıcı (`parser.ts`):**
-   - Belgeden okunan hem Word `ADDIN` talimatlarını hem de LibreOffice `ReferenceMark` / `Bookmark` adlarını hatasız JSON nesnelerine ve CSL meta verilerine dönüştüren round-trip ayrıştırıcı uygulandı.
-4. **Stil Değişimi ve Belge Yenileme (`refresher.ts`):**
-   - `refreshDocument`: Belgedeki tüm atıfları (ör. APA `(Libby, 2021)` -> IEEE `[1]`, `[2]`) ve kaynakçayı tek adımda baştan hesaplar; güncellenmiş alan kodlarını ve Collabora PostMessage komutlarını üretir.
-5. **Collabora PostMessage Köprüsü (`bridge.ts` & `postMessageInterface.ts`):**
-   - Collabora iframe ile iletişim için minimal `CollaboraPostMessageSender` arayüzü kuruldu.
-   - `CallPythonScript` (`zotero_collabora.py` makrosu çağrısı: `insert_citation`, `update_citation`, `insert_bibliography`, `update_bibliography`, `set_document_prefs`, `get_document_fields`) ve `Send_UNO_Command` (`.uno:InsertField`, `.uno:InsertBookmark`) mesaj şablonları uygulandı.
-6. **Collabora / LibreOffice Python Makrosu (`apps/collabora-scripts`):**
-   - `apps/collabora-scripts/zotero_collabora.py`: Collabora Online içindeki LibreOffice UNO nesnelerini (`com.sun.star.text.ReferenceMark`, `Bookmark`, `XText`) yöneten, metin ekleyen ve Zotero formatında imleri saran makro yazıldı.
-   - `apps/collabora-scripts/test_zotero_collabora.py`: Mock UNO nesneleriyle çevrimdışı 5 Python birim testi başarıyla çalıştırıldı.
-
-### 2. Nasıl Çalıştırılır:
-```bash
-# collabora-cite paket testleri (36 test)
-pnpm --filter @citedocs/collabora-cite test
-
-# Python makro testleri (5 test)
-python3 -m unittest apps/collabora-scripts/test_zotero_collabora.py
-
-# Lint, Typecheck ve Build
-pnpm lint
-pnpm typecheck
-pnpm build
-```
-
-### 3. Doğrulama ve Test Sonuçları:
-- `@citedocs/collabora-cite`: 5 test dosyası, 36 test %100 yeşil (fixtures, fields, parser, engine, refresher, bridge).
-- `apps/collabora-scripts`: 5 Python birim testi %100 yeşil.
-- `pnpm lint`: 0 hata, 0 uyarı.
-- `pnpm typecheck` (`tsc -b`): 0 hata.
-- `pnpm build`: Tüm monorepo (10 paket/uygulama) hatasız derleniyor.
-
-### 4. Açık Konular ve Bilinen Durumlar:
-- Monorepo genel test çalıştırmasında (`pnpm test`) önceden var olan `apps/web` (outline ve web 5s zaman aşımı) ve `packages/editor` (971ms vs 450ms SLA sınırı) zamanlama kaynaklı kırılganlıkları gözlemlenmiştir. Kullanıcı kuralı gereğince bu testlere müdahale edilmemiş, paket kodları silinmemiştir.
-- `packages/collabora-cite` paketi kendi vitest yapılandırmasında 30s zaman aşımı tanımlayarak tam kararlı çalışmaktadır.
-- `apps/web/src/collabora/postMessage.ts` paralel bir çalışan tarafından geliştirilmekte olduğundan dokunulmamış; paket kendi minimal `CollaboraPostMessageSender` arayüzünü tanımlamıştır.
-
-||||||| 4a8c8ef
-## 14. Zotero Web Library & Hesap Bağlama (2026-10-16, cd-zotero-weblib)
+## 14. WOPI Host & Collabora Online CODE Entegrasyonu (Kayıt #010)
 
 > **Kayıt No:** #010  
 > **Tarih:** 2026-10-16  
-> **Dal:** `cd-zotero-weblib`  
-> **Görev:** Zotero web-library kenar çubuğu (sidebar), per-user Zotero hesap bağlama, AES-256-GCM rest şifreleme, translation-server proxy (`POST /search`) ve entegrasyonu.
+> **Dal:** `cd-wopi-host`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** WOPI Host in Fastify (`apps/server`), Collabora Frame & PostMessage API (`apps/web`), Docker Compose & Kabul Testleri
 
-### 1. Yapılan İşler
+### Yapılan İşler:
 
-1. **Zotero Web Library Sidebar Entegrasyonu (`apps/web`):**
-   - Resmi `zotero/web-library` (AGPL-3.0) uygulaması yeniden yazılmadan, izole `<iframe>` mimarisiyle belge editörünün yanına kenar çubuğu (`<ZoteroSidebar />`) olarak entegre edildi (`apps/web/src/zotero/ZoteroSidebar.tsx`).
-   - AGPL-3.0 lisans izolasyonu sağlandı; `postMessage` protokolü (`CITEDOCS_ZOTERO_CITE`, `CITEDOCS_ZOTERO_ITEM_SELECTED`, `CITEDOCS_SET_CONFIG`) kurularak iframe içerisinden tıklanan veya alıntılanan kayıtların doğrudan TipTap dokümanına ve uygulama kütüphanesine aktarılması sağlandı.
-   - Çevrimdışı geliştirme ve test ortamları için tam işlevli UI kabuğu `apps/web/public/zotero-weblib/index.html` oluşturuldu.
-   - Üst çubuğa "Zotero Library" açma/kapatma butonu eklendi.
+1. **Fastify WOPI Host Uygulaması (`apps/server/src/wopi/`):**
+   - **CheckFileInfo (`GET /wopi/files/:id`):** `BaseFileName`, `OwnerId`, `Size`, `UserId`, `UserFriendlyName`, `UserCanWrite`, `Version`, `SupportsLocks: true`, `SupportsGetLock: true`, `SupportsExtendedLockLength: true`, `SupportsUpdate: true`, `PostMessageOrigin`, `BreadcrumbBrandName: "CiteDocs"` alanları tam WOPI spesifikasyonuyla sunuldu.
+   - **GetFile (`GET /wopi/files/:id/contents`):** İkili dosya içeriği, `Content-Type` ve `X-WOPI-ItemVersion` başlığıyla döndürüldü.
+   - **PutFile (`POST /wopi/files/:id/contents`):** Fastify raw binary content-type parser (`application/octet-stream`) eklendi. `X-WOPI-Lock` başlığı zorunlu olarak denetlenir; kilit eşleşirse dosya ve sürüm güncellenir (`X-WOPI-ItemVersion`), kilit uyuşmazlığında veya kilit yokken kilit iletilmesinde HTTP 409 Conflict + `X-WOPI-Lock: <currentLock>` döndürülür.
+   - **Kilit Operasyonları (`POST /wopi/files/:id`):** `X-WOPI-Override` başlığı ile:
+     - `LOCK`: Kilit oluşturur veya aynı kilitse süresini yeniler; farklı kilit varsa 409 + `X-WOPI-Lock` döner. `X-WOPI-OldLock` ile yeniden kilitleme desteklenir.
+     - `UNLOCK`: Kilit eşleşirse kilidi kaldırır; kilitli değilse veya uyuşmazsa 409 döner.
+     - `REFRESH_LOCK`: Kilit eşleşirse 30 dakikalık süreyi yeniler.
+     - `GET_LOCK`: Mevcut kilit değerini 200 + `X-WOPI-Lock` ile döner.
+     - **30 Dakika Kilit Süresi:** `WopiLockManager` zaman aşımına uğrayan kilitleri otomatik temizler.
+   - **İmzalı Erişim Belirteçleri (`src/wopi/token.ts`):** `node:crypto` HMAC-SHA256 ile `fileId`, `userId`, `canWrite`, `exp` bağlamalı, zaman aşımı korumalı, kurcalamaya karşı korumalı ve constant-time karşılaştırmalı token mekanizması kuruldu. Geçersiz veya süresi dolan token istekleri HTTP 401 ile reddedilir.
+   - **Depolama Soyutlaması (`src/wopi/storage/`):**
+     - `WopiStorage` arayüzü tanımlandı.
+     - `InMemoryWopiStorage`: Hızlı çevrimdışı testler ve yerel çalışma için bellek içi depolama.
+     - `S3WopiStorage`: `@aws-sdk/client-s3` ile S3/MinIO depolama (`endpoint`, `forcePathStyle: true`, metadata yönetimi).
+   - **Collabora Keşif Servisi (`src/wopi/discovery.ts`):** Collabora `/hosting/discovery` XML çıktısını ayrıştırıp `actionUrl` (`WOPISrc` parametresiyle) üreten, 1 saat önbellekli ve `COLLABORA_ACTION_URL_OVERRIDE` destekli servis yazıldı.
+   - **Oturum Uç Noktası (`/api/documents/:id/collabora-session`):** İstemciye imzalı erişim token'ı, `accessTokenTtl` (epoch ms), `wopiSrc` ve Collabora `actionUrl` döndüren uç bağlandı.
 
-2. **Per-User Zotero Hesap Bağlama & Güvenlik (`apps/server`):**
-   - Sunucu tarafında kullanıcıların `zotero.org` API anahtarlarını doğrulama ve bağlama uç noktaları yazıldı (`apps/server/src/zotero/`):
-     - `GET /api/zotero/account`: Maskelenmiş anahtar durumunu döner (`••••••••1234`), ham anahtar asla tarayıcıya veya loglara sızdırılmaz.
-     - `POST /api/zotero/account`: Girilen anahtarı `https://api.zotero.org/keys/current` üzerinden doğrular; geçersizse 401 döner, geçerliyse veritabanına AES-256-GCM ile rest şifreli kaydeder.
-     - `DELETE /api/zotero/account`: Kullanıcının bağlı Zotero hesabını siler.
-     - `GET /api/zotero/config`: Web-library için gerekli kullanıcı kütüphane ve proxy yapılandırmasını döner.
-     - `GET /api/zotero/oauth/initiate` & `POST /api/zotero/oauth/callback`: OAuth 1.0a iskeleti sağlandı.
-     - `ALL /api/zotero/proxy/*`: Web-library'nin zotero.org API isteklerini sunucu üzerinden güvenle ve çözülen anahtarla yönlendiren proxy uç noktası.
+2. **Docker Compose Servisi (`docker-compose.yml`):**
+   - `collabora` servisi eklendi (`collabora/code:latest`, `aliasgroup1: http://server:3000,http://localhost:3000`, `extra_params: --o:ssl.enable=false --o:ssl.termination=false`, `ports: 9980:9980`, `depends_on: server`).
+   - Mevcut `minio` ve diğer servislerin sırası ve içeriği aynen korundu.
 
-3. **Translation-Server Mikroservisi & `POST /search`:**
-   - `docker-compose.yml` içinde `translation-server` servisi (`zotero/translation-server:latest`, port 1969) korundu ve `TRANSLATION_SERVER_URL` ile bağlandı.
-   - Tanımlayıcı (DOI, ISBN, PMID, arXiv, URL) sorgularını doğrudan translation-server mikroservisine ileten `POST /api/zotero/translation/search` ve `POST /search` uç noktaları eklendi.
+3. **Web İstemcisi & PostMessage Entegrasyonu (`apps/web/src/collabora/`):**
+   - `postMessage.ts`: Collabora Online ile çift yönlü güvenli iletişim. `event.origin` doğrulaması, `App_LoadingStatus`, `Document_Loaded`, `Action_Save`, `Send_UNO_Command`, `Host_PostmessageReady` ve diğer çalışanların kullanabileceği `useCollaboraPostMessage` React kancası.
+   - `CollaboraFrame.tsx`: Standart WOPI akışında `access_token` ve `access_token_ttl` değerlerini hedef iframe'e POST eden gizli form, iframe `onLoad` anında `Host_PostmessageReady` tetiklemesi ve yükleme durumu görsel bildirim katmanı.
+   - `CollaboraEditorPage.tsx`: Belge başlığı, Collabora Online rozeti, kaydetme aksiyonu ve TipTap'e geri dönüş kontrollerini içeren tam sayfa düzeni.
+   - `App.tsx`: `?editor=collabora` URL parametresi veya üst bardaki "Collabora Online" butonu ile Collabora editörüne geçiş sağlayan minimal yönlendirme eklendi (mevcut testlerle %100 uyumlu).
 
-4. **Vendor & Araç Dokümantasyonu:**
-   - `tools/scripts/fetch-web-library.sh`: Upstream depodan `zotero/web-library` çekip derleyen betik.
-   - `vendor/web-library/README.md`: Lisanslama (AGPL-3.0), mimari kararlar, iframe postMessage protokolü ve güvenli proxy mekanizması belgelendi.
+4. **Test ve Doğrulama Durumu:**
+   - `apps/server/test/wopi.test.ts`: 32 test (Token doğrulama/hata 401, CheckFileInfo 200/404, GetFile, PutFile lock kontrolü ve çakışma 409, LOCK/UNLOCK/REFRESH_LOCK/GET_LOCK, Collabora oturum keşfi).
+   - `apps/server/test/wopi.storage.test.ts`: 6 test (S3WopiStorage Head/Get/Put/Create işlemleri mock S3Client ile çevrimdışı doğrulandı).
+   - `apps/server`: 9 test dosyasında **98 test %100 yeşil**.
+   - `apps/web/test/collabora.test.tsx`: 9 test (PostMessage yardımcıları, origin check, `useCollaboraPostMessage`, form POST ve `CollaboraFrame` rendering) **%100 yeşil**.
+   - Monorepo genelinde `pnpm typecheck` (`tsc -b`), `pnpm lint` (0 hata, 0 uyarı) ve `pnpm build` tam başarıyla tamamlandı.
 
-5. **Testler ve Doğrulama:**
-   - `apps/server/test/zotero-account.test.ts`: 9 test (auth zorunluluğu, unlinked durumu, geçersiz anahtar 401 reddi, geçerli anahtar şifreleme/maskeleme, tenant izolasyonu, OAuth iskeleti).
-   - `apps/server/test/zotero-proxy.test.ts`: 6 test (unlinked proxy engeli, çözülen anahtarla zotero.org proxy, `POST /api/zotero/translation/search` ve `POST /search` translation-server proxy).
-   - `apps/web/test/zotero-sidebar.test.tsx`: 6 test (kenar çubuğu render, iframe src, kapatma butonu, `postMessage` alıntı yakalama, hesap bağlama ve bağlantı kesme modalı).
+### Nasıl Çalıştırılır:
 
-### 2. Nasıl Çalıştırılır?
+1. **Altyapı (MinIO ve Collabora Online):**
+   ```bash
+   docker compose up -d minio collabora
+   ```
+2. **Sunucu Testlerini Çalıştırma:**
+   ```bash
+   pnpm -C apps/server test
+   ```
+3. **Web Collabora Testlerini Çalıştırma:**
+   ```bash
+   pnpm -C apps/web test test/collabora.test.tsx
+   ```
+4. **Geliştirme Sunucusu:**
+   ```bash
+   pnpm dev
+   ```
+   Tarayıcıda `http://localhost:5173/?editor=collabora` adresine giderek veya üst menüdeki "Collabora Online" butonuna tıklayarak doğrudan Collabora editörüne erişilebilir.
 
-```bash
-# 1. Altyapıyı başlat (Postgres, MinIO, translation-server)
-docker compose up -d postgres minio translation-server
+### Açık Konular / Notlar:
+- Önceden var olan `packages/csl-engine` ve `apps/web` (outline/web) testlerindeki 5 saniyelik Vitest zaman aşımına bağlı timing-flakiness korundu (müdahale edilmedi, silinmedi).
+- `cd-wopi-host` dalı üzerindeki tüm WOPI host ve Collabora Online isterleri eksiksiz teslim edilmiştir.
 
-# 2. Testleri çalıştır
-pnpm --filter @citedocs/server test
-pnpm --filter @citedocs/web exec vitest run test/zotero-sidebar.test.tsx
-pnpm --filter @citedocs/web exec vitest run test/add-by-identifier.test.ts
-
-# 3. Tip kontrolü ve derleme
-pnpm typecheck
-pnpm lint
-pnpm build
-```
-
-### 3. Açık Konular / Notlar
-- `apps/web/test/web.test.ts` ve `apps/web/test/outline.test.tsx` varsayılan 5s Vitest zaman aşımında timing-flaky kalmaktadır; `--testTimeout=30000` ile hepsi %100 yeşil geçmektedir.
-- Upstream `zotero/web-library` harici npm bağımlılıkları gerektirdiğinden, çevrimdışı CI/geliştirme için `public/zotero-weblib/index.html` tam uyumlu arayüz ve postMessage protokolü ile hizmet verir; canlı üretim derlemesi için `./tools/scripts/fetch-web-library.sh` çalıştırılabilir.

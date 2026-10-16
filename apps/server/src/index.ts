@@ -7,6 +7,14 @@ import { zoteroRoutes } from "./routes/zotero.js";
 import { createCollabServer } from "./collab/server.js";
 import { createItemRoutes, itemRoutes } from "./routes/items.js";
 import { ItemRepository } from "./repositories/itemRepository.js";
+import {
+  createWopiRoutes,
+  InMemoryWopiStorage,
+  S3WopiStorage,
+  WopiLockManager,
+  CollaboraDiscoveryService,
+  type WopiStorage,
+} from "./wopi/index.js";
 
 import { zoteroWeblibRoutes } from "./zotero/routes.js";
 import { ZoteroAccountService } from "./zotero/accountService.js";
@@ -17,6 +25,7 @@ import { ZoteroCredentialRepository } from "./repositories/zoteroRepository.js";
 export * from "./db/index.js";
 export * from "./repositories/index.js";
 export * from "./zotero/index.js";
+export * from "./wopi/index.js";
 export { createItemRoutes, itemRoutes };
 
 export interface BuildAppOptions {
@@ -26,6 +35,11 @@ export interface BuildAppOptions {
   zoteroAccountService?: ZoteroAccountService;
   zoteroProxyService?: ZoteroProxyService;
   zoteroOAuthService?: ZoteroOAuthService;
+  wopiStorage?: WopiStorage;
+  lockManager?: WopiLockManager;
+  discoveryService?: CollaboraDiscoveryService;
+  secretKey?: string;
+  serverUrl?: string;
 }
 
 /** @deprecated use BuildAppOptions */
@@ -57,6 +71,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     oauthService: options.zoteroOAuthService,
     credentialRepo,
   });
+
+  const wopiStorage =
+    options.wopiStorage ||
+    (process.env.NODE_ENV === "test" || !process.env.S3_ENDPOINT
+      ? new InMemoryWopiStorage()
+      : new S3WopiStorage());
+
+  await fastify.register(
+    createWopiRoutes({
+      storage: wopiStorage,
+      lockManager: options.lockManager,
+      discoveryService: options.discoveryService,
+      secretKey: options.secretKey,
+      serverUrl: options.serverUrl,
+    }),
+  );
 
   return fastify;
 }

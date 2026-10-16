@@ -33,6 +33,7 @@ import { AddByIdentifier, type AddByIdentifierItem } from "./components/AddByIde
 
 import { OutlineSidebar } from "./components/OutlineSidebar.js";
 import { ZoteroSidebar } from "./zotero/index.js";
+import { CollaboraEditorPage } from "./collabora/index.js";
 
 const INITIAL_CONTENT = `
 <h1 style="text-align: center">Scientific Writing Assignment: Quantum Gravity &amp; Spacetime</h1>
@@ -60,6 +61,15 @@ export function App() {
   const [citationSearchOpen, setCitationSearchOpen] = useState(false);
   const [citationQuery, setCitationQuery] = useState("");
   const [citationModalTab, setCitationModalTab] = useState<"search" | "identifier">("search");
+  const [activeEditor, setActiveEditor] = useState<"tiptap" | "collabora">(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("editor") === "collabora") {
+        return "collabora";
+      }
+    }
+    return "tiptap";
+  });
 
   // Real-time Hocuspocus CRDT Collaboration provider
   const {
@@ -217,6 +227,16 @@ export function App() {
           ? "h4"
           : "p";
 
+  if (activeEditor === "collabora") {
+    return (
+      <CollaboraEditorPage
+        documentId={documentId}
+        documentTitle={docTitle}
+        onBackToTipTap={() => setActiveEditor("tiptap")}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#f8f9fa] text-[#202124]">
       {/* 1. TOP HEADER & MENUBAR */}
@@ -301,6 +321,17 @@ export function App() {
 
         {/* Right side controls */}
         <div className="flex items-center space-x-3">
+          {/* Collabora Online Toggle */}
+          <button
+            onClick={() => setActiveEditor("collabora")}
+            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 cursor-pointer transition-colors"
+            title="Open in Collabora Online (CODE) editor via WOPI"
+            data-testid="open-collabora-btn"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <span>Collabora Online</span>
+          </button>
+
           {/* Mode Switcher */}
           <div className="relative">
             <button

@@ -21,6 +21,24 @@ export interface CollaboraFrameProps extends CollaboraPostMessageHandlers {
  * directly into the iframe, automatically sends Host_PostmessageReady on load,
  * and monitors loading status / document loaded events via postMessage.
  */
+/**
+ * Pass an explicit, valid BCP-47 UI language to Collabora. Without it, browsers that report an
+ * unusual navigator.language (e.g. headless/POSIX locales) make cool.html throw
+ * "Incorrect locale information provided" before it sends its `load`, and the document only
+ * opens after Collabora's load timeout kills and retries the session.
+ */
+function withLang(url: string): string {
+  if (/[?&]lang=/.test(url)) return url;
+  let lang = "en-US";
+  try {
+    const cand = (typeof navigator !== "undefined" && navigator.language) || "en-US";
+    lang = Intl.getCanonicalLocales(cand)[0] || "en-US";
+  } catch {
+    lang = "en-US";
+  }
+  return `${url}${url.includes("?") ? "&" : "?"}lang=${encodeURIComponent(lang)}`;
+}
+
 export function CollaboraFrame({
   actionUrl,
   accessToken,
@@ -100,7 +118,7 @@ export function CollaboraFrame({
       {/* Hidden POST form per standard WOPI iframe bootstrap */}
       <form
         ref={formRef}
-        action={actionUrl}
+        action={withLang(actionUrl)}
         method="POST"
         target={frameName}
         style={{ display: "none" }}

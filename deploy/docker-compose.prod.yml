@@ -71,7 +71,7 @@ services:
       server_name: docs.sifirdanbire.com.tr
       username: admin
       password: ${COLLABORA_ADMIN_PASSWORD}
-      extra_params: --o:ssl.enable=false --o:ssl.termination=true --o:num_prespawn_children=1 --o:welcome.enable=false --o:user_interface.mode=tabbed --o:net.frame_ancestors=https://docs.sifirdanbire.com.tr
+      extra_params: --o:ssl.enable=false --o:ssl.termination=true --o:num_prespawn_children=1 --o:per_document.limit_load_secs=20 --o:welcome.enable=false --o:user_interface.mode=tabbed --o:net.frame_ancestors=https://docs.sifirdanbire.com.tr
   wopi:
     image: node:22-alpine
     container_name: citedocs-wopi

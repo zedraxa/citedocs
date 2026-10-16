@@ -404,3 +404,61 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 - Testing Library ile 6 yeni çevrimdışı kabul testi geçti. Web'in toplam 19 testi ayrı koşularda `--testTimeout=30000` ile doğrulandı; varsayılan 5 saniye sınırında zaman aşımı görülüyor.
 - `pnpm lint`, `pnpm typecheck`, `pnpm build` geçti. `pnpm -r test`, kapsam dışındaki CSL 300 ms performans sınırında iki kez başarısız oldu (~964–985 ms); ayrıca editor testlerinde 450 ms sınırı (~781 ms) ve 35 saniye zaman aşımı var. Paket kodlarına müdahale edilmedi.
 - Testing Library bağımlılığı apps/web/package.json'a eklendi. Kök lockfile değişikliği kapsam dışında olduğundan onay bekliyor; frozen-lockfile kurulumu öncesinde güncellenmeli. Push/deploy yapılmadı.
+
+## 14. Zotero Web Library & Hesap Bağlama (2026-10-16, cd-zotero-weblib)
+
+> **Kayıt No:** #010  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-zotero-weblib`  
+> **Görev:** Zotero web-library kenar çubuğu (sidebar), per-user Zotero hesap bağlama, AES-256-GCM rest şifreleme, translation-server proxy (`POST /search`) ve entegrasyonu.
+
+### 1. Yapılan İşler
+
+1. **Zotero Web Library Sidebar Entegrasyonu (`apps/web`):**
+   - Resmi `zotero/web-library` (AGPL-3.0) uygulaması yeniden yazılmadan, izole `<iframe>` mimarisiyle belge editörünün yanına kenar çubuğu (`<ZoteroSidebar />`) olarak entegre edildi (`apps/web/src/zotero/ZoteroSidebar.tsx`).
+   - AGPL-3.0 lisans izolasyonu sağlandı; `postMessage` protokolü (`CITEDOCS_ZOTERO_CITE`, `CITEDOCS_ZOTERO_ITEM_SELECTED`, `CITEDOCS_SET_CONFIG`) kurularak iframe içerisinden tıklanan veya alıntılanan kayıtların doğrudan TipTap dokümanına ve uygulama kütüphanesine aktarılması sağlandı.
+   - Çevrimdışı geliştirme ve test ortamları için tam işlevli UI kabuğu `apps/web/public/zotero-weblib/index.html` oluşturuldu.
+   - Üst çubuğa "Zotero Library" açma/kapatma butonu eklendi.
+
+2. **Per-User Zotero Hesap Bağlama & Güvenlik (`apps/server`):**
+   - Sunucu tarafında kullanıcıların `zotero.org` API anahtarlarını doğrulama ve bağlama uç noktaları yazıldı (`apps/server/src/zotero/`):
+     - `GET /api/zotero/account`: Maskelenmiş anahtar durumunu döner (`••••••••1234`), ham anahtar asla tarayıcıya veya loglara sızdırılmaz.
+     - `POST /api/zotero/account`: Girilen anahtarı `https://api.zotero.org/keys/current` üzerinden doğrular; geçersizse 401 döner, geçerliyse veritabanına AES-256-GCM ile rest şifreli kaydeder.
+     - `DELETE /api/zotero/account`: Kullanıcının bağlı Zotero hesabını siler.
+     - `GET /api/zotero/config`: Web-library için gerekli kullanıcı kütüphane ve proxy yapılandırmasını döner.
+     - `GET /api/zotero/oauth/initiate` & `POST /api/zotero/oauth/callback`: OAuth 1.0a iskeleti sağlandı.
+     - `ALL /api/zotero/proxy/*`: Web-library'nin zotero.org API isteklerini sunucu üzerinden güvenle ve çözülen anahtarla yönlendiren proxy uç noktası.
+
+3. **Translation-Server Mikroservisi & `POST /search`:**
+   - `docker-compose.yml` içinde `translation-server` servisi (`zotero/translation-server:latest`, port 1969) korundu ve `TRANSLATION_SERVER_URL` ile bağlandı.
+   - Tanımlayıcı (DOI, ISBN, PMID, arXiv, URL) sorgularını doğrudan translation-server mikroservisine ileten `POST /api/zotero/translation/search` ve `POST /search` uç noktaları eklendi.
+
+4. **Vendor & Araç Dokümantasyonu:**
+   - `tools/scripts/fetch-web-library.sh`: Upstream depodan `zotero/web-library` çekip derleyen betik.
+   - `vendor/web-library/README.md`: Lisanslama (AGPL-3.0), mimari kararlar, iframe postMessage protokolü ve güvenli proxy mekanizması belgelendi.
+
+5. **Testler ve Doğrulama:**
+   - `apps/server/test/zotero-account.test.ts`: 9 test (auth zorunluluğu, unlinked durumu, geçersiz anahtar 401 reddi, geçerli anahtar şifreleme/maskeleme, tenant izolasyonu, OAuth iskeleti).
+   - `apps/server/test/zotero-proxy.test.ts`: 6 test (unlinked proxy engeli, çözülen anahtarla zotero.org proxy, `POST /api/zotero/translation/search` ve `POST /search` translation-server proxy).
+   - `apps/web/test/zotero-sidebar.test.tsx`: 6 test (kenar çubuğu render, iframe src, kapatma butonu, `postMessage` alıntı yakalama, hesap bağlama ve bağlantı kesme modalı).
+
+### 2. Nasıl Çalıştırılır?
+
+```bash
+# 1. Altyapıyı başlat (Postgres, MinIO, translation-server)
+docker compose up -d postgres minio translation-server
+
+# 2. Testleri çalıştır
+pnpm --filter @citedocs/server test
+pnpm --filter @citedocs/web exec vitest run test/zotero-sidebar.test.tsx
+pnpm --filter @citedocs/web exec vitest run test/add-by-identifier.test.ts
+
+# 3. Tip kontrolü ve derleme
+pnpm typecheck
+pnpm lint
+pnpm build
+```
+
+### 3. Açık Konular / Notlar
+- `apps/web/test/web.test.ts` ve `apps/web/test/outline.test.tsx` varsayılan 5s Vitest zaman aşımında timing-flaky kalmaktadır; `--testTimeout=30000` ile hepsi %100 yeşil geçmektedir.
+- Upstream `zotero/web-library` harici npm bağımlılıkları gerektirdiğinden, çevrimdışı CI/geliştirme için `public/zotero-weblib/index.html` tam uyumlu arayüz ve postMessage protokolü ile hizmet verir; canlı üretim derlemesi için `./tools/scripts/fetch-web-library.sh` çalıştırılabilir.

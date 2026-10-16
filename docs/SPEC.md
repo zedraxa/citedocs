@@ -263,6 +263,42 @@ CiteDocs implements all standard Zotero item types:
 
 ---
 
+## 5.1 Product Principles: Free, Volunteer, Non-Commercial
+
+CiteDocs is a **volunteer, non-commercial, fully free open-source** project. There are **no paid tiers, no feature paywalls, and no upsells**. Every capability in this SPEC is available to every user at no cost.
+
+### Accounts & Sign-Up (required)
+* **Free registration** for everyone with no invitation code and no waiting list.
+* Sign-up / login methods (all free):
+  * Email + password (Argon2id).
+  * Google OAuth.
+  * ORCID OAuth (preferred for academic users).
+* Optional linking of a `zotero.org` account via OAuth / API key for two-way library sync (see §3.8). Users may use CiteDocs without linking Zotero.
+
+### Cloud Storage Quotas (generous free defaults)
+Hosted CiteDocs instances provide ample free cloud storage so students can work without buying plans:
+* **Documents & libraries metadata:** effectively unlimited for normal academic use (soft limit e.g. 10,000 documents / 100,000 library items per user, raised on request).
+* **PDF & attachment storage:** **≥ 5 GB per user** free by default on the public/volunteer host (configurable higher for self-hosted deployments).
+* **Collaborative docs & sharing:** unlimited collaborators within reasonable fair-use rate limits.
+* Quotas exist only to protect the volunteer host from abuse; they must never gate core features behind payment.
+
+### Sharing & Collaboration
+* Share documents by link or by account email with roles Owner / Editor / Commenter / Viewer (see §2.8).
+* Real-time multi-user editing, comments, and suggesting mode are free for all roles.
+* Library / collection sharing for group coursework is free.
+
+### Hosting Paths (no commercial lock-in)
+1. **Self-host:** one-command Docker Compose (Postgres + MinIO + translation-server + API + web) on a home server or ~$5/mo VPS — see `docs/ARCHITECTURE.md` §7.1.
+2. **Low-cost public host:** optional AWS / Cloudflare free-tier or ~$15–25/mo blueprint for a community instance — see §7.2. Deploying spend requires an explicit human decision; agents never deploy or spend money on their own.
+3. Source stays public; forks and private self-hosts are encouraged.
+
+### Explicit Non-Goals
+* No freemium, premium, or "Pro" SKU.
+* No ads inside the editor or library.
+* No selling user documents, libraries, or PDFs.
+
+---
+
 ## 6. User Stories & Acceptance Criteria
 
 ### US-1: Live Citation Insertion
@@ -292,3 +328,13 @@ CiteDocs implements all standard Zotero item types:
   1. Entering Zotero API key initiates sync workflow.
   2. Collections hierarchy, items, tags, and notes replicate to local PostgreSQL database.
   3. Adding a paper by DOI in CiteDocs syncs upstream to `zotero.org` with proper version tags.
+
+### US-4: Free Account & Cloud Library
+* **As a** Scientific Writing student,
+* **I want to** create a free CiteDocs account (email, Google, or ORCID) and save documents plus PDFs in the cloud,
+* **So that** I can write and cite from my PC or tablet without paying or self-hosting.
+* **Acceptance Criteria:**
+  1. Sign-up page offers email, Google, and ORCID with no payment step.
+  2. After login I can create a doc, upload a PDF (≥10 MB), and reopen both from another browser.
+  3. No UI copy mentions paid plans, trials, or locked features.
+

@@ -123,6 +123,18 @@ graph TD
 
 ---
 
+
+### 2.8 Authentication & Identity Providers
+* **Local accounts:** email + Argon2id password.
+* **Social / academic SSO (all free):** Google OAuth 2.0 and ORCID OAuth 2.0.
+* **Zotero link (optional):** OAuth 1.0a or API key for two-way `zotero.org` sync; stored encrypted at rest.
+* **No paid IdP or license server.** Session model: HTTP-only secure JWT (or opaque session) cookies with tenant isolation.
+
+### 2.9 Free-Tier Storage Policy
+* Default hosted quotas: ≥5 GB PDF/object storage per user; soft caps on document/library counts only for abuse prevention.
+* Self-hosted Docker deployments set their own caps (or none). Object storage is MinIO locally and S3/R2 in the cheap AWS blueprint (§7).
+
+
 ## 3. Monorepo Package Topology
 
 ```txt
@@ -425,6 +437,8 @@ gantt
 ---
 
 ## 7. Self-Hosting & Deployment Architecture
+
+CiteDocs ships as free open-source software with **no paywalls**. Operators may self-host for $0 (own hardware) or run a low-cost public instance; agents must never deploy or spend money without an explicit human ask.
 
 ### 7.1 Single-Server Self-Hosting (Docker Compose)
 CiteDocs is fully containerized for one-click self-hosting on any VPS (DigitalOcean, Hetzner, Linode, or home server):

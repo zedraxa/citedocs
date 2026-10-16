@@ -35,15 +35,24 @@ import {
   type OAuthService,
 } from "./auth/index.js";
 
+import {
+  DocumentRepository,
+  InMemoryDocumentRepository,
+  type IDocumentRepository,
+} from "./repositories/index.js";
+import { createDocumentRoutes } from "./documents/index.js";
+
 export * from "./db/index.js";
 export * from "./repositories/index.js";
 export * from "./zotero/index.js";
 export * from "./wopi/index.js";
 export * from "./auth/index.js";
+export * from "./documents/index.js";
 export { createItemRoutes, itemRoutes };
 
 export interface BuildAppOptions {
   itemRepo?: ItemRepository;
+  documentRepo?: IDocumentRepository;
   zoteroClient?: TranslationClient;
   zoteroCredentialRepo?: ZoteroCredentialRepository;
   zoteroAccountService?: ZoteroAccountService;
@@ -124,11 +133,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     credentialRepo,
   });
 
+  const documentRepo =
+    options.documentRepo ||
+    (process.env.DATABASE_URL ? new DocumentRepository() : new InMemoryDocumentRepository());
+
   const wopiStorage =
     options.wopiStorage ||
     (process.env.NODE_ENV === "test" || !process.env.S3_ENDPOINT
       ? new InMemoryWopiStorage()
       : new S3WopiStorage());
+
+  await fastify.register(
+    createDocumentRoutes({
+      documentRepo,
+      wopiStorage,
+    })
+  );
 
   await fastify.register(
     createWopiRoutes({
@@ -137,6 +157,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       discoveryService: options.discoveryService,
       secretKey: options.secretKey,
       serverUrl: options.serverUrl,
+      documentRepo,
     }),
   );
 

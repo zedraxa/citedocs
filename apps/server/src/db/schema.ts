@@ -47,20 +47,25 @@ export const documents = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     title: text("title").notNull().default("Untitled Document"),
+    s3ObjectKey: text("s3_object_key"),
+    fileSize: integer("file_size").notNull().default(0),
+    mimeType: text("mime_type").notNull().default("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     yjsState: bytea("yjs_state"),
     cslStyleId: text("csl_style_id").notNull().default("apa"),
     cslLocale: text("csl_locale").notNull().default("en-US"),
     preferences: jsonb("preferences").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   (table) => [
     index("documents_owner_user_id_idx").on(table.ownerUserId),
+    index("documents_deleted_at_idx").on(table.deletedAt),
   ]
 );
 
 /**
- * Document shares: explicit collaboration grants (owner, editor, commenter, viewer).
+ * Document shares: explicit collaboration grants (grantee user or email invite, role viewer/editor, created_by).
  * Collaboration only occurs when explicitly granted here.
  */
 export const documentShares = pgTable(
@@ -71,13 +76,18 @@ export const documentShares = pgTable(
       .notNull()
       .references(() => documents.id, { onDelete: "cascade" }),
     userId: uuid("user_id")
-      .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    email: varchar("email", { length: 255 }),
     role: text("role").notNull().default("viewer"), // "owner" | "editor" | "commenter" | "viewer"
+    createdBy: uuid("created_by")
+      .references(() => users.id, { onDelete: "cascade" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
     index("document_shares_doc_user_idx").on(table.documentId, table.userId),
+    index("document_shares_doc_email_idx").on(table.documentId, table.email),
+    index("document_shares_created_by_idx").on(table.createdBy),
   ]
 );
 

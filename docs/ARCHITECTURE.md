@@ -390,7 +390,7 @@ gantt
 
 ### Detailed Agent Work Breakdown
 
-#### Milestone 0: Monorepo Scaffold & Core Infrastructure (Current)
+#### Milestone 0: Monorepo Scaffold & Core Infrastructure (DONE 2026-10-16)
 
 - **Goal:** Monorepo configuration, TypeScript compilation, linting, tests, CI/CD workflow, and Docker environment.
 - **Agent Task M0.1:** Setup `pnpm-workspace.yaml`, `tsconfig.base.json`, and root scripts.

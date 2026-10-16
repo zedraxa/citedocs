@@ -12,8 +12,10 @@ sys.path.insert(0, os.path.dirname(__file__))
 from zotero_collabora import (
     insert_citation,
     update_citation,
+    remove_citation,
     insert_bibliography,
     update_bibliography,
+    remove_bibliography,
     get_document_fields,
     set_document_prefs,
 )
@@ -216,6 +218,38 @@ class TestZoteroCollabora(unittest.TestCase):
         res = json.loads(res_str)
         self.assertEqual(res["status"], "ok")
         self.assertIn("ZOTERO_PREF", res["markName"])
+
+    def test_remove_citation(self):
+        # Insert mark
+        mark = MockContent("com.sun.star.text.ReferenceMark")
+        mark.setName("ZOTERO_ITEM CSL_CITATION {} RND_DEL")
+        mark.getAnchor().setString("(Einstein, 1935)")
+        self.doc.getReferenceMarks().add(mark)
+
+        self.assertTrue(self.doc.getReferenceMarks().hasByName("ZOTERO_ITEM CSL_CITATION {} RND_DEL"))
+
+        # Remove mark
+        res_str = remove_citation("ZOTERO_ITEM CSL_CITATION {} RND_DEL", doc=self.doc)
+        res = json.loads(res_str)
+        self.assertEqual(res["status"], "ok")
+        self.assertEqual(res["action"], "remove_citation")
+        self.assertFalse(self.doc.getReferenceMarks().hasByName("ZOTERO_ITEM CSL_CITATION {} RND_DEL"))
+        self.assertEqual(mark.getAnchor().getString(), "")
+
+    def test_remove_bibliography(self):
+        bm = MockContent("com.sun.star.text.Bookmark")
+        bm.setName("ZOTERO_BIBL {} CSL_BIBLIOGRAPHY RND_BIB_DEL")
+        bm.getAnchor().setString("Bibliography text")
+        self.doc.getBookmarks().add(bm)
+
+        self.assertTrue(self.doc.getBookmarks().hasByName("ZOTERO_BIBL {} CSL_BIBLIOGRAPHY RND_BIB_DEL"))
+
+        res_str = remove_bibliography("ZOTERO_BIBL {} CSL_BIBLIOGRAPHY RND_BIB_DEL", doc=self.doc)
+        res = json.loads(res_str)
+        self.assertEqual(res["status"], "ok")
+        self.assertEqual(res["action"], "remove_bibliography")
+        self.assertFalse(self.doc.getBookmarks().hasByName("ZOTERO_BIBL {} CSL_BIBLIOGRAPHY RND_BIB_DEL"))
+        self.assertEqual(bm.getAnchor().getString(), "")
 
 
 if __name__ == "__main__":

@@ -103,6 +103,35 @@ def update_citation(markName, newMarkName, citationJson, formattedText, doc=None
     })
 
 
+def remove_citation(markName, doc=None):
+    """
+    Removes an existing citation ReferenceMark and its text content from the document.
+    """
+    document = get_current_doc(doc)
+    ref_marks = document.getReferenceMarks()
+
+    if not ref_marks.hasByName(markName):
+        return json.dumps({
+            "status": "error",
+            "action": "remove_citation",
+            "message": f"ReferenceMark '{markName}' not found",
+        })
+
+    old_mark = ref_marks.getByName(markName)
+    anchor = old_mark.getAnchor()
+    text = document.getText()
+
+    if anchor:
+        anchor.setString("")
+    text.removeTextContent(old_mark)
+
+    return json.dumps({
+        "status": "ok",
+        "action": "remove_citation",
+        "markName": markName,
+    })
+
+
 def insert_bibliography(formattedText, markName=None, biblJson=None, rndSuffix=None, doc=None):
     """
     Inserts the bibliography as a Bookmark or ReferenceMark at the current cursor position.
@@ -174,6 +203,40 @@ def update_bibliography(markName, newMarkName=None, formattedText=None, doc=None
         "status": "ok",
         "action": "update_bibliography",
         "markName": final_name,
+    })
+
+
+def remove_bibliography(markName, doc=None):
+    """
+    Removes the bibliography bookmark or reference mark and its content.
+    """
+    document = get_current_doc(doc)
+    bookmarks = document.getBookmarks()
+    ref_marks = document.getReferenceMarks()
+
+    target = None
+    if bookmarks.hasByName(markName):
+        target = bookmarks.getByName(markName)
+    elif ref_marks.hasByName(markName):
+        target = ref_marks.getByName(markName)
+
+    if not target:
+        return json.dumps({
+            "status": "error",
+            "action": "remove_bibliography",
+            "message": f"Bibliography '{markName}' not found",
+        })
+
+    anchor = target.getAnchor()
+    text = document.getText()
+    if anchor:
+        anchor.setString("")
+    text.removeTextContent(target)
+
+    return json.dumps({
+        "status": "ok",
+        "action": "remove_bibliography",
+        "markName": markName,
     })
 
 

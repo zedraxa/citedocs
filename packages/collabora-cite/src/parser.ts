@@ -62,7 +62,6 @@ function extractJsonBraceBalanced(str: string): string | null {
  */
 export function parseFieldCode(rawInput: string, formattedText?: string): ParsedDocumentField {
   const raw = rawInput.trim();
-  const format: DocumentFieldFormat = raw.includes("ADDIN ") ? "word" : "libreoffice";
 
   // Check for RND suffix (common in LibreOffice ReferenceMarks)
   let rndSuffix: string | undefined;
@@ -70,6 +69,9 @@ export function parseFieldCode(rawInput: string, formattedText?: string): Parsed
   if (rndMatch) {
     rndSuffix = rndMatch[1];
   }
+
+  const isWord = raw.includes("ADDIN ") || !rndSuffix;
+  const format: DocumentFieldFormat = isWord ? "word" : "libreoffice";
 
   // 1. Zotero Citation Field
   if (raw.includes("ZOTERO_ITEM") || raw.includes("CSL_CITATION")) {

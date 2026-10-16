@@ -2,7 +2,14 @@
 
 > **Version:** 1.0.0  
 > **Status:** Standardized Architecture Document  
-> **Repository Topology:** TypeScript pnpm Monorepo
+> **Repository Topology:** TypeScript pnpm Monorepo  
+> **Binding Architecture Direction:** See [ADR-001: Integration Architecture](file:///home/yusuf/projects/citedocs-wt/adr-proto/docs/ADR-001-integration.md) (Collabora Online CODE + Open-Source Zotero Suite)
+
+---
+
+> [!IMPORTANT]
+> **Architectural Direction Update (ADR-001):**  
+> CiteDocs does **not** reimplement a bespoke word processor or reference manager. Instead, it embeds and integrates real open-source components: **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage for document authoring, and the **official Zotero open-source suite** (`zotero/web-library`, `zotero/translation-server`, `citeproc-js` + CSL styles, `zotero/pdf-reader`, and Zotero field codes `ADDIN ZOTERO_ITEM CSL_CITATION` / `ADDIN ZOTERO_BIBL`). The bespoke TipTap editor (`packages/editor`) is officially classified as **legacy** (frozen, do not extend). Full architectural details, topology, sequence diagrams, license analysis, and migration plans are specified in [docs/ADR-001-integration.md](file:///home/yusuf/projects/citedocs-wt/adr-proto/docs/ADR-001-integration.md).
 
 ---
 
@@ -91,12 +98,10 @@ graph TD
   4. **Decoupled WebSocket Collab:** Collaborative document synchronization requires long-lived stateful WebSocket connections. Next.js serverless functions cannot host persistent WebSockets, necessitating an independent collaboration server regardless.
   5. **Resource Efficiency:** The static Vite build compiles to pure HTML/JS/CSS served via Nginx in $<10\text{ MB}$ RAM, drastically reducing hosting costs compared to running continuous Node.js SSR pods.
 
-### 2.3 Editor Engine: TipTap v3 + ProseMirror + Yjs
-
-- **Selected:** **TipTap v3 headless core (`@tiptap/*` ^3.x, current major; do not use v2)** + custom ProseMirror extensions + `y-prosemirror`.
-- **Rationale:**
-  - TipTap provides a developer-friendly modular abstraction over ProseMirror, which is the world's most battle-tested, robust rich-text schema engine (used by The New York Times, Atlassian Confluence, and Notion).
-  - First-class Yjs collaboration extensions (`@tiptap/extension-collaboration` and `@tiptap/extension-collaboration-caret` (v3 name for the former collaboration-cursor)) provide sub-50ms deterministic CRDT merge semantics.
+### 2.3 Editor Engine: Collabora Online (CODE) & Legacy TipTap v3
+- **Primary Editor (Standardized per ADR-001):** **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage protocol (see [ADR-001](file:///home/yusuf/projects/citedocs-wt/adr-proto/docs/ADR-001-integration.md)).
+- **Legacy Editor (`@citedocs/editor`):** TipTap v3 headless core + custom ProseMirror extensions + `y-prosemirror`. **Classified as LEGACY:** preserved for backward compatibility and migration; frozen, do not extend.
+- **Rationale for Collabora Online:** Delivers genuine 100% Google Docs / Microsoft Word / LibreOffice parity (A4/Letter physical pagination, complex tables, footnote balancing, track changes) and native OpenDocument / DOCX field codes (`ADDIN ZOTERO_ITEM CSL_CITATION`) without reimplementing a word processor.
 
 ### 2.4 Collaboration Backend: Hocuspocus Server
 

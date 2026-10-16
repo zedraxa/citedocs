@@ -94,6 +94,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 > **Aşama:** M2 Part A (Drizzle ORM Persistence, PostgreSQL Schema, Migrations, Repository Ownership Isolation)
 
 ### Yapılan İşler:
+
 1. **Drizzle ORM & Bağımlılıklar Eklendi:**
    - `apps/server` paketine `drizzle-orm`, `drizzle-kit`, `pg`, `@types/pg` eklendi.
    - `apps/server/drizzle.config.ts` yapılandırıldı (`dialect: "postgresql"`, `DATABASE_URL` docker-compose varsayılanları ile eşleştirildi).
@@ -132,7 +133,6 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 8. **Dokümantasyon:**
    - `apps/server/README.md` oluşturuldu.
 
-
 ## 8. Milestone 2 Part B — Add-by-Identifier (Kayıt #004)
 
 > **Kayıt No:** #004  
@@ -141,6 +141,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 > **Görev:** M2 Part B — Add-by-identifier (TranslationClient hardening, Fastify routes, Vitest DOI 10.1038/s41586-021-03392-y assertions)
 
 ### 6.1 `@citedocs/zotero-core` İyileştirmeleri
+
 1. **TranslationClient Sertleştirildi:**
    - Zotero `translation-server` mikroservisinin `/search` endpoint'i `text/plain` gövdesi ve normalize edilmiş tanımlayıcı (DOI, ISBN, PMID, arXiv) bekleyecek şekilde güncellendi.
    - `/web` (text/plain URL), `/import` (raw BibTeX/RIS), `/export?format=<format>` (JSON item serileştirme) uçları tip güvenli hale getirildi.
@@ -154,6 +155,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - `TRANSLATION_SERVER_URL` ortam değişkeniyle korunan canlı entegrasyon testi eklendi.
 
 ### 6.2 `apps/server` Rota ve Güvenlik İyileştirmeleri
+
 1. **Yeni Fastify Rotaları:**
    - `POST /api/zotero/translate`: DOI/ISBN/PMID/arXiv/URL kabul eden ve Zotero + CSL metadata'sı dönen ana uç.
    - `POST /api/items/from-identifier`: REST standardı takma ad (alias) uç; `{ identifier }` veya `{ query }` gövdesi kabul eder.
@@ -172,6 +174,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 > **Aşama:** M2 Entegrasyonu (Single Source of Truth, Row-Level Ownership & Per-Student Isolation)
 
 ### Yapılan İşler:
+
 1. **Tek Doğruluk Kaynağı (Single Source of Truth) Kuruldu:**
    - `apps/server/src/routes/zotero.ts` içindeki geçici `memoryItemStore`, `clearItemStore()` ve mükerrer `GET /api/items` kaldırıldı.
    - Kütüphane kayıtları için `routes/items.ts` + `ItemRepository` tek yetkili ve tek doğruluk kaynağı haline getirildi.
@@ -190,8 +193,10 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - B kullanıcısı A'nın öğesine `GET /api/items/:id` ile erişmeye çalıştığında 403 Forbidden aldığı;
    - `X-User-Id` olmadan yapılan isteklerin 401 Unauthorized döndüğü;
    - `pnpm -r test`, `pnpm lint`, `pnpm typecheck`, `pnpm build` komutlarının monorepo kökünden %100 yeşil geçtiği doğrulandı.
-||||||| 4ab7de4
+     ||||||| 4ab7de4
+
 ## 6. Sonraki Ajan İçin Devir Notları ve Doğrulama
+
 - `pnpm test`: 6 test dosyası, 41 test geçerli, 0 hata.
 - `pnpm lint`: Temiz (0 hata).
 - `pnpm typecheck`: `tsc -b` hatasız.
@@ -227,7 +232,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - Yetkisiz ve geçersiz kullanıcıların kimlik doğrulamada reddedildiği kanıtlandı.
    - Viewer rolündeki istemcinin belgeye yazma girişimlerinin sunucu tarafından reddedildiği (read-only) doğrulandı.
    - Monorepo genelinde tüm testler, tip kontrolleri, lint ve derleme yeşildir.
-||||||| 117195d
+     ||||||| 117195d
 
 ## 7. Milestone 3 (Part A - CSL Engine Core in `@citedocs/csl-engine`) Tamamlanan İşler (Kayıt #003)
 
@@ -237,6 +242,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 > **Görev:** M3 Part A — CSL engine core in `@citedocs/csl-engine` (citeproc-js wrapper, APA 7th, IEEE, style switching <300ms SLA, tr-TR Turkish locale, lazy loading & typed UnknownStyleError)
 
 ### 7.1 `@citedocs/csl-engine` Mimari ve Çekirdek Geliştirmeleri
+
 1. **citeproc-js Entegrasyonu ve Sarmalayıcı (`CSLEngine`):**
    - M0'daki sahte regex/dize birleştirme motoru yerine CSL 1.0.2 uyumlu resmi `citeproc-js` çekirdeği entegre edildi.
    - `CiteprocSys` arayüzü (`retrieveItem`, `retrieveLocale`, `variableWrapper`) güvenli hale getirildi; eksik kayıtlarda `[Unknown: id]` yer tutucu kaydı dönülerek parser çökmeleri engellendi.
@@ -258,6 +264,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - `packages/csl-engine/README.md` oluşturularak tüm API'ler, mimari kararlar ve kullanım örnekleri belgelendi.
 
 ### 7.2 Doğrulama ve Test Sonuçları
+
 - `pnpm -r test`: 6 test dosyası, 47 test geçerli (12 csl-engine, 8 server, 16 zotero-core, 5 editor, 5 shared, 1 web), 0 hata.
 - `pnpm lint`: Temiz (0 hata, 0 uyarı).
 - `pnpm typecheck`: `tsc -b` hatasız.
@@ -274,6 +281,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 > **Aşama:** M6 Part A (Zotero Web API v3 Two-Way Sync Engine, Typed Client, Pluggable SyncStore, Field-Wise Conflict Resolution)
 
 ### Yapılan İşler:
+
 1. **Tip Güvenli Zotero Web API v3 İstemcisi (`ZoteroWebApiClient`):**
    - `https://api.zotero.org` (API v3) için tam tip güvenli istemci yazıldı (`packages/zotero-core/src/api-client.ts`).
    - `Zotero-API-Version: 3`, kullanıcı bazlı `Zotero-API-Key`, offline testler için enjekte edilebilir `fetchFn` ve `sleepFn` eklendi.
@@ -295,7 +303,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 4. **Sıfır Sızıntı & API Anahtarı Maskeleme (Redaction):**
    - API anahtarları hata mesajlarında, yanıtlarda veya loglarda asla ham halde yer almaz; `redactApiKey` yardımcısı ve `ZoteroApiError` sınıfları ile daima `[REDACTED]` olarak maskelenir.
 5. **Kapsamlı Çevrimdışı Kabul Testleri & Vitest:**
-   - >100 öğeli kütüphanelerde sayfalama doğrulaması.
+   - > 100 öğeli kütüphanelerde sayfalama doğrulaması.
    - `since=<version>` ile artımlı senkronizasyon ve `/deleted` temizliği.
    - <=50 öğelik parçalar halinde `Zotero-Write-Token` ile yazma ve silme.
    - 412 Precondition Failed senaryosunda otomatik re-pull, alan düzeyinde merge ve conflict raporlama.
@@ -306,7 +314,70 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 6. **Dokümantasyon:**
    - `packages/zotero-core/README.md` eksiksiz oluşturuldu.
 
+---
 
+## 11. Milestone 2 Part C — Add Item by Identifier UI (@citedocs/web) (Kayıt #007)
+
+> **Kayıt No:** #007  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m2-id-ui`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** M2 Part C (Add Item by Identifier UI, VITE_API_URL, X-User-Id Tenant Header, Result Card & In-App Library List Entegrasyonu)
+
+### Yapılan İşler:
+1. **`AddByIdentifier` Bileşeni Geliştirildi (`apps/web/src/components/AddByIdentifier.tsx`):**
+   - DOI, ISBN, PMID, arXiv ID ve URL girdilerini kabul eden şık ve erişilebilir form arayüzü kuruldu.
+   - `VITE_API_URL` (varsayılan `http://localhost:3001`) ve URL `?user=` parametresinden (veya `demo-user` varsayılanından) çözümlenen `X-User-Id` başlığıyla `POST /api/items/from-identifier` uç noktasına bağlanıldı.
+   - Boş gönderimlerde gereksiz istek engellendi; istek esnasında yükleme durumu (`loading` animasyonu, pasif buton) sağlandı.
+   - Başarılı sonuçlarda başlık, yazarlar, yıl ve DOI içeren sonuç kartı (`result card`) gösterildi ve doğrudan "Cite in Document" butonu sunuldu.
+   - 4xx/5xx ve özellikle upstream translation-server 502 hatalarında çökmeyen, açıklayıcı hata bildirim kartı oluşturuldu.
+2. **Google Docs Chrome ve Zotero Atıf Seçici Entegrasyonu (`apps/web/src/App.tsx`):**
+   - Araç çubuğuna "Add by Identifier" hızlı butonu eklendi.
+   - Zotero modal penceresine "Search Library" ve "Add by Identifier" sekmeleri eklendi.
+   - Eklenen öğeler anında uygulama içi `libraryItems` listesine dahil edilerek arama ve hızlı atıf ekleme (`Quick Citation Picker`) akışında anında kullanılabilir hale getirildi.
+   - TipTap v3 ve Hocuspocus çok kullanıcılı işbirliği (collaboration carets/presence) altyapısı bozulmadan korundu.
+3. **Kapsamlı Kabul Testleri & Doğrulama (`apps/web/test/`):**
+   - `add-by-identifier.test.ts`: 7 birim testi (URL/User çözümleri, Nature DOI `10.1038/s41586-021-03392-y` ile `atherosclerosis` makalesinin çekilmesi, 502 upstream hata yönetimi, boş submit denetimi, callback tetiklenmesi).
+   - `web.test.ts`: 6 entegrasyon testi (App seviyesinde modal açılışı, DOI araması, kart gösterimi, kütüphane listesine ekleme, belgeye atıf düğümü ekleme ve TipTap canvas bütünlüğü).
+   - Monorepo genelinde 137 test geçerli (1 skipped canlı test), lint temiz, tsc hatasız ve build başarılı.
+
+
+
+## 11. Milestone 6 Part B — DOCX Dışa Aktarıcı ve Zotero Alan Kodları (Kayıt #007)
+
+> **Kayıt No:** #007  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m6-docx`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** M6 Part B (`@citedocs/docx-exporter`, Native Zotero Word Field Codes, `ADDIN ZOTERO_ITEM CSL_CITATION` & `ADDIN ZOTERO_BIBL`)
+
+### Yapılan İşler:
+
+1. **`@citedocs/docx-exporter` Paketi Kuruldu:**
+   - Monorepo standartlarında TypeScript 5.8, Vitest, `docx` (^9.11.0) ve `jszip` (^3.10.2) bağımlılıklarıyla scaffold edildi.
+   - Kök `tsconfig.json` proje referanslarına eklendi; monorepo pnpm workspace ve vitest workspace ile tam entegre çalıştırıldı.
+2. **Yerel OpenXML Zotero Alan Kodu Bileşenleri (`src/fields.ts`):**
+   - WordprocessingML standardında tip güvenli karmaşık alan sınırları (`w:fldChar` begin, separate, end) ve yönerge metni (`w:instrText xml:space="preserve"`) bileşenleri yazıldı.
+   - Zotero masaüstü Word eklentisinin tanıdığı `ADDIN ZOTERO_ITEM CSL_CITATION <payload>` ve `ADDIN ZOTERO_BIBL <custom> CSL_BIBLIOGRAPHY` yapıları oluşturuldu.
+3. **DOCX Dışa Aktarıcı (`exportDocumentToDocx` - `src/exporter.ts`):**
+   - Sadeleştirilmiş belge modelini (başlıklar H1-H6, zengin metin dizileri: kalın, italik, altı/üstü çizili, kod yazı tipi, atıf kümeleri ve kaynakça) kabul eden motor kodlandı.
+   - Her atıf kümesi için Zotero uyumlu `citationID`, `citationItems` (id, uris, locator, label, prefix, suffix, suppress-author, taşınabilirlik için gömülü `itemData` CSL JSON) ve `properties` alanları otomatik oluşturuldu.
+   - `htmlToTextRuns`: CSL kaynakça çıktılarındaki `<i>`, `<b>`, `<u>`, `<code>`, `<sub>`, `<sup>` gibi satır içi HTML etiketlerini Word stilli metin dizilerine dönüştüren ayrıştırıcı yazıldı.
+   - `ADDIN ZOTERO_BIBL` alan kodu desteği ve `asField: false` durumunda biçimlendirilmiş statik paragraf fallback seçeneği uygulandı.
+4. **DOCX Zotero Alan Tarayıcı ve İçe Aktarıcı (`importDocxZoteroFields` - `src/importer.ts`):**
+   - `.docx` ZIP arşivini açarak `word/document.xml`, `footnotes.xml`, `endnotes.xml` dosyalarını tarayan motor geliştirildi.
+   - Parçalanmış (split) `<w:instrText>` etiketlerini birleştiren yığın (stack) tabanlı karmaşık alan ayrıştırıcısı ve `<w:fldSimple>` basit alan desteği sağlandı.
+   - XML varlık kod çözümü (`&quot;`, `&amp;`, `&#34;`, vb.) yapılarak CSL_CITATION JSON yükleri parse edildi.
+   - Çift arayüzlü sonuç nesnesi sağlandı: Doğrudan dizi olarak iterate edilebilir (`result[0]`, `result.length`) ve nesne alanları (`result.citations`, `result.fields`, `result.bibliography`) barındırır.
+5. **%100 Çevrimdışı ve Sıfır Ağ Garantisi:**
+   - Dışa aktarma ve içe aktarma süreçleri tamamen bellek içi çalışır; hiçbir harici ağ veya API çağrısı yapılmaz.
+6. **Kapsamlı Çevrimdışı Kabul Testleri (`test/*.test.ts`):**
+   - Tek atıflı dışa aktarımın ham XML'inde `ADDIN ZOTERO_ITEM` ve `CSL_CITATION` varlığı doğrulandı.
+   - İki atıf ve kaynakçanın geçerli bir zip/docx arşivi oluşturduğu ve tüm JSON yüklerini içerdiği teyit edildi.
+   - `importDocxZoteroFields` ile dışa aktarılan fixtürün uçtan uca %100 kayıpsız round-trip yaptığı kanıtlandı.
+   - `pnpm -r test` (tüm paketler), `pnpm lint`, `pnpm typecheck` ve `pnpm build` hatasız geçti.
+7. **Kapsamlı Dokümantasyon:**
+   - `packages/docx-exporter/README.md` alan kodu mimarisi, JSON şeması ve kullanım örnekleriyle detaylandırıldı.
 
 ## 13. Milestone 3 Part B — Canlı Kaynakça & CSL Editör Entegrasyonu (Kayıt #009)
 

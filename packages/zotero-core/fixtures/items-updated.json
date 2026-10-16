@@ -1,0 +1,54 @@
+[
+  {
+    "key": "ITEM010",
+    "version": 110,
+    "itemType": "journalArticle",
+    "title": "Item 010 Updated Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number010"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "010-20",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM020",
+    "version": 115,
+    "itemType": "journalArticle",
+    "title": "Item 020 Updated Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number020"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "020-30",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  }
+]

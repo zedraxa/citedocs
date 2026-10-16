@@ -227,4 +227,39 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - Yetkisiz ve geçersiz kullanıcıların kimlik doğrulamada reddedildiği kanıtlandı.
    - Viewer rolündeki istemcinin belgeye yazma girişimlerinin sunucu tarafından reddedildiği (read-only) doğrulandı.
    - Monorepo genelinde tüm testler, tip kontrolleri, lint ve derleme yeşildir.
+||||||| 117195d
+
+## 7. Milestone 3 (Part A - CSL Engine Core in `@citedocs/csl-engine`) Tamamlanan İşler (Kayıt #003)
+
+> **Kayıt No:** #003  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m3-csl`  
+> **Görev:** M3 Part A — CSL engine core in `@citedocs/csl-engine` (citeproc-js wrapper, APA 7th, IEEE, style switching <300ms SLA, tr-TR Turkish locale, lazy loading & typed UnknownStyleError)
+
+### 7.1 `@citedocs/csl-engine` Mimari ve Çekirdek Geliştirmeleri
+1. **citeproc-js Entegrasyonu ve Sarmalayıcı (`CSLEngine`):**
+   - M0'daki sahte regex/dize birleştirme motoru yerine CSL 1.0.2 uyumlu resmi `citeproc-js` çekirdeği entegre edildi.
+   - `CiteprocSys` arayüzü (`retrieveItem`, `retrieveLocale`, `variableWrapper`) güvenli hale getirildi; eksik kayıtlarda `[Unknown: id]` yer tutucu kaydı dönülerek parser çökmeleri engellendi.
+   - Atıf kümeleri (`CitationCluster`), sayfa/bölüm belirteçleri (`locator`, `label`), ön ek/son ek (`prefix`, `suffix`) ve yazar gizleme (`suppressAuthor` -> `suppress-author`) belgeler arası sıra (`clusterOrder`, `citationsPre`, `citationsPost`) ile işlendi.
+   - HTML (`<div class="csl-bib-body">...</div>`) ve düz metin (`text`) formatlarında kaynakça üretimi (`makeBibliography`) sağlandı.
+2. **Yüksek Hızlı Stil Değişimi (`switchStyle` / `switchStyleById`):**
+   - Belgedeki tüm atıf kümelerini ve kaynakçayı tek adımda baştan hesaplayan `switchStyle` metodu uygulandı.
+   - Motor havuzu (`enginePool: Map<string, CSL.Engine>`) mimarisi kuruldu. 50 kaynak ve 100 atıf kümesi içeren büyük belgelerde stil değişimi (APA 7th -> IEEE) **~153 ms** sürerek <300 ms SLA şartını fazlasıyla karşıladı.
+3. **Resmi CSL Stilleri ve Yerelleştirme Varlıkları (Assets):**
+   - Resmi `citation-style-language/styles` deposundan `apa`, `ieee`, `chicago-author-date`, `modern-language-association`, `vancouver` stilleri CC BY-SA 3.0 lisans bildirimleri korunarak derlendi.
+   - Resmi `citation-style-language/locales` deposundan `en-US` ve `tr-TR` dilleri derlendi.
+   - Varlıklar TypeScript dize sabitleri olarak paketlenerek hem Node.js hem de tarayıcı (Vite PWA) ve WebWorker ortamlarında dosya sistemi ve ağ gereksinimi olmaksızın %100 çevrimdışı çalıştırıldı.
+4. **Tembel Yükleme ve Hata Yönetimi (`StyleRegistry` & `LocaleRegistry`):**
+   - Resmi 10.000+ stilin ileride ağ üzerinden talep üzerine çekilebilmesi için asenkron `StyleLoader` / `LocaleLoader` arayüzü ve `load(styleId)` metodu eklendi.
+   - Bilinmeyen stillerde tip güvenli `UnknownStyleError` (`code: 'UNKNOWN_STYLE'`, `styleId`) ve bilinmeyen dillerde `UnknownLocaleError` fırlatıldı.
+5. **Türkçe Yerelleştirme (tr-TR):**
+   - `tr-TR` yerel ayarı ile MLA ve Chicago stillerinde iki yazarlı atıflarda "and" yerine "ve" ("Einstein ve Rosen") ifadesi test edilerek doğrulandı.
+6. **Dokümantasyon:**
+   - `packages/csl-engine/README.md` oluşturularak tüm API'ler, mimari kararlar ve kullanım örnekleri belgelendi.
+
+### 7.2 Doğrulama ve Test Sonuçları
+- `pnpm -r test`: 6 test dosyası, 47 test geçerli (12 csl-engine, 8 server, 16 zotero-core, 5 editor, 5 shared, 1 web), 0 hata.
+- `pnpm lint`: Temiz (0 hata, 0 uyarı).
+- `pnpm typecheck`: `tsc -b` hatasız.
+- `pnpm build`: Tüm monorepo hatasız derleniyor.
 

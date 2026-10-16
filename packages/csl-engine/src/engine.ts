@@ -1,24 +1,141 @@
+import CSL from "citeproc";
 import type { CSLItem, CitationCluster } from "@citedocs/shared";
-import type { CiteprocSys, BibliographyOutput, CitationClusterUpdate } from "./types.js";
+import type {
+  CiteprocSys,
+  BibliographyOutput,
+  CitationClusterUpdate,
+  OutputFormat,
+  StyleSwitchResult,
+  CSLEngineOptions,
+  BibliographyParams,
+} from "./types.js";
+import { LocaleRegistry, StyleRegistry } from "./registry.js";
+import { UnknownStyleError } from "./errors.js";
+
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&#38;/g, "&")
+    .replace(/&amp;/g, "&")
+    .replace(/&#60;/g, "<")
+    .replace(/&lt;/g, "<")
+    .replace(/&#62;/g, ">")
+    .replace(/&gt;/g, ">")
+    .replace(/&#34;/g, '"')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(Number(dec)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+}
+
+function stripHtml(html: string): string {
+  return decodeHtmlEntities(html.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
+}
 
 export class CSLEngine {
-  private itemMap: Map<string | number, CSLItem> = new Map();
+  private itemMap: Map<string, CSLItem> = new Map();
+  private citationRegistry: Map<string, CitationCluster> = new Map();
+  private clusterOrder: string[] = [];
   private styleXml: string;
   private lang: string;
+  private outputFormat: OutputFormat;
   private sys: CiteprocSys;
-  private citationRegistry: Map<string, CitationCluster> = new Map();
+  private engine!: ReturnType<typeof this.createEngine>;
+  private enginePool: Map<string, ReturnType<typeof this.createEngine>> = new Map();
+  private localeRegistry: LocaleRegistry;
 
-  constructor(styleXml: string, lang = "en-US", initialItems: CSLItem[] = []) {
-    this.styleXml = styleXml;
-    this.lang = lang;
+  constructor(
+    styleXmlOrId: string,
+    lang = "en-US",
+    initialItems: CSLItem[] = [],
+    options?: CSLEngineOptions,
+  ) {
+    if (styleXmlOrId.includes("<style") || styleXmlOrId.trimStart().startsWith("<")) {
+      this.styleXml = styleXmlOrId;
+    } else {
+      const foundXml = new StyleRegistry().getXml(styleXmlOrId);
+      if (!foundXml) {
+        throw new UnknownStyleError(styleXmlOrId);
+      }
+      this.styleXml = foundXml;
+    }
 
-    for (const item of initialItems) {
+    this.lang = options?.lang ?? lang;
+    this.outputFormat = options?.outputFormat ?? "html";
+    this.localeRegistry = new LocaleRegistry();
+
+    const allItems = [...initialItems, ...(options?.initialItems ?? [])];
+    for (const item of allItems) {
       this.itemMap.set(String(item.id), item);
     }
 
     this.sys = {
-      retrieveItem: (id) => this.itemMap.get(String(id)),
-      retrieveLocale: (_lang) => undefined,
+      retrieveItem: (id: string | number) => {
+        const key = String(id).trim();
+        const item = this.itemMap.get(key);
+        if (item) return item;
+        // Safe fallback placeholder item to prevent citeproc-js parser crash on missing items
+        return {
+          id: key,
+          type: "article-journal",
+          title: `[Unknown: ${key}]`,
+        };
+      },
+      retrieveLocale: (reqLang: string) => {
+        if (options?.localeResolver) {
+          const resolved = options.localeResolver(reqLang);
+          if (resolved) return resolved;
+        }
+        return this.localeRegistry.get(reqLang);
+      },
+    };
+
+    this.initEngine();
+
+    if (options?.clusters) {
+      for (const cluster of options.clusters) {
+        this.registerCluster(cluster);
+      }
+    }
+  }
+
+  private createEngine(styleXml: string, lang: string, format: OutputFormat): InstanceType<typeof CSL.Engine> {
+    const instance = new CSL.Engine(this.sys, styleXml, lang);
+    instance.setOutputFormat(format);
+    return instance;
+  }
+
+  private getOrCreateEngine(styleXml: string, lang: string, format: OutputFormat): InstanceType<typeof CSL.Engine> {
+    const key = `${styleXml}:::${lang}:::${format}`;
+    let pooled = this.enginePool.get(key);
+    if (!pooled) {
+      pooled = this.createEngine(styleXml, lang, format);
+      this.enginePool.set(key, pooled);
+    }
+    return pooled;
+  }
+
+  private initEngine(): void {
+    this.engine = this.getOrCreateEngine(this.styleXml, this.lang, this.outputFormat);
+    if (this.itemMap.size > 0 && this.clusterOrder.length === 0) {
+      this.engine.updateItems(Array.from(this.itemMap.keys()));
+    }
+  }
+
+  private adaptCluster(cluster: CitationCluster): unknown {
+    return {
+      citationID: cluster.citationId,
+      citationItems: cluster.citationItems.map((item) => ({
+        id: String(item.id),
+        locator: item.locator,
+        label: item.label,
+        prefix: item.prefix,
+        suffix: item.suffix,
+        "suppress-author": item.suppressAuthor ? 1 : 0,
+        suppressAuthor: item.suppressAuthor ? 1 : 0,
+      })),
+      properties: {
+        noteIndex: cluster.properties?.noteIndex ?? 0,
+      },
     };
   }
 
@@ -34,146 +151,233 @@ export class CSLEngine {
     return this.sys;
   }
 
+  public getOutputFormat(): OutputFormat {
+    return this.outputFormat;
+  }
+
+  public setOutputFormat(format: OutputFormat): void {
+    this.outputFormat = format;
+    this.engine = this.getOrCreateEngine(this.styleXml, this.lang, format);
+  }
+
   public updateItems(items: CSLItem[]): void {
     for (const item of items) {
       this.itemMap.set(String(item.id), item);
     }
+    this.engine.updateItems(Array.from(this.itemMap.keys()));
+  }
+
+  public addItem(item: CSLItem): void {
+    this.updateItems([item]);
   }
 
   public getItem(id: string | number): CSLItem | undefined {
     return this.itemMap.get(String(id));
   }
 
+  public getItems(): CSLItem[] {
+    return Array.from(this.itemMap.values());
+  }
+
   public registerCluster(cluster: CitationCluster): void {
     this.citationRegistry.set(cluster.citationId, cluster);
+    if (!this.clusterOrder.includes(cluster.citationId)) {
+      this.clusterOrder.push(cluster.citationId);
+    }
+  }
+
+  public getCluster(citationId: string): CitationCluster | undefined {
+    return this.citationRegistry.get(citationId);
+  }
+
+  public getClusters(): CitationCluster[] {
+    return this.clusterOrder
+      .map((id) => this.citationRegistry.get(id))
+      .filter((c): c is CitationCluster => Boolean(c));
+  }
+
+  public setClusterOrder(citationIds: string[]): void {
+    this.clusterOrder = [...citationIds];
   }
 
   /**
-   * Evaluates and formats a citation cluster.
-   * If citeproc is available, uses CSL.Engine; otherwise provides compliant standard fallback formatting.
+   * Preview/format a single citation cluster on demand.
+   * Defaults to clean text mode with unescaped entities for easy display.
    */
-  public formatCitation(cluster: CitationCluster): string {
-    const formattedParts: string[] = [];
-
-    for (const itemRef of cluster.citationItems) {
-      const item = this.itemMap.get(String(itemRef.id));
-      let part = "";
-
-      if (!item) {
-        part = `[Unknown: ${itemRef.id}]`;
-      } else {
-        const authorStr = this.formatAuthors(item);
-        const yearStr = this.extractYear(item);
-
-        if (itemRef.suppressAuthor) {
-          part = yearStr;
-        } else {
-          part = `${authorStr}, ${yearStr}`;
-        }
-
-        if (itemRef.locator) {
-          const label = itemRef.label || "p.";
-          part += `, ${label} ${itemRef.locator}`;
-        }
-      }
-
-      if (itemRef.prefix) {
-        part = `${itemRef.prefix}${part}`;
-      }
-      if (itemRef.suffix) {
-        part = `${part}${itemRef.suffix}`;
-      }
-
-      formattedParts.push(part);
-    }
-
-    return `(${formattedParts.join("; ")})`;
+  public formatCitation(cluster: CitationCluster, format: OutputFormat = "text"): string {
+    const adapted = this.adaptCluster(cluster);
+    const result = this.engine.previewCitationCluster(adapted, [], [], format);
+    return format === "text" ? decodeHtmlEntities(result) : result;
   }
 
+  /**
+   * Process a citation cluster in document context, maintaining citationsPre/citationsPost.
+   * Returns updates for all clusters affected by this insertion/edit.
+   */
   public processCitationCluster(
     cluster: CitationCluster,
-    citationsPre: [string, number][] = [],
-    _citationsPost: [string, number][] = [],
+    citationsPre?: [string, number][],
+    citationsPost?: [string, number][],
   ): CitationClusterUpdate[] {
     this.registerCluster(cluster);
-    const formatted = this.formatCitation(cluster);
 
-    const updates: CitationClusterUpdate[] = [
-      {
-        index: citationsPre.length,
-        citationId: cluster.citationId,
-        formattedText: formatted,
-      },
-    ];
+    const clusterIndex = this.clusterOrder.indexOf(cluster.citationId);
 
-    return updates;
-  }
+    const pre: [string, number][] =
+      citationsPre ??
+      this.clusterOrder.slice(0, clusterIndex).map((id) => {
+        const c = this.citationRegistry.get(id);
+        return [id, c?.properties?.noteIndex ?? 0];
+      });
 
-  public makeBibliography(): BibliographyOutput {
-    const citedItems = Array.from(this.itemMap.values());
+    const post: [string, number][] =
+      citationsPost ??
+      this.clusterOrder.slice(clusterIndex + 1).map((id) => {
+        const c = this.citationRegistry.get(id);
+        return [id, c?.properties?.noteIndex ?? 0];
+      });
 
-    // Sort alphabetically by primary author family name or title
-    citedItems.sort((a, b) => {
-      const nameA = a.author?.[0]?.family || a.title || "";
-      const nameB = b.author?.[0]?.family || b.title || "";
-      return nameA.localeCompare(nameB);
-    });
+    const adapted = this.adaptCluster(cluster);
+    const result = this.engine.processCitationCluster(adapted, pre, post);
 
-    const entries: string[] = [];
-
-    for (const item of citedItems) {
-      const author = this.formatAuthors(item);
-      const year = this.extractYear(item);
-      const title = item.title ? `<i>${item.title}</i>` : "Untitled";
-      const container = item["container-title"] ? ` ${item["container-title"]}.` : "";
-      const doi = item.DOI ? ` https://doi.org/${item.DOI}` : "";
-
-      entries.push(`<div class="csl-entry">${author} (${year}). ${title}.${container}${doi}</div>`);
+    if (result && Array.isArray(result[1])) {
+      return result[1].map(([index, formattedText, citationId]: [number, string, string]) => ({
+        index,
+        citationId,
+        formattedText,
+      }));
     }
 
-    const html = `<div class="csl-bib-body">\n${entries.join("\n")}\n</div>`;
+    return [
+      {
+        index: pre.length,
+        citationId: cluster.citationId,
+        formattedText: this.formatCitation(cluster, this.outputFormat),
+      },
+    ];
+  }
 
-    return {
-      params: {
+  /**
+   * Generates the bibliography in both HTML and plain text formats.
+   */
+  public makeBibliography(format?: OutputFormat): BibliographyOutput {
+    const bibResult = this.engine.makeBibliography();
+
+    if (!bibResult || !Array.isArray(bibResult) || bibResult.length < 2) {
+      const emptyParams: BibliographyParams = {
         bibstart: '<div class="csl-bib-body">',
         bibend: "</div>",
         bibliography_errors: [],
-        entry_ids: citedItems.map((i) => [String(i.id)]),
+        entry_ids: [],
         maxoffset: 0,
         entryspacing: 1,
-        linespacing: 2,
-        hangingindent: true,
+        linespacing: 1,
+        hangingindent: false,
         "second-field-align": false,
-      },
+      };
+      return {
+        params: emptyParams,
+        entries: [],
+        html: "",
+        text: "",
+      };
+    }
+
+    const [rawParams, rawEntries] = bibResult;
+
+    const params: BibliographyParams = {
+      bibstart: rawParams.bibstart || '<div class="csl-bib-body">\n',
+      bibend: rawParams.bibend || "</div>",
+      bibliography_errors: rawParams.bibliography_errors || [],
+      entry_ids: rawParams.entry_ids || [],
+      maxoffset: rawParams.maxoffset ?? 0,
+      entryspacing: rawParams.entryspacing ?? 1,
+      linespacing: rawParams.linespacing ?? 1,
+      hangingindent: Boolean(rawParams.hangingindent),
+      "second-field-align": rawParams["second-field-align"] ?? false,
+    };
+
+    const requestedFormat = format ?? this.outputFormat;
+    let entries = rawEntries;
+    let html = "";
+    let text = "";
+
+    if (requestedFormat === "text") {
+      entries = rawEntries.map((e) => decodeHtmlEntities(e).trim());
+      text = entries.join("\n");
+      html = params.bibstart + rawEntries.join("") + params.bibend;
+    } else {
+      html = params.bibstart + rawEntries.join("") + params.bibend;
+      text = rawEntries.map((e) => stripHtml(e)).join("\n");
+    }
+
+    return {
+      params,
       entries,
       html,
+      text,
     };
   }
 
-  private formatAuthors(item: CSLItem): string {
-    if (!item.author || item.author.length === 0) {
-      return item.title || "Anonymous";
+  /**
+   * Switch the active CSL style (and optional locale), re-rendering all clusters in document order
+   * and regenerating the bibliography.
+   */
+  public switchStyle(newStyleXmlOrId: string, newLang?: string): StyleSwitchResult {
+    if (newStyleXmlOrId.includes("<style") || newStyleXmlOrId.trimStart().startsWith("<")) {
+      this.styleXml = newStyleXmlOrId;
+    } else {
+      const foundXml = new StyleRegistry().getXml(newStyleXmlOrId);
+      if (!foundXml) {
+        throw new UnknownStyleError(newStyleXmlOrId);
+      }
+      this.styleXml = foundXml;
     }
 
-    if (item.author.length === 1) {
-      return item.author[0].family || item.author[0].literal || "Unknown";
-    }
-    if (item.author.length === 2) {
-      return `${item.author[0].family || "Unknown"} & ${item.author[1].family || "Unknown"}`;
+    if (newLang) {
+      this.lang = newLang;
     }
 
-    return `${item.author[0].family || "Unknown"} et al.`;
+    this.engine = this.getOrCreateEngine(this.styleXml, this.lang, this.outputFormat);
+
+    let clusterUpdates: CitationClusterUpdate[] = [];
+
+    if (this.clusterOrder.length > 0) {
+      const adaptedClusters = this.clusterOrder
+        .map((id) => this.citationRegistry.get(id))
+        .filter((c): c is CitationCluster => Boolean(c))
+        .map((c) => this.adaptCluster(c));
+
+      const rebuildResult = this.engine.rebuildProcessorState(adaptedClusters, this.outputFormat);
+      if (Array.isArray(rebuildResult)) {
+        clusterUpdates = rebuildResult.map(([citationId, _note, formattedText], index) => ({
+          index,
+          citationId,
+          formattedText,
+        }));
+      }
+    } else if (this.itemMap.size > 0) {
+      this.engine.updateItems(Array.from(this.itemMap.keys()));
+    }
+
+    const bibliography = this.makeBibliography();
+
+    return {
+      clusterUpdates,
+      bibliography,
+    };
   }
 
-  private extractYear(item: CSLItem): string {
-    const dateParts = item.issued?.["date-parts"];
-    if (dateParts && dateParts.length > 0 && dateParts[0].length > 0) {
-      return String(dateParts[0][0]);
-    }
-    if (item.issued?.raw) {
-      const match = item.issued.raw.match(/\b\d{4}\b/);
-      if (match) return match[0];
-    }
-    return "n.d.";
+  /**
+   * Switch the active CSL style by ID, fetching XML from registry (supports async lazy-loading).
+   */
+  public async switchStyleById(
+    styleId: string,
+    lang?: string,
+    registry?: StyleRegistry,
+  ): Promise<StyleSwitchResult> {
+    const reg = registry ?? new StyleRegistry();
+    const xml = await reg.load(styleId);
+    return this.switchStyle(xml, lang);
   }
 }

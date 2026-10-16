@@ -1,4 +1,8 @@
 import type { CitationStyleMeta } from "@citedocs/shared";
+import { BUNDLED_STYLES_XML, APA_STYLE_XML } from "./assets/styles.js";
+import { BUNDLED_LOCALES_XML, LOCALE_EN_US_XML } from "./assets/locales.js";
+import { UnknownStyleError, UnknownLocaleError } from "./errors.js";
+import type { StyleLoader, LocaleLoader } from "./types.js";
 
 export const BUILTIN_STYLES: CitationStyleMeta[] = [
   {
@@ -73,84 +77,71 @@ export const BUILTIN_STYLES: CitationStyleMeta[] = [
   },
 ];
 
-export const MOCK_APA_CSL = `<?xml version="1.0" encoding="utf-8"?>
-<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0" demote-non-dropping-particle="never">
-  <info>
-    <title>American Psychological Association 7th edition</title>
-    <id>http://www.zotero.org/styles/apa</id>
-    <link href="http://www.zotero.org/styles/apa" rel="self"/>
-    <category citation-format="author-date"/>
-    <category field="psychology"/>
-    <category field="generic-base"/>
-    <updated>2026-01-01T00:00:00+00:00</updated>
-  </info>
-  <citation et-al-min="3" et-al-use-first="1" disambiguate-add-year-suffix="true" collapse="year">
-    <layout prefix="(" suffix=")" delimiter="; ">
-      <group delimiter=", ">
-        <names variable="author">
-          <name form="short" and="symbol" delimiter=", " initialize-with=". "/>
-          <substitute>
-            <text variable="title" form="short"/>
-          </substitute>
-        </names>
-        <date variable="issued">
-          <date-part name="year"/>
-        </date>
-        <group delimiter=" ">
-          <label variable="locator" form="short"/>
-          <text variable="locator"/>
-        </group>
-      </group>
-    </layout>
-  </citation>
-  <bibliography hanging-indent="true" et-al-min="21" et-al-use-first="19">
-    <sort>
-      <key macro="author"/>
-      <key variable="issued"/>
-      <key variable="title"/>
-    </sort>
-    <layout>
-      <group delimiter=". ">
-        <names variable="author">
-          <name name-as-sort-order="all" and="symbol" initialize-with=". " delimiter=", "/>
-        </names>
-        <date variable="issued" prefix="(" suffix=")">
-          <date-part name="year"/>
-        </date>
-        <text variable="title" font-style="italic"/>
-        <text variable="container-title"/>
-      </group>
-    </layout>
-  </bibliography>
-</style>`;
+export const MOCK_APA_CSL = APA_STYLE_XML;
 
 export class StyleRegistry {
   private styles: Map<string, CitationStyleMeta> = new Map();
   private xmlCache: Map<string, string> = new Map();
+  private loader?: StyleLoader;
 
   constructor() {
     for (const style of BUILTIN_STYLES) {
       this.styles.set(style.id, style);
     }
-    this.xmlCache.set("apa", MOCK_APA_CSL);
+    for (const [id, xml] of Object.entries(BUNDLED_STYLES_XML)) {
+      this.xmlCache.set(id, xml);
+    }
   }
 
-  get(id: string): CitationStyleMeta | undefined {
+  public get(id: string): CitationStyleMeta | undefined {
     return this.styles.get(id);
   }
 
-  getXml(id: string): string | undefined {
+  public getXml(id: string): string | undefined {
     return this.xmlCache.get(id);
   }
 
-  register(meta: CitationStyleMeta, xml?: string): void {
+  public has(id: string): boolean {
+    return this.styles.has(id) || this.xmlCache.has(id);
+  }
+
+  public register(meta: CitationStyleMeta, xml?: string): void {
     this.styles.set(meta.id, meta);
     if (xml) {
       this.xmlCache.set(meta.id, xml);
     }
   }
 
-  search(query: string): CitationStyleMeta[] {
+  public registerXml(id: string, xml: string): void {
+    this.xmlCache.set(id, xml);
+  }
+
+  public setLoader(loader: StyleLoader): void {
+    this.loader = loader;
+  }
+
+  public async load(id: string): Promise<string> {
+    const cached = this.xmlCache.get(id);
+    if (cached) {
+      return cached;
+    }
+
+    if (this.loader) {
+      const loaded = await this.loader(id);
+      if (loaded) {
+        this.xmlCache.set(id, loaded);
+        return loaded;
+      }
+    }
+
+    throw new UnknownStyleError(id);
+  }
+
+  public async getOrLoadXml(id: string): Promise<string> {
+    return this.load(id);
+  }
+
+  public search(query: string): CitationStyleMeta[] {
     const q = query.toLowerCase().trim();
     if (!q) return Array.from(this.styles.values());
 
@@ -162,7 +153,64 @@ export class StyleRegistry {
     );
   }
 
-  list(): CitationStyleMeta[] {
+  public list(): CitationStyleMeta[] {
     return Array.from(this.styles.values());
+  }
+}
+
+export class LocaleRegistry {
+  private locales: Map<string, string> = new Map();
+  private loader?: LocaleLoader;
+
+  constructor() {
+    for (const [lang, xml] of Object.entries(BUNDLED_LOCALES_XML)) {
+      this.locales.set(lang, xml);
+    }
+  }
+
+  public get(lang: string): string | undefined {
+    const direct = this.locales.get(lang);
+    if (direct) return direct;
+
+    const normalized = lang.replace("_", "-");
+    const normMatch = this.locales.get(normalized);
+    if (normMatch) return normMatch;
+
+    const base = normalized.split("-")[0];
+    const baseMatch = this.locales.get(base);
+    if (baseMatch) return baseMatch;
+
+    // Fallback to en-US
+    return this.locales.get("en-US") ?? LOCALE_EN_US_XML;
+  }
+
+  public has(lang: string): boolean {
+    return this.locales.has(lang);
+  }
+
+  public register(lang: string, xml: string): void {
+    this.locales.set(lang, xml);
+  }
+
+  public setLoader(loader: LocaleLoader): void {
+    this.loader = loader;
+  }
+
+  public async load(lang: string): Promise<string> {
+    const cached = this.get(lang);
+    if (cached) return cached;
+
+    if (this.loader) {
+      const loaded = await this.loader(lang);
+      if (loaded) {
+        this.locales.set(lang, loaded);
+        return loaded;
+      }
+    }
+
+    const fallback = this.locales.get("en-US") ?? LOCALE_EN_US_XML;
+    if (fallback) return fallback;
+
+    throw new UnknownLocaleError(lang);
   }
 }

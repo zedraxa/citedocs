@@ -307,3 +307,15 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - `packages/zotero-core/README.md` eksiksiz oluşturuldu.
 
 
+
+## 13. Milestone 3 Part B — Canlı Kaynakça & CSL Editör Entegrasyonu (Kayıt #009)
+
+> **Kayıt No:** #009  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m3-biblio`  
+> **Aşama:** M3 Part B (`Bibliography` TipTap node, `collectCitationClusters` / `switchStyle`, `@citedocs/csl-engine` wire)
+
+### Yapılan İşler:
+1. `packages/editor` içine canlı Bibliography atom/block node ve CSL yardımcıları eklendi.
+2. `switchStyle` APA→IEEE güncellemesi ve kaynakça yeniden üretimi; kabul testleri yeşil.
+3. Collaboration / CollaborationCaret factory ile uyumlu opsiyonel Bibliography etkinleştirme.

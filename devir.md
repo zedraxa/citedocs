@@ -390,3 +390,10 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 1. `packages/editor` içine canlı Bibliography atom/block node ve CSL yardımcıları eklendi.
 2. `switchStyle` APA→IEEE güncellemesi ve kaynakça yeniden üretimi; kabul testleri yeşil.
 3. Collaboration / CollaborationCaret factory ile uyumlu opsiyonel Bibliography etkinleştirme.
+
+## M4 Part C — Reaktif belge taslağı (2026-10-16, cd-m4-outline)
+
+- `apps/web` içinde transaction dinleyen H1–H6 OutlineSidebar eklendi; girinti, başlığa seçim/kaydırma, imlece göre aktif bölüm ve aç/kapat desteği var. Collaboration/Caret ve Add-by-Identifier bağlantıları korundu.
+- Testing Library ile 6 yeni çevrimdışı kabul testi geçti. Web'in toplam 19 testi ayrı koşularda `--testTimeout=30000` ile doğrulandı; varsayılan 5 saniye sınırında zaman aşımı görülüyor.
+- `pnpm lint`, `pnpm typecheck`, `pnpm build` geçti. `pnpm -r test`, kapsam dışındaki CSL 300 ms performans sınırında iki kez başarısız oldu (~964–985 ms); ayrıca editor testlerinde 450 ms sınırı (~781 ms) ve 35 saniye zaman aşımı var. Paket kodlarına müdahale edilmedi.
+- Testing Library bağımlılığı apps/web/package.json'a eklendi. Kök lockfile değişikliği kapsam dışında olduğundan onay bekliyor; frozen-lockfile kurulumu öncesinde güncellenmeli. Push/deploy yapılmadı.

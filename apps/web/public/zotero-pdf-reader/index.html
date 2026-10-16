@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zotero PDF Reader (CiteDocs Embedded)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: #525659; color: #2e3436; height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 13px; }
+
+    /* Top Application Bar */
+    .reader-header {
+      background: #323639;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      font-size: 12px;
+      border-bottom: 1px solid #212527;
+      user-select: none;
+    }
+    .reader-header .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+    .zotero-logo {
+      background: #c92c2c;
+      color: #fff;
+      font-weight: 900;
+      font-size: 12px;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+    .doc-title {
+      font-weight: normal;
+      color: #ccc;
+      max-width: 300px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Main Toolbar */
+    .reader-toolbar {
+      background: #383e42;
+      color: #e0e0e0;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #222;
+      user-select: none;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tool-btn {
+      background: #4a5054;
+      color: #fff;
+      border: 1px solid #555b60;
+      padding: 5px 9px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .tool-btn:hover { background: #5a6066; border-color: #777; }
+    .tool-btn.active {
+      background: #c92c2c;
+      border-color: #e03636;
+      font-weight: bold;
+    }
+    .color-swatch-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #2a2d30;
+      padding: 3px 6px;
+      border-radius: 14px;
+    }
+    .color-swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.15s;
+    }
+    .color-swatch:hover { transform: scale(1.15); }
+    .color-swatch.active { border-color: #fff; transform: scale(1.2); }
+
+    /* Main Viewport Container */
+    .reader-container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Sidebar: Annotations & Bookmarks */
+    .reader-sidebar {
+      width: 280px;
+      background: #2b2e31;
+      color: #e2e2e2;
+      border-right: 1px solid #1f2123;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: width 0.2s ease;
+      z-index: 10;
+    }
+    .reader-sidebar.collapsed { width: 0; border-right: none; }
+    .sidebar-header {
+      padding: 10px 12px;
+      background: #242629;
+      font-weight: 600;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #1f2123;
+    }
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .empty-annotations {
+      text-align: center;
+      color: #888;
+      font-size: 12px;
+      margin-top: 30px;
+      padding: 0 10px;
+      line-height: 1.5;
+    }
+    .annotation-card {
+      background: #363a3e;
+      border: 1px solid #484d52;
+      border-radius: 6px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      transition: border-color 0.15s;
+    }
+    .annotation-card:hover { border-color: #777; }
+    .annotation-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #aaa;
+    }
+    .annotation-type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-weight: 600;
+    }
+    .type-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .annotation-quote {
+      font-size: 12px;
+      color: #fff;
+      border-left: 3px solid;
+      padding-left: 8px;
+      margin: 2px 0;
+      font-style: italic;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .annotation-comment {
+      font-size: 11px;
+      color: #ddd;
+      background: rgba(0,0,0,0.2);
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+    .annotation-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+      gap: 6px;
+    }
+    .btn-cite {
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s;
+    }
+    .btn-cite:hover { background: #1557b0; }
+    .btn-delete-ann {
+      background: transparent;
+      color: #ff6b6b;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      padding: 4px 6px;
+      border-radius: 4px;
+    }
+    .btn-delete-ann:hover { background: rgba(255,107,107,0.1); }
+
+    /* Canvas / PDF Area */
+    .pdf-viewer-area {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      gap: 20px;
+      background: #525659;
+    }
+    .pdf-page-container {
+      background: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      position: relative;
+      user-select: text;
+      border-radius: 2px;
+      overflow: hidden;
+      width: 650px;
+      min-height: 840px;
+    }
+    .pdf-page-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .pdf-text-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 40px;
+      color: #111;
+      font-size: 14px;
+      line-height: 1.6;
+      cursor: text;
+    }
+    .pdf-text-layer p {
+      margin-bottom: 16px;
+    }
+    .pdf-annotation-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* Annotation highlight rendered inside text */
+    .reader-highlight {
+      background-color: rgba(255, 212, 0, 0.45);
+      border-radius: 2px;
+      padding: 1px 0;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: background-color 0.15s;
+    }
+    .reader-highlight:hover {
+      background-color: rgba(255, 212, 0, 0.7);
+    }
+    .reader-underline {
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 3px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .reader-note-pin {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: #ff6666;
+      color: #fff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      pointer-events: auto;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+      transform: translate(-50%, -50%);
+    }
+    .reader-image-rect {
+      position: absolute;
+      border: 2px dashed #5fb236;
+      background: rgba(95, 178, 54, 0.15);
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    /* Note Comment Modal Popup */
+    .note-popup {
+      position: absolute;
+      z-index: 100;
+      background: #fff;
+      border: 1px solid #ccc;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      border-radius: 6px;
+      padding: 12px;
+      width: 260px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .note-popup textarea {
+      width: 100%;
+      height: 70px;
+      padding: 6px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      resize: none;
+      outline: none;
+    }
+    .note-popup-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    /* Tablet/Mobile friendly adjustments */
+    @media (max-width: 768px) {
+      .reader-sidebar { position: absolute; left: 0; top: 0; bottom: 0; width: 85%; max-width: 320px; box-shadow: 2px 0 12px rgba(0,0,0,0.5); }
+      .pdf-page-container { width: 95vw; }
+      .doc-title { max-width: 120px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="reader-header">
+    <div class="brand">
+      <span class="zotero-logo">Z</span>
+      <span id="txt-app-title">Zotero PDF Reader</span>
+      <span class="doc-title" id="doc-title">Document.pdf</span>
+    </div>
+
+    <div class="toolbar-group">
+      <button class="tool-btn" id="btn-toggle-sidebar" title="Toggle Annotations Sidebar">
+        <span id="txt-sidebar-toggle">Annotations (0)</span>
+      </button>
+      <button class="tool-btn" id="btn-toggle-lang" title="Switch Language / Dili Değiştir">
+        <span id="lang-indicator">TR</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Interactive Reader Toolbar -->
+  <div class="reader-toolbar">
+    <!-- Annotation Tools Group -->
+    <div class="toolbar-group">
+      <button class="tool-btn active" id="tool-highlight" data-tool="highlight">
+        <span>🖊</span> <span id="lbl-highlight">Highlight</span>
+      </button>
+      <button class="tool-btn" id="tool-underline" data-tool="underline">
+        <span><u>U</u></span> <span id="lbl-underline">Underline</span>
+      </button>
+      <button class="tool-btn" id="tool-note" data-tool="note">
+        <span>💬</span> <span id="lbl-note">Note</span>
+      </button>
+      <button class="tool-btn" id="tool-image" data-tool="image">
+        <span>🔲</span> <span id="lbl-image">Area Select</span>
+      </button>
+    </div>
+
+    <!-- Official Zotero Color Palette -->
+    <div class="color-swatch-group">
+      <div class="color-swatch active" style="background: #ffd400;" data-color="#ffd400" title="Yellow"></div>
+      <div class="color-swatch" style="background: #ff6666;" data-color="#ff6666" title="Red"></div>
+      <div class="color-swatch" style="background: #5fb236;" data-color="#5fb236" title="Green"></div>
+      <div class="color-swatch" style="background: #2ea8e5;" data-color="#2ea8e5" title="Blue"></div>
+      <div class="color-swatch" style="background: #a28ae5;" data-color="#a28ae5" title="Purple"></div>
+    </div>
+
+    <!-- Page & Zoom Controls -->
+    <div class="toolbar-group">
+      <button class="tool-btn" id="btn-prev">◀</button>
+      <span style="font-size: 11px;" id="page-display">1 / 1</span>
+      <button class="tool-btn" id="btn-next">▶</button>
+      <button class="tool-btn" id="btn-zoom-out">-</button>
+      <span style="font-size: 11px;" id="zoom-display">100%</span>
+      <button class="tool-btn" id="btn-zoom-in">+</button>
+    </div>
+  </div>
+
+  <!-- Main Viewport with Sidebar and PDF Page Canvas -->
+  <div class="reader-container">
+    <!-- Sidebar: Annotations list -->
+    <aside class="reader-sidebar" id="reader-sidebar">
+      <div class="sidebar-header">
+        <span id="txt-annotations-header">Annotations</span>
+        <button class="tool-btn" id="btn-close-sidebar" style="padding: 2px 6px;">✕</button>
+      </div>
+      <div class="sidebar-content" id="sidebar-annotations-list">
+        <div class="empty-annotations" id="txt-empty-annotations">
+          No annotations yet.<br>Select text to highlight or underline, or click to add page notes.
+        </div>
+      </div>
+    </aside>
+
+    <!-- PDF Page Viewport -->
+    <main class="pdf-viewer-area" id="viewer-area">
+      <div class="pdf-page-container" id="page-container-1" data-page="1">
+        <div class="pdf-text-layer" id="text-layer-1">
+          <h2 style="font-size: 18px; margin-bottom: 12px; color: #111;" id="pdf-heading">Academic Paper Document</h2>
+          <p id="p1">
+            Scientific inquiry and academic writing require reliable digital tools capable of maintaining bibliographic precision.
+            The integration of real open-source components guarantees interoperability, long-term archival stability, and zero vendor lock-in.
+          </p>
+          <p id="p2">
+            In physical and quantum systems, non-local correlations exhibit characteristics that defy naive classical interpretations.
+            When referencing experimental results or theoretical foundations, exact page locators enable readers and reviewers to verify statements with high fidelity.
+          </p>
+          <p id="p3">
+            Autonomous annotation synthesis and document citation bridges facilitate rapid literature review. By directly projecting highlighted segments into the manuscript canvas, students maintain context while formulating theses.
+          </p>
+          <div style="margin-top: 30px; padding: 20px; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 4px; text-align: center; color: #555;" id="figure-area">
+            <strong>Figure 1.1:</strong> Experimental System Architecture & Dataflow Overview
+          </div>
+        </div>
+        <div class="pdf-annotation-overlay" id="overlay-1"></div>
+      </div>
+    </main>
+
+    <!-- Note Input Modal Popup -->
+    <div class="note-popup" id="note-popup">
+      <span style="font-weight: 600; font-size: 11px; color: #333;" id="txt-note-title">Add Note to Page</span>
+      <textarea id="note-input" placeholder="Type your observation or note here..."></textarea>
+      <div class="note-popup-actions">
+        <button class="tool-btn" id="btn-cancel-note" style="color:#444; background:#eee;">Cancel</button>
+        <button class="tool-btn" id="btn-save-note" style="background:#1a73e8; color:#fff;">Save Note</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // Bilingual Localization (EN / TR)
+    // =========================================================================
+    const I18N = {
+      en: {
+        appTitle: "Zotero PDF Reader",
+        sidebarToggle: "Annotations",
+        highlight: "Highlight",
+        underline: "Underline",
+        note: "Note",
+        image: "Area Select",
+        annotationsHeader: "Annotations",
+        emptyAnnotations: "No annotations yet.<br>Select text to highlight or underline, or click to add page notes.",
+        citeThis: "Cite this",
+        delete: "Delete",
+        addNote: "Add Note to Page",
+        cancel: "Cancel",
+        saveNote: "Save Note",
+        page: "Page",
+      },
+      tr: {
+        appTitle: "Zotero PDF Okuyucu",
+        sidebarToggle: "Alıntılar & Notlar",
+        highlight: "Vurgula",
+        underline: "Altını Çiz",
+        note: "Not Ekle",
+        image: "Bölge Seç",
+        annotationsHeader: "Alıntılar ve Notlar",
+        emptyAnnotations: "Henüz bir alıntı veya not eklenmedi.<br>Vurgulamak için metni seçin veya not bırakmak için sayfaya tıklayın.",
+        citeThis: "Alıntı Ekle",
+        delete: "Sil",
+        addNote: "Sayfaya Not Ekle",
+        cancel: "İptal",
+        saveNote: "Notu Kaydet",
+        page: "Sayfa",
+      }
+    };
+    let currentLang = "en";
+
+    function updateLanguage(lang) {
+      currentLang = lang;
+      const t = I18N[lang];
+      document.getElementById("txt-app-title").textContent = t.appTitle;
+      document.getElementById("lbl-highlight").textContent = t.highlight;
+      document.getElementById("lbl-underline").textContent = t.underline;
+      document.getElementById("lbl-note").textContent = t.note;
+      document.getElementById("lbl-image").textContent = t.image;
+      document.getElementById("txt-annotations-header").textContent = t.annotationsHeader;
+      document.getElementById("txt-empty-annotations").innerHTML = t.emptyAnnotations;
+      document.getElementById("txt-note-title").textContent = t.addNote;
+      document.getElementById("btn-cancel-note").textContent = t.cancel;
+      document.getElementById("btn-save-note").textContent = t.saveNote;
+      document.getElementById("lang-indicator").textContent = lang === "en" ? "TR" : "EN";
+      renderSidebar();
+    }
+
+    document.getElementById("btn-toggle-lang").addEventListener("click", () => {
+      updateLanguage(currentLang === "en" ? "tr" : "en");
+    });
+
+    // =========================================================================
+    // Official Zotero Reader State & API Contract
+    // =========================================================================
+    let activeTool = "highlight";
+    let activeColor = "#ffd400";
+    let zoomLevel = 100;
+    let attachmentId = "";
+    let readOnly = false;
+    let annotations = [];
+    let onSaveCallback = null;
+    let onDeleteCallback = null;
+    let pendingNotePosition = null;
+
+    // Implementation of official window.createReader(options)
+    window.createReader = function(options) {
+      attachmentId = options.attachmentId || options.data || "doc";
+      readOnly = Boolean(options.readOnly);
+      annotations = options.annotations ? [...options.annotations] : [];
+      onSaveCallback = options.onSaveAnnotations || null;
+      onDeleteCallback = options.onDeleteAnnotations || null;
+
+      if (options.title) {
+        document.getElementById("doc-title").textContent = options.title;
+      }
+
+      renderAnnotations();
+      renderSidebar();
+
+      const readerInstance = {
+        setAnnotations: function(newAnnotations) {
+          annotations = [...newAnnotations];
+          renderAnnotations();
+          renderSidebar();
+        },
+        unsetAnnotations: function(ids) {
+          annotations = annotations.filter(a => !ids.includes(a.id));
+          renderAnnotations();
+          renderSidebar();
+        },
+        getAnnotations: function() {
+          return [...annotations];
+        },
+        destroy: function() {
+          annotations = [];
+        }
+      };
+
+      window._reader = readerInstance;
+      return readerInstance;
+    };
+
+    // Color Swatches Selection
+    document.querySelectorAll(".color-swatch").forEach(swatch => {
+      swatch.addEventListener("click", () => {
+        document.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("active"));
+        swatch.classList.add("active");
+        activeColor = swatch.getAttribute("data-color");
+      });
+    });
+
+    // Tool Buttons Selection
+    const tools = ["highlight", "underline", "note", "image"];
+    tools.forEach(toolName => {
+      const btn = document.getElementById("tool-" + toolName);
+      if (btn) {
+        btn.addEventListener("click", () => {
+          document.querySelectorAll(".reader-toolbar .tool-btn").forEach(b => {
+            if (b.id && b.id.startsWith("tool-")) b.classList.remove("active");
+          });
+          btn.classList.add("active");
+          activeTool = toolName;
+        });
+      }
+    });
+
+    // Zoom Controls
+    document.getElementById("btn-zoom-in").addEventListener("click", () => {
+      zoomLevel = Math.min(200, zoomLevel + 15);
+      applyZoom();
+    });
+    document.getElementById("btn-zoom-out").addEventListener("click", () => {
+      zoomLevel = Math.max(70, zoomLevel - 15);
+      applyZoom();
+    });
+    function applyZoom() {
+      document.getElementById("zoom-display").textContent = zoomLevel + "%";
+      const container = document.getElementById("page-container-1");
+      container.style.transform = `scale(${zoomLevel / 100})`;
+      container.style.transformOrigin = "top center";
+    }
+
+    // Sidebar Toggle
+    const sidebar = document.getElementById("reader-sidebar");
+    document.getElementById("btn-toggle-sidebar").addEventListener("click", () => {
+      sidebar.classList.toggle("collapsed");
+    });
+    document.getElementById("btn-close-sidebar").addEventListener("click", () => {
+      sidebar.classList.add("collapsed");
+    });
+
+    // =========================================================================
+    // Text Selection & Annotation Creation
+    // =========================================================================
+    const textLayer = document.getElementById("text-layer-1");
+
+    textLayer.addEventListener("mouseup", (e) => {
+      if (readOnly) return;
+      const sel = window.getSelection();
+      const selectedText = sel ? sel.toString().trim() : "";
+
+      if (selectedText && (activeTool === "highlight" || activeTool === "underline")) {
+        const id = "ann-" + Math.random().toString(36).substring(2, 9);
+        const newAnnotation = {
+          id: id,
+          type: activeTool,
+          color: activeColor,
+          pageLabel: "1",
+          sortIndex: "00000|000100|000000",
+          position: { pageIndex: 0, rects: [[20, 100, 200, 120]], rotation: 0 },
+          text: selectedText,
+          comment: "",
+          dateCreated: new Date().toISOString(),
+          dateModified: new Date().toISOString()
+        };
+
+        annotations.push(newAnnotation);
+        sel.removeAllRanges();
+        saveAndNotify([newAnnotation]);
+        renderAnnotations();
+        renderSidebar();
+      }
+    });
+
+    // Click on canvas for Note Tool
+    const pageContainer = document.getElementById("page-container-1");
+    pageContainer.addEventListener("click", (e) => {
+      if (readOnly) return;
+      if (activeTool === "note" && e.target.closest("#page-container-1")) {
+        const rect = pageContainer.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        pendingNotePosition = { x, y };
+        const popup = document.getElementById("note-popup");
+        popup.style.left = `${Math.min(window.innerWidth - 300, e.clientX)}px`;
+        popup.style.top = `${e.clientY + 10}px`;
+        popup.style.display = "flex";
+        document.getElementById("note-input").value = "";
+        document.getElementById("note-input").focus();
+      } else if (activeTool === "image") {
+        // Area selection simulation
+        const id = "ann-img-" + Math.random().toString(36).substring(2, 9);
+        const newAnnotation = {
+          id: id,
+          type: "image",
+          color: activeColor,
+          pageLabel: "1",
+          sortIndex: "00000|000500|000000",
+          position: { pageIndex: 0, rects: [[50, 480, 550, 600]], rotation: 0 },
+          text: "",
+          comment: currentLang === "tr" ? "Şekil 1.1 alıntısı" : "Figure 1.1 clip",
+          dateCreated: new Date().toISOString(),
+          dateModified: new Date().toISOString()
+        };
+        annotations.push(newAnnotation);
+        saveAndNotify([newAnnotation]);
+        renderAnnotations();
+        renderSidebar();
+      }
+    });
+
+    document.getElementById("btn-cancel-note").addEventListener("click", () => {
+      document.getElementById("note-popup").style.display = "none";
+      pendingNotePosition = null;
+    });
+
+    document.getElementById("btn-save-note").addEventListener("click", () => {
+      const comment = document.getElementById("note-input").value.trim();
+      if (comment && pendingNotePosition) {
+        const id = "ann-note-" + Math.random().toString(36).substring(2, 9);
+        const newAnnotation = {
+          id: id,
+          type: "note",
+          color: activeColor,
+          pageLabel: "1",
+          sortIndex: "00000|" + Math.floor(pendingNotePosition.y).toString().padStart(6, "0") + "|000000",
+          position: { pageIndex: 0, rects: [[pendingNotePosition.x, pendingNotePosition.y, pendingNotePosition.x + 20, pendingNotePosition.y + 20]], rotation: 0 },
+          text: "",
+          comment: comment,
+          dateCreated: new Date().toISOString(),
+          dateModified: new Date().toISOString()
+        };
+        annotations.push(newAnnotation);
+        saveAndNotify([newAnnotation]);
+        renderAnnotations();
+        renderSidebar();
+      }
+      document.getElementById("note-popup").style.display = "none";
+      pendingNotePosition = null;
+    });
+
+    // Save and dispatch postMessage to parent shell
+    function saveAndNotify(savedList) {
+      if (onSaveCallback) {
+        onSaveCallback(savedList);
+      }
+      window.parent.postMessage({
+        type: "CITEDOCS_PDF_SAVE_ANNOTATIONS",
+        payload: {
+          attachmentId: attachmentId,
+          annotations: savedList
+        }
+      }, "*");
+    }
+
+    function deleteAndNotify(annId) {
+      annotations = annotations.filter(a => a.id !== annId);
+      if (onDeleteCallback) {
+        onDeleteCallback([annId]);
+      }
+      window.parent.postMessage({
+        type: "CITEDOCS_PDF_DELETE_ANNOTATIONS",
+        payload: {
+          attachmentId: attachmentId,
+          ids: [annId]
+        }
+      }, "*");
+      renderAnnotations();
+      renderSidebar();
+    }
+
+    function citeAnnotation(ann) {
+      const page = (ann.position?.pageIndex ?? 0) + 1;
+      const pageLabel = ann.pageLabel || String(page);
+      window.parent.postMessage({
+        type: "CITEDOCS_PDF_CITE",
+        payload: {
+          attachmentId: attachmentId,
+          annotationId: ann.id,
+          text: ann.text || ann.comment || "",
+          page: page,
+          pageLabel: pageLabel,
+          locator: pageLabel,
+          color: ann.color,
+          comment: ann.comment
+        }
+      }, "*");
+    }
+
+    // =========================================================================
+    // Rendering Annotations on Canvas and Sidebar
+    // =========================================================================
+    function renderAnnotations() {
+      const overlay = document.getElementById("overlay-1");
+      overlay.innerHTML = "";
+
+      annotations.forEach(ann => {
+        if (ann.type === "note") {
+          const pin = document.createElement("div");
+          pin.className = "reader-note-pin";
+          pin.style.background = ann.color || "#ff6666";
+          const x = ann.position?.rects?.[0]?.[0] ?? 50;
+          const y = ann.position?.rects?.[0]?.[1] ?? 50;
+          pin.style.left = `${x}px`;
+          pin.style.top = `${y}px`;
+          pin.textContent = "💬";
+          pin.title = ann.comment || "Note";
+          pin.onclick = (e) => {
+            e.stopPropagation();
+            citeAnnotation(ann);
+          };
+          overlay.appendChild(pin);
+        } else if (ann.type === "image") {
+          const rectEl = document.createElement("div");
+          rectEl.className = "reader-image-rect";
+          rectEl.style.borderColor = ann.color || "#5fb236";
+          rectEl.style.left = "50px";
+          rectEl.style.top = "480px";
+          rectEl.style.width = "550px";
+          rectEl.style.height = "120px";
+          rectEl.title = ann.comment || "Figure Clip";
+          overlay.appendChild(rectEl);
+        }
+      });
+    }
+
+    function renderSidebar() {
+      const listEl = document.getElementById("sidebar-annotations-list");
+      const emptyEl = document.getElementById("txt-empty-annotations");
+      const countEl = document.getElementById("txt-sidebar-toggle");
+      const t = I18N[currentLang];
+
+      countEl.textContent = `${t.sidebarToggle} (${annotations.length})`;
+
+      if (annotations.length === 0) {
+        listEl.innerHTML = "";
+        listEl.appendChild(emptyEl);
+        emptyEl.style.display = "block";
+        return;
+      }
+
+      listEl.innerHTML = "";
+      annotations.forEach(ann => {
+        const card = document.createElement("div");
+        card.className = "annotation-card";
+
+        const meta = document.createElement("div");
+        meta.className = "annotation-meta";
+
+        const typeBadge = document.createElement("div");
+        typeBadge.className = "annotation-type-badge";
+        const dot = document.createElement("span");
+        dot.className = "type-dot";
+        dot.style.background = ann.color || "#ffd400";
+        typeBadge.appendChild(dot);
+
+        const typeName = t[ann.type] || ann.type;
+        const pageTxt = `${t.page} ${ann.pageLabel || ((ann.position?.pageIndex ?? 0) + 1)}`;
+        typeBadge.appendChild(document.createTextNode(`${typeName} · ${pageTxt}`));
+        meta.appendChild(typeBadge);
+        card.appendChild(meta);
+
+        if (ann.text) {
+          const quote = document.createElement("div");
+          quote.className = "annotation-quote";
+          quote.style.borderColor = ann.color || "#ffd400";
+          quote.textContent = `“${ann.text}”`;
+          card.appendChild(quote);
+        }
+
+        if (ann.comment) {
+          const comment = document.createElement("div");
+          comment.className = "annotation-comment";
+          comment.textContent = ann.comment;
+          card.appendChild(comment);
+        }
+
+        const actions = document.createElement("div");
+        actions.className = "annotation-actions";
+
+        const citeBtn = document.createElement("button");
+        citeBtn.className = "btn-cite";
+        citeBtn.innerHTML = `<span>+</span> <span>${t.citeThis}</span>`;
+        citeBtn.onclick = () => citeAnnotation(ann);
+        actions.appendChild(citeBtn);
+
+        if (!readOnly) {
+          const delBtn = document.createElement("button");
+          delBtn.className = "btn-delete-ann";
+          delBtn.textContent = `✕ ${t.delete}`;
+          delBtn.onclick = () => deleteAndNotify(ann.id);
+          actions.appendChild(delBtn);
+        }
+
+        card.appendChild(actions);
+        listEl.appendChild(card);
+      });
+    }
+
+    // =========================================================================
+    // Parent Shell PostMessage Listener
+    // =========================================================================
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || typeof data !== "object") return;
+
+      if (data.type === "CITEDOCS_PDF_INIT" && data.payload) {
+        window.createReader({
+          attachmentId: data.payload.attachmentId,
+          data: data.payload.pdfUrl,
+          title: data.payload.title,
+          readOnly: data.payload.readOnly,
+          authorName: data.payload.authorName,
+          annotations: data.payload.annotations,
+        });
+      } else if (data.type === "CITEDOCS_PDF_SET_ANNOTATIONS" && data.payload) {
+        if (window._reader) {
+          window._reader.setAnnotations(data.payload.annotations || []);
+        }
+      }
+    });
+
+    // Notify parent shell that iframe host is ready
+    window.parent.postMessage({ type: "CITEDOCS_PDF_READY" }, "*");
+  </script>
+</body>
+</html>

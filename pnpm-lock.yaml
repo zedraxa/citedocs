@@ -199,6 +199,9 @@ importers:
       '@citedocs/csl-engine':
         specifier: workspace:*
         version: link:../../packages/csl-engine
+      '@citedocs/pdf-reader':
+        specifier: workspace:*
+        version: link:../../packages/pdf-reader
       '@citedocs/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -248,12 +251,18 @@ importers:
 
   apps/web:
     dependencies:
+      '@citedocs/collabora-cite':
+        specifier: workspace:*
+        version: link:../../packages/collabora-cite
       '@citedocs/csl-engine':
         specifier: workspace:*
         version: link:../../packages/csl-engine
       '@citedocs/editor':
         specifier: workspace:*
         version: link:../../packages/editor
+      '@citedocs/pdf-reader':
+        specifier: workspace:*
+        version: link:../../packages/pdf-reader
       '@citedocs/shared':
         specifier: workspace:*
         version: link:../../packages/shared

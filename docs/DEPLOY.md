@@ -18,7 +18,7 @@ Rough cost: about $30/month for t3.medium on-demand, about $3.2 for 40 GB gp3, a
 - `/opt/citedocs`: git checkout of `main`. Untracked deploy files are listed in `.git/info/exclude`:
   - `.env`: generated secrets (Postgres, MinIO, encryption key, WOPI secret, Collabora admin, basic auth)
   - `docker-compose.prod.yml`: override (secrets from .env, no host ports except Caddy, Collabora, WOPI, Caddy)
-  - `deploy/Caddyfile`, `deploy/web.Dockerfile`, `deploy/server.Dockerfile`
+  - `deploy/Caddyfile` (the whole `deploy/` dir is mounted at /etc/caddy), `deploy/web.Dockerfile` (adds VITE_* build args)
 - `/opt/citedocs-office`: minimal standalone WOPI host and file page (`deploy/office/` in this repo)
 
 Copies of these files (secret-free) are in `deploy/` in this branch.
@@ -34,10 +34,10 @@ sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --bui
 |---|---|---|
 | `/browser/* /hosting/* /cool/* /lool/* /co/*` | collabora:9980 | none (WOPI access tokens protect documents) |
 | `/wopi/*` | blocked (403); Collabora reaches WOPI internally at `http://wopi:8080` | |
-| `/office/*` | wopi:8080 (file list, new/upload, editor iframe, Zotero panel) | basic auth |
-| `/api/*`, `/health` | server:3000 | basic auth |
-| `/collab*` | server:1234 (Hocuspocus WS) | basic auth |
-| `/` | web (nginx, Vite production build) | basic auth |
+| `/office/*` | wopi:8080 (standalone test page: file list, editor iframe, Zotero panel) | basic auth |
+| `/api/*`, `/health` | server:3000 | public (app has its own signup/login, cookie sessions, CSRF) |
+| `/collab*` | server:1234 (Hocuspocus WS) | public |
+| `/` | web (nginx, Vite production build) | public |
 
 Collabora: `aliasgroup1=http://wopi:8080`, `aliasgroup2=https://docs.sifirdanbire.com.tr:443`,
 `server_name=docs.sifirdanbire.com.tr`, `ssl.enable=false`, `ssl.termination=true`, and caps `MKNOD, SYS_ADMIN`
@@ -49,9 +49,16 @@ Refresh, Unlink, Citation style / Document preferences). It uses the zotero.org 
 `CheckFileInfo.UserPrivateInfo.ZoteroAPIKey`. Enter the key once in the Zotero side panel on `/office/`; it is
 stored server-side in the `office_files` volume. Then reopen the document.
 
+## Auth / email
+- Signup, login, sessions and CSRF come from the app (`/api/auth/*`). DB migrations run automatically when the server starts.
+- **No SMTP is configured.** The server uses `ConsoleMailer`, so verification and reset links are only written to the server log:
+  `sudo docker logs citedocs-server-1 2>&1 | grep -E "Verification URL|Reset URL"`
+- `CLIENT_URL=https://docs.sifirdanbire.com.tr`, so the links point at the public host.
+
+## Translation server
+Built from source for amd64: `/opt/translation-server` (git clone --recurse-submodules) is used as the build context, giving image `citedocs/translation-server:local`.
+
 ## Known issues
-- `zotero/translation-server:latest` on Docker Hub is arm64-only, so the container is stopped. Build it from source for amd64 if needed.
 - The `minio/minio` image is no longer pullable, so the community build `pgsty/minio` is used instead.
 - Stock CODE has no Python UNO (no pyuno, no `share/Scripts`), so the `apps/collabora-scripts` `CallPythonScript` macro cannot run in it.
-- The repo Dockerfiles do not build workspace packages first. `deploy/*.Dockerfile` build `packages/*` first, and the web
-  build falls back to `vite build` if `tsc` fails.
+- SMTP has not been integrated yet (only the console mailer exists).

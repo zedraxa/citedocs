@@ -13,10 +13,12 @@ http://docs.sifirdanbire.com.tr, https://docs.sifirdanbire.com.tr {
 		@cool path /browser/* /hosting/* /cool/* /lool/* /co/*
 		reverse_proxy @cool collabora:9980
 		respond /wopi/* 403
-		basic_auth {
+		# Standalone office test page stays behind basic auth; the CiteDocs app itself is public (own signup/login).
+		@office path /office /office/*
+		basic_auth @office {
 			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
 		}
-		reverse_proxy /office* wopi:8080
+		reverse_proxy @office wopi:8080
 		reverse_proxy /api/* server:3000
 		reverse_proxy /health server:3000
 		handle_path /collab* {

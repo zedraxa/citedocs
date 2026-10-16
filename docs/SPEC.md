@@ -306,6 +306,16 @@ CiteDocs is a **volunteer, non-commercial, fully free open-source** project. The
   - ORCID OAuth (preferred for academic users).
 - Optional linking of a `zotero.org` account via OAuth / API key for two-way library sync (see §3.8). Users may use CiteDocs without linking Zotero.
 
+### Per-Student Accounts & Data Isolation (required)
+
+CiteDocs is used by **many independent students**. The core model is:
+
+- **Every student has their own CiteDocs account** and signs in with it (email, Google, or ORCID).
+- **Every student links their OWN `zotero.org` account** (per-user OAuth 1.0a token or per-user API key). Zotero credentials are never shared between users and are **encrypted at rest** (envelope encryption, e.g. AES-256-GCM with a server-held key / KMS) and never returned to the browser after linking.
+- **Each student works only on their own documents, library, collections, notes, and PDFs.** By default nothing a user owns is visible to anyone else.
+- **Strict per-user isolation is enforced server-side:** every REST/API request, file download, and collaboration (Hocuspocus/WebSocket) connection performs a row-level ownership or explicit-share check (Postgres row-level security and/or mandatory `owner_id` scoping in every query). Missing checks are treated as security bugs; automated tests must prove user A cannot read or write user B's data.
+- **Collaboration happens only by deliberate sharing:** a document becomes visible to another account only when its owner explicitly shares it (by email/account or link with a role). Sharing a document never exposes the owner's Zotero library or credentials; citations in a shared doc carry their embedded CSL-JSON item data.
+
 ### Cloud Storage Quotas (generous free defaults)
 
 Hosted CiteDocs instances provide ample free cloud storage so students can work without buying plans:

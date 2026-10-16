@@ -58,5 +58,5 @@ Bir sonraki ajan doğrudan **Milestone 1 (M1: Editor Canvas & Collaborative Foun
 
 1. `pnpm install` çalıştırarak monorepo kütüphane bağlarını kesinleştir.
 2. `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` komutlarını çalıştır ve yeşil olduğunu doğrula.
-3. TipTap v2 editörünü `apps/web` içinde canlı ProseMirror instance'ına bağla ve `y-prosemirror` ile Hocuspocus sunucusuna bağla.
+3. TipTap v3 editörünü `apps/web` içinde canlı ProseMirror instance'ına bağla ve `y-prosemirror` ile Hocuspocus sunucusuna bağla.
 4. Docker üzerinde `translation-server` mikroservisini ayağa kaldırıp DOI çözümleme testlerini entegre et.

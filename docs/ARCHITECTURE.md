@@ -16,7 +16,7 @@ CiteDocs is architected as a modular, decoupled, event-driven web application. I
 graph TD
     subgraph ClientLayer["Client Layer (Any Browser / Desktop / Tablet / Phone)"]
         UI["CiteDocs Web App (Vite + React 19)"]
-        Editor["TipTap v2 + ProseMirror Canvas"]
+        Editor["TipTap v3 + ProseMirror Canvas"]
         CRDT["Yjs Client (Doc State + UndoManager)"]
         PDFViewer["PDF.js Reader & Annotation Canvas"]
         CSLClient["Client CSL Cache & Citation Store"]
@@ -91,12 +91,12 @@ graph TD
   4. **Decoupled WebSocket Collab:** Collaborative document synchronization requires long-lived stateful WebSocket connections. Next.js serverless functions cannot host persistent WebSockets, necessitating an independent collaboration server regardless.
   5. **Resource Efficiency:** The static Vite build compiles to pure HTML/JS/CSS served via Nginx in $<10\text{ MB}$ RAM, drastically reducing hosting costs compared to running continuous Node.js SSR pods.
 
-### 2.3 Editor Engine: TipTap v2 + ProseMirror + Yjs
+### 2.3 Editor Engine: TipTap v3 + ProseMirror + Yjs
 
-- **Selected:** **TipTap v2 headless core** + custom ProseMirror extensions + `y-prosemirror`.
+- **Selected:** **TipTap v3 headless core (`@tiptap/*` ^3.x, current major; do not use v2)** + custom ProseMirror extensions + `y-prosemirror`.
 - **Rationale:**
   - TipTap provides a developer-friendly modular abstraction over ProseMirror, which is the world's most battle-tested, robust rich-text schema engine (used by The New York Times, Atlassian Confluence, and Notion).
-  - First-class Yjs collaboration extensions (`@tiptap/extension-collaboration` and `@tiptap/extension-collaboration-cursor`) provide sub-50ms deterministic CRDT merge semantics.
+  - First-class Yjs collaboration extensions (`@tiptap/extension-collaboration` and `@tiptap/extension-collaboration-caret` (v3 name for the former collaboration-cursor)) provide sub-50ms deterministic CRDT merge semantics.
 
 ### 2.4 Collaboration Backend: Hocuspocus Server
 
@@ -136,6 +136,15 @@ graph TD
 - **Social / academic SSO (all free):** Google OAuth 2.0 and ORCID OAuth 2.0.
 - **Zotero link (optional):** OAuth 1.0a or API key for two-way `zotero.org` sync; stored encrypted at rest.
 - **No paid IdP or license server.** Session model: HTTP-only secure JWT (or opaque session) cookies with tenant isolation.
+
+### Multi-Tenant Model: Per-User Ownership & Isolation (required)
+
+- **Tenant = individual user.** Every student has their own account; every `documents`, `library_items`, `collections`, `attachments`, `annotations`, and `zotero_links` row carries a non-null `owner_id`.
+- **Per-user Zotero linking:** each user links their own `zotero.org` account; the OAuth token / API key is stored only in `zotero_links`, encrypted at rest (AES-256-GCM envelope encryption with a server/KMS key), decrypted only inside the sync worker, never sent to the client.
+- **Enforcement on every request:** Fastify auth middleware resolves `userId` from the session; all repositories scope queries by `owner_id` or a `document_shares` grant (backed by Postgres row-level security policies). Hocuspocus `onAuthenticate` verifies ownership or an explicit share before loading a Yjs document. S3/MinIO objects use per-user key prefixes and are served only through short-lived presigned URLs after the same check.
+- **Sharing is explicit:** collaboration is possible only through `document_shares` rows created by the owner (roles Owner/Editor/Commenter/Viewer). Libraries are never implicitly shared.
+- **Tests:** a cross-tenant isolation test suite (user A vs user B on REST, WebSocket, and file endpoints) is part of CI and must stay green.
+
 
 ### 2.9 Free-Tier Storage Policy
 

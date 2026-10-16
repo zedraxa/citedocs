@@ -147,7 +147,7 @@ The engine coordinates this via:
 
 ## 4. Google Docs Feature Parity in TipTap / ProseMirror
 
-Google Docs is the global benchmark for web-based document editing. Delivering full parity in CiteDocs requires precise mapping to TipTap v2 and ProseMirror extensions:
+Google Docs is the global benchmark for web-based document editing. Delivering full parity in CiteDocs requires precise mapping to TipTap v3 and ProseMirror extensions:
 
 | Google Docs Feature                 | TipTap / ProseMirror Implementation Strategy                                                                                                                                                                                                                                                            |
 | :---------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

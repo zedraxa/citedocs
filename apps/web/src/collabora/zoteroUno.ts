@@ -29,7 +29,11 @@ export function bibliographyFieldArgs(html: string) {
 }
 
 export function insertCitationField(t: Target, payload: unknown, text: string) {
-  return sendUnoCommand(t, ".uno:TextFormField", citationFieldArgs(payload, text));
+  const ok = sendUnoCommand(t, ".uno:TextFormField", citationFieldArgs(payload, text));
+  // The cursor is left inside the (protected) field result; step past the field end mark so
+  // typing and further insertions don't hit "Read-Only Content".
+  sendUnoCommand(t, ".uno:GoRight");
+  return ok;
 }
 
 /** Rewrites every ZOTERO_ITEM field in document order (used for restyle / renumbering). */
@@ -49,7 +53,9 @@ export function updateCitationFields(t: Target, list: Array<{ payload: unknown; 
 export function insertBibliographyField(t: Target, html: string) {
   sendUnoCommand(t, ".uno:GoToEndOfDoc");
   sendUnoCommand(t, ".uno:InsertPara");
-  return sendUnoCommand(t, ".uno:TextFormField", bibliographyFieldArgs(html));
+  const ok = sendUnoCommand(t, ".uno:TextFormField", bibliographyFieldArgs(html));
+  sendUnoCommand(t, ".uno:GoRight");
+  return ok;
 }
 
 export function updateBibliographyField(t: Target, html: string) {

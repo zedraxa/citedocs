@@ -75,6 +75,20 @@ services:
     depends_on:
       - server
 
+  collabora:
+    image: collabora/code:latest
+    container_name: citedocs-collabora
+    restart: unless-stopped
+    environment:
+      aliasgroup1: "http://server:3000,http://localhost:3000"
+      extra_params: "--o:ssl.enable=false --o:ssl.termination=false"
+      DONT_GEN_SSL_CERT: "true"
+    ports:
+      - "9980:9980"
+    depends_on:
+      - server
+
 volumes:
   postgres_data:
   minio_data:
+

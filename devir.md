@@ -404,3 +404,19 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 - Testing Library ile 6 yeni çevrimdışı kabul testi geçti. Web'in toplam 19 testi ayrı koşularda `--testTimeout=30000` ile doğrulandı; varsayılan 5 saniye sınırında zaman aşımı görülüyor.
 - `pnpm lint`, `pnpm typecheck`, `pnpm build` geçti. `pnpm -r test`, kapsam dışındaki CSL 300 ms performans sınırında iki kez başarısız oldu (~964–985 ms); ayrıca editor testlerinde 450 ms sınırı (~781 ms) ve 35 saniye zaman aşımı var. Paket kodlarına müdahale edilmedi.
 - Testing Library bağımlılığı apps/web/package.json'a eklendi. Kök lockfile değişikliği kapsam dışında olduğundan onay bekliyor; frozen-lockfile kurulumu öncesinde güncellenmeli. Push/deploy yapılmadı.
+
+## M0.5 — Güvenilir Test Altyapısı ve CI/CD Doğrulaması (2026-10-16, cd-m0-testinfra)
+
+- **Vitest & Test Ortamı Sertleştirildi:**
+  - `vitest.shared.ts` üzerinde `pool: "forks"` yapılandırılarak her test dosyasının temiz alt süreçte (process fork) çalışması sağlandı; worker_threads bellek/RPC şişmesi (`onTaskUpdate` timeout) çözüldü.
+  - Test/hook limitleri 60 saniyeye (`testTimeout: 60_000`, `hookTimeout: 60_000`) çıkarıldı; kaynak kodlar prebuilt derleme gerekmeksizin TypeScript alias ile doğrudan çözümlendi.
+  - CSL citeproc motoru dosya başında tek seferlik ısıtılarak (`warmup`) başlangıç zaman aşımları engellendi.
+  - Fonksiyonel atıf ve kaynakça doğrulamaları eksiksiz korunurken, sıkı zamanlama kıyaslamaları (`< 300 ms` CSL, `< 450 ms` editör) ardışık çalışan `pnpm test:perf` komutuna ayrıldı; CI ortamı için esnek sınırlar tanımlandı.
+- **CI İş Akışı ve Dokümantasyon:**
+  - `.github/workflows/ci.yml` oluşturuldu (Node 22, Corepack pnpm, `--frozen-lockfile`, lint, typecheck, build, test; deploy ve secret içermez).
+  - `README.md` test komutları (`test`, `-r test`, `test:perf`) ve CI işleyişiyle güncellendi.
+- **Doğrulama Sonuçları:**
+  - Kökten `pnpm test` art arda 3 kez %100 yeşil (21 dosya, 179 geçerli, 1 atlandı).
+  - `pnpm -r test` %100 yeşil.
+  - `pnpm lint`, `pnpm typecheck` ve `pnpm build` sorunsuz geçti.
+

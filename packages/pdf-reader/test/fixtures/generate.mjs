@@ -1,3 +1,4 @@
+import { URL } from "node:url";
 import { writeFileSync } from "node:fs";
 const stream =
   "BT /F1 12 Tf 72 720 Td (CiteDocs offline PDF fixture.) Tj 0 -24 Td (Second line for quotes.) Tj ET";

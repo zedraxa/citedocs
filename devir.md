@@ -390,3 +390,11 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 1. `packages/editor` içine canlı Bibliography atom/block node ve CSL yardımcıları eklendi.
 2. `switchStyle` APA→IEEE güncellemesi ve kaynakça yeniden üretimi; kabul testleri yeşil.
 3. Collaboration / CollaborationCaret factory ile uyumlu opsiyonel Bibliography etkinleştirme.
+
+## M5 Part A — PDF okuyucu çekirdeği (2026-10-16, cd-m5-pdf)
+
+- `@citedocs/pdf-reader`: PDF.js 5.7.284 ile byte tabanlı yükleme, sayfa metni, renkli metin/dikdörtgen vurguları, sayfa locator'lı alıntı ve TipTap bağımsız blockquote çıktısı eklendi.
+- Yerel PDF fixture ve üretici betik, API/worker dokümantasyonu ve 18 çevrimdışı test tamamlandı. Anotasyonlar bellekte; dikdörtgen alıntıları metin öğesi hassasiyetinde. UI/depolama entegrasyonu sonraki parçaya ait.
+- `pnpm lint`, `pnpm typecheck`, `pnpm build` geçti. `pnpm -r test` mevcut CSL başlangıç hook'unda 10 saniye zaman aşımına takıldı; 60 saniyelik limitlerle CSL'de 11 test geçti, 300 ms performans testi ~441 ms ile başarısız oldu. CSL kaynakları değiştirilmedi.
+- Kalan paketlerin ayrı çalıştırılmasında editörün mevcut performans testi ~524 ms / 450 ms sınırıyla başarısız oldu (15 test geçti); sunucu 60, DOCX 11 test geçti. Bu kapsam dışı performans sorunları nedeniyle tüm repo kabul testleri yeşil değil.
+- Web'in ayrı test çalıştırmasında 13 test geçti. Uzatılmış limitlerle ayrı çalıştırmaların toplamı: 171 geçti, 2 performans testi başarısız, 1 mevcut test atlandı; yeni PDF paketinde 18/18 başarılı.

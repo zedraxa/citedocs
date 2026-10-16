@@ -21,7 +21,7 @@ graph TD
         PDFViewer["PDF.js Reader & Annotation Canvas"]
         CSLClient["Client CSL Cache & Citation Store"]
         PWA["PWA Service Worker & IndexedDB (y-indexeddb)"]
-        
+
         UI --> Editor
         Editor <--> CRDT
         UI --> PDFViewer
@@ -74,15 +74,17 @@ graph TD
 ## 2. Technology Stack Selection & Rationale
 
 ### 2.1 Monorepo Architecture: `pnpm` + TypeScript
-* **Tool:** `pnpm` workspaces + TypeScript 5.5+ project references.
-* **Rationale:**
-  * Strict dependency isolation prevents phantom dependencies.
-  * Fast, space-efficient hardlink caching.
-  * Clean separation of concern across reusable packages (`@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/zotero-core`, `@citedocs/editor`, `@citedocs/docx-exporter`, `@citedocs/database`).
+
+- **Tool:** `pnpm` workspaces + TypeScript 5.5+ project references.
+- **Rationale:**
+  - Strict dependency isolation prevents phantom dependencies.
+  - Fast, space-efficient hardlink caching.
+  - Clean separation of concern across reusable packages (`@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/zotero-core`, `@citedocs/editor`, `@citedocs/docx-exporter`, `@citedocs/database`).
 
 ### 2.2 Frontend Framework: Vite + React 19 vs. Next.js 15
-* **Selected:** **Vite + React 19 SPA/PWA** (with TailwindCSS and Lucide Icons).
-* **Deep Justification:**
+
+- **Selected:** **Vite + React 19 SPA/PWA** (with TailwindCSS and Lucide Icons).
+- **Deep Justification:**
   1. **Editor Runtimes are 100% Client-Side:** ProseMirror, TipTap, Yjs, PDF.js, and `citeproc-js` require direct browser DOM and canvas access. Next.js SSR provides no value for an authenticated document editing canvas and requires tedious `'use client'` workarounds and dynamic imports.
   2. **Superior PWA & Offline Experience:** Vite integrates cleanly with Workbox to provide instant PWA application shell caching and offline IndexedDB synchronization (`y-indexeddb`).
   3. **Instant Development Feedback:** esbuild/Vite HMR renders modifications in $<50\text{ ms}$, ensuring a frictionless developer experience when building intricate UI interactions.
@@ -90,50 +92,55 @@ graph TD
   5. **Resource Efficiency:** The static Vite build compiles to pure HTML/JS/CSS served via Nginx in $<10\text{ MB}$ RAM, drastically reducing hosting costs compared to running continuous Node.js SSR pods.
 
 ### 2.3 Editor Engine: TipTap v2 + ProseMirror + Yjs
-* **Selected:** **TipTap v2 headless core** + custom ProseMirror extensions + `y-prosemirror`.
-* **Rationale:**
-  * TipTap provides a developer-friendly modular abstraction over ProseMirror, which is the world's most battle-tested, robust rich-text schema engine (used by The New York Times, Atlassian Confluence, and Notion).
-  * First-class Yjs collaboration extensions (`@tiptap/extension-collaboration` and `@tiptap/extension-collaboration-cursor`) provide sub-50ms deterministic CRDT merge semantics.
+
+- **Selected:** **TipTap v2 headless core** + custom ProseMirror extensions + `y-prosemirror`.
+- **Rationale:**
+  - TipTap provides a developer-friendly modular abstraction over ProseMirror, which is the world's most battle-tested, robust rich-text schema engine (used by The New York Times, Atlassian Confluence, and Notion).
+  - First-class Yjs collaboration extensions (`@tiptap/extension-collaboration` and `@tiptap/extension-collaboration-cursor`) provide sub-50ms deterministic CRDT merge semantics.
 
 ### 2.4 Collaboration Backend: Hocuspocus Server
-* **Selected:** **Hocuspocus** (`@hocuspocus/server`) by the TipTap team.
-* **Rationale:**
-  * Built specifically for Yjs WebSocket synchronization with optimized binary protocol (`y-protocols`).
-  * Lifecycle hooks (`onAuthenticate`, `onLoadDocument`, `onStoreDocument`, `onAwarenessUpdate`) enable seamless authentication, PostgreSQL persistence, and audit logging.
-  * Native Redis adapter allows horizontal scaling across multiple load-balanced nodes.
+
+- **Selected:** **Hocuspocus** (`@hocuspocus/server`) by the TipTap team.
+- **Rationale:**
+  - Built specifically for Yjs WebSocket synchronization with optimized binary protocol (`y-protocols`).
+  - Lifecycle hooks (`onAuthenticate`, `onLoadDocument`, `onStoreDocument`, `onAwarenessUpdate`) enable seamless authentication, PostgreSQL persistence, and audit logging.
+  - Native Redis adapter allows horizontal scaling across multiple load-balanced nodes.
 
 ### 2.5 Citation Engine: `citeproc-js` & CSL Repositories
-* **Selected:** `citeproc-js` (compiled CSL 1.0.2 processor).
-* **Rationale:**
-  * Exact 100% compliance with official Citation Style Language specification.
-  * Powers Zotero desktop and web; guarantees indistinguishable formatting results.
-  * Efficiently supports incremental cluster updates (`processCitationCluster`) and batch bibliography generation (`makeBibliography`).
+
+- **Selected:** `citeproc-js` (compiled CSL 1.0.2 processor).
+- **Rationale:**
+  - Exact 100% compliance with official Citation Style Language specification.
+  - Powers Zotero desktop and web; guarantees indistinguishable formatting results.
+  - Efficiently supports incremental cluster updates (`processCitationCluster`) and batch bibliography generation (`makeBibliography`).
 
 ### 2.6 Database & Persistence: PostgreSQL 16 + Drizzle ORM
-* **Selected:** PostgreSQL 16 with **Drizzle ORM**.
-* **Rationale:**
-  * PostgreSQL is the gold standard for relational integrity, JSONB semi-structured metadata, and binary bytea storage for Yjs document states.
-  * Drizzle ORM provides zero-overhead, type-safe SQL queries with instant cold-start times and clean migration generation, outperforming heavier ORMs like Prisma.
+
+- **Selected:** PostgreSQL 16 with **Drizzle ORM**.
+- **Rationale:**
+  - PostgreSQL is the gold standard for relational integrity, JSONB semi-structured metadata, and binary bytea storage for Yjs document states.
+  - Drizzle ORM provides zero-overhead, type-safe SQL queries with instant cold-start times and clean migration generation, outperforming heavier ORMs like Prisma.
 
 ### 2.7 Object Storage: S3-Compatible Storage
-* **Selected:** S3 API protocol (MinIO for local development and self-hosting; AWS S3 or Cloudflare R2 for production).
-* **Rationale:**
-  * Vendor-neutral API for storing PDF attachments, document images, and full-text search indexes.
-  * Presigned URLs allow direct browser uploads, removing file proxy overhead from application servers.
+
+- **Selected:** S3 API protocol (MinIO for local development and self-hosting; AWS S3 or Cloudflare R2 for production).
+- **Rationale:**
+  - Vendor-neutral API for storing PDF attachments, document images, and full-text search indexes.
+  - Presigned URLs allow direct browser uploads, removing file proxy overhead from application servers.
 
 ---
 
-
 ### 2.8 Authentication & Identity Providers
-* **Local accounts:** email + Argon2id password.
-* **Social / academic SSO (all free):** Google OAuth 2.0 and ORCID OAuth 2.0.
-* **Zotero link (optional):** OAuth 1.0a or API key for two-way `zotero.org` sync; stored encrypted at rest.
-* **No paid IdP or license server.** Session model: HTTP-only secure JWT (or opaque session) cookies with tenant isolation.
+
+- **Local accounts:** email + Argon2id password.
+- **Social / academic SSO (all free):** Google OAuth 2.0 and ORCID OAuth 2.0.
+- **Zotero link (optional):** OAuth 1.0a or API key for two-way `zotero.org` sync; stored encrypted at rest.
+- **No paid IdP or license server.** Session model: HTTP-only secure JWT (or opaque session) cookies with tenant isolation.
 
 ### 2.9 Free-Tier Storage Policy
-* Default hosted quotas: ≥5 GB PDF/object storage per user; soft caps on document/library counts only for abuse prevention.
-* Self-hosted Docker deployments set their own caps (or none). Object storage is MinIO locally and S3/R2 in the cheap AWS blueprint (§7).
 
+- Default hosted quotas: ≥5 GB PDF/object storage per user; soft caps on document/library counts only for abuse prevention.
+- Self-hosted Docker deployments set their own caps (or none). Object storage is MinIO locally and S3/R2 in the cheap AWS blueprint (§7).
 
 ## 3. Monorepo Package Topology
 
@@ -208,21 +215,21 @@ erDiagram
     USERS ||--o{ DOCUMENTS : owns
     USERS ||--o{ LIBRARIES : owns
     USERS ||--o{ SESSIONS : has
-    
+
     DOCUMENTS ||--o{ DOCUMENT_VERSIONS : tracks
     DOCUMENTS ||--o{ COMMENTS : contains
     DOCUMENTS ||--o{ SUGGESTIONS : contains
-    
+
     LIBRARIES ||--o{ COLLECTIONS : organizes
     LIBRARIES ||--o{ ITEMS : stores
     LIBRARIES ||--o{ TAGS : categorizes
-    
+
     ITEMS ||--o{ ITEM_CREATORS : has
     ITEMS ||--o{ ATTACHMENTS : holds
     ITEMS ||--o{ NOTES : attaches
     ITEMS ||--o{ ITEM_TAGS : labeled_by
     TAGS ||--o{ ITEM_TAGS : labels
-    
+
     ATTACHMENTS ||--o{ ANNOTATIONS : highlights
 
     USERS {
@@ -337,19 +344,19 @@ stateDiagram-v2
 1. **Traversal:** The exporter iterates through the ProseMirror document JSON structure.
 2. **Text & Styling:** Headings, paragraphs, bold/italic, lists, and tables map to standard OpenXML WordprocessingML elements (`w:p`, `w:r`, `w:tbl`, `w:rPr`).
 3. **Citation Conversion:**
-   * Each TipTap `citation` node is converted to a complex field:
-     * `<w:fldChar w:fldCharType="begin"/>`
-     * `<w:instrText> ADDIN ZOTERO_ITEM CSL_CITATION {"citationID":"...","citationItems":[...],"properties":{"formattedCitation":"..."}} </w:instrText>`
-     * `<w:fldChar w:fldCharType="separate"/>`
-     * `<w:r><w:t>Formatted Citation Text</w:t></w:r>`
-     * `<w:fldChar w:fldCharType="end"/>`
+   - Each TipTap `citation` node is converted to a complex field:
+     - `<w:fldChar w:fldCharType="begin"/>`
+     - `<w:instrText> ADDIN ZOTERO_ITEM CSL_CITATION {"citationID":"...","citationItems":[...],"properties":{"formattedCitation":"..."}} </w:instrText>`
+     - `<w:fldChar w:fldCharType="separate"/>`
+     - `<w:r><w:t>Formatted Citation Text</w:t></w:r>`
+     - `<w:fldChar w:fldCharType="end"/>`
 4. **Bibliography Conversion:**
-   * The bibliography node maps to:
-     * `<w:fldChar w:fldCharType="begin"/>`
-     * `<w:instrText> ADDIN ZOTERO_BIBL {"custom":[]} CSL_BIBLIOGRAPHY </w:instrText>`
-     * `<w:fldChar w:fldCharType="separate"/>`
-     * Output of formatted bibliography paragraphs.
-     * `<w:fldChar w:fldCharType="end"/>`
+   - The bibliography node maps to:
+     - `<w:fldChar w:fldCharType="begin"/>`
+     - `<w:instrText> ADDIN ZOTERO_BIBL {"custom":[]} CSL_BIBLIOGRAPHY </w:instrText>`
+     - `<w:fldChar w:fldCharType="separate"/>`
+     - Output of formatted bibliography paragraphs.
+     - `<w:fldChar w:fldCharType="end"/>`
 5. **Output Packaging:** Bundled via `jszip` into a valid `.docx` archive.
 
 ---
@@ -375,64 +382,71 @@ gantt
 ### Detailed Agent Work Breakdown
 
 #### Milestone 0: Monorepo Scaffold & Core Infrastructure (Current)
-* **Goal:** Monorepo configuration, TypeScript compilation, linting, tests, CI/CD workflow, and Docker environment.
-* **Agent Task M0.1:** Setup `pnpm-workspace.yaml`, `tsconfig.base.json`, and root scripts.
-* **Agent Task M0.2:** Initialize `@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/zotero-core`, `@citedocs/editor`.
-* **Agent Task M0.3:** Scaffold `apps/web` (Vite + React) and `apps/server` (Fastify + Hocuspocus).
-* **Agent Task M0.4:** Configure `docker-compose.yml` (Postgres, MinIO, translation-server, Hocuspocus).
-* **Agent Task M0.5:** Setup Vitest workspace & GitHub Actions CI workflow.
-* **Acceptance Tests:** `pnpm build`, `pnpm test`, `pnpm lint` pass with 100% success.
+
+- **Goal:** Monorepo configuration, TypeScript compilation, linting, tests, CI/CD workflow, and Docker environment.
+- **Agent Task M0.1:** Setup `pnpm-workspace.yaml`, `tsconfig.base.json`, and root scripts.
+- **Agent Task M0.2:** Initialize `@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/zotero-core`, `@citedocs/editor`.
+- **Agent Task M0.3:** Scaffold `apps/web` (Vite + React) and `apps/server` (Fastify + Hocuspocus).
+- **Agent Task M0.4:** Configure `docker-compose.yml` (Postgres, MinIO, translation-server, Hocuspocus).
+- **Agent Task M0.5:** Setup Vitest workspace & GitHub Actions CI workflow.
+- **Acceptance Tests:** `pnpm build`, `pnpm test`, `pnpm lint` pass with 100% success.
 
 #### Milestone 1: Editor Canvas & Collaborative Foundation
-* **Goal:** Real-time multi-user rich text editor with presence cursors.
-* **Agent Tasks:**
-  * Implement TipTap base schema (Paragraph, Heading 1-6, Lists, Blockquote, CodeBlock).
-  * Configure Hocuspocus WebSocket connection with Yjs awareness.
-  * Render live collaborator cursors and selection bounding boxes.
-* **Acceptance Tests:** Two browser tabs reflect simultaneous typing with $<50\text{ ms}$ latency; cursors display distinct user names and colors.
+
+- **Goal:** Real-time multi-user rich text editor with presence cursors.
+- **Agent Tasks:**
+  - Implement TipTap base schema (Paragraph, Heading 1-6, Lists, Blockquote, CodeBlock).
+  - Configure Hocuspocus WebSocket connection with Yjs awareness.
+  - Render live collaborator cursors and selection bounding boxes.
+- **Acceptance Tests:** Two browser tabs reflect simultaneous typing with $<50\text{ ms}$ latency; cursors display distinct user names and colors.
 
 #### Milestone 2: Zotero Core Data Modeling & Translation Server Client
-* **Goal:** Local bibliographic library database with magic identifier lookups.
-* **Agent Tasks:**
-  * Drizzle PostgreSQL schema for items, collections, tags, creators, and attachments.
-  * HTTP client for `zotero/translation-server` (`/search`, `/web`, `/import`, `/export`).
-  * "Add Item by Identifier" UI component supporting DOI, ISBN, PMID, arXiv ID.
-* **Acceptance Tests:** Submitting DOI `10.1038/s41586-021-03392-y` stores complete bibliographic metadata in PostgreSQL.
+
+- **Goal:** Local bibliographic library database with magic identifier lookups.
+- **Agent Tasks:**
+  - Drizzle PostgreSQL schema for items, collections, tags, creators, and attachments.
+  - HTTP client for `zotero/translation-server` (`/search`, `/web`, `/import`, `/export`).
+  - "Add Item by Identifier" UI component supporting DOI, ISBN, PMID, arXiv ID.
+- **Acceptance Tests:** Submitting DOI `10.1038/s41586-021-03392-y` stores complete bibliographic metadata in PostgreSQL.
 
 #### Milestone 3: Dynamic CSL Engine & Live In-Document Bibliography
-* **Goal:** Real-time CSL citations in editor and automatic bibliography recomputation.
-* **Agent Tasks:**
-  * Implement `citeproc-js` wrapper in `@citedocs/csl-engine`.
-  * Create TipTap `CitationNode` atom extension.
-  * Implement quick citation search bar (`Ctrl+Shift+P`).
-  * Index and lazy-load 10,000+ CSL styles and locales.
-  * Build dynamic self-updating `BibliographyNode`.
-* **Acceptance Tests:** Inserting citation clusters renders correct author-date or numeric citation; switching style from APA 7th to IEEE updates all in-text citations and bibliography within $<300\text{ ms}$.
+
+- **Goal:** Real-time CSL citations in editor and automatic bibliography recomputation.
+- **Agent Tasks:**
+  - Implement `citeproc-js` wrapper in `@citedocs/csl-engine`.
+  - Create TipTap `CitationNode` atom extension.
+  - Implement quick citation search bar (`Ctrl+Shift+P`).
+  - Index and lazy-load 10,000+ CSL styles and locales.
+  - Build dynamic self-updating `BibliographyNode`.
+- **Acceptance Tests:** Inserting citation clusters renders correct author-date or numeric citation; switching style from APA 7th to IEEE updates all in-text citations and bibliography within $<300\text{ ms}$.
 
 #### Milestone 4: Google Docs Feature Parity Suite
-* **Goal:** Document outline, suggesting mode (track changes), threaded comments, and paged layout.
-* **Agent Tasks:**
-  * Suggesting mode mark extension (`suggestion-insert`, `suggestion-delete`) with review cards.
-  * Threaded comments extension with anchored text spans and sidebar drawer.
-  * Reactive document outline sidebar with auto-scrolling.
-  * Paged print layout with configurable margins, ruler, and visual page breaks.
-* **Acceptance Tests:** Suggestions can be accepted/rejected collaboratively; comments can be resolved/reopened; print view matches physical page setup.
+
+- **Goal:** Document outline, suggesting mode (track changes), threaded comments, and paged layout.
+- **Agent Tasks:**
+  - Suggesting mode mark extension (`suggestion-insert`, `suggestion-delete`) with review cards.
+  - Threaded comments extension with anchored text spans and sidebar drawer.
+  - Reactive document outline sidebar with auto-scrolling.
+  - Paged print layout with configurable margins, ruler, and visual page breaks.
+- **Acceptance Tests:** Suggestions can be accepted/rejected collaboratively; comments can be resolved/reopened; print view matches physical page setup.
 
 #### Milestone 5: Integrated PDF.js Reader & Annotation Extraction
-* **Goal:** In-browser PDF reading, highlighting, and quote-to-document extraction.
-* **Agent Tasks:**
-  * Integrate `pdfjs-dist` viewer canvas and text layer.
-  * Implement colored highlights and rectangle area annotations.
-  * "Insert Quote into Doc" feature inserting blockquote + linked page citation.
-* **Acceptance Tests:** Highlighting text in PDF and clicking "Quote to Doc" inserts text into active document with page locator citation.
+
+- **Goal:** In-browser PDF reading, highlighting, and quote-to-document extraction.
+- **Agent Tasks:**
+  - Integrate `pdfjs-dist` viewer canvas and text layer.
+  - Implement colored highlights and rectangle area annotations.
+  - "Insert Quote into Doc" feature inserting blockquote + linked page citation.
+- **Acceptance Tests:** Highlighting text in PDF and clicking "Quote to Doc" inserts text into active document with page locator citation.
 
 #### Milestone 6: Two-Way zotero.org Sync & DOCX Native Field Codes
-* **Goal:** Cloud synchronization with Zotero accounts and Word-compatible export.
-* **Agent Tasks:**
-  * Implement Zotero Web API v3 incremental sync with `If-Modified-Since-Version`.
-  * Build `@citedocs/docx-exporter` serializing `ADDIN ZOTERO_ITEM CSL_CITATION`.
-  * Support importing `.docx` with existing Zotero field codes.
-* **Acceptance Tests:** Opening exported `.docx` in Microsoft Word with Zotero plugin allows clicking "Refresh" with zero errors.
+
+- **Goal:** Cloud synchronization with Zotero accounts and Word-compatible export.
+- **Agent Tasks:**
+  - Implement Zotero Web API v3 incremental sync with `If-Modified-Since-Version`.
+  - Build `@citedocs/docx-exporter` serializing `ADDIN ZOTERO_ITEM CSL_CITATION`.
+  - Support importing `.docx` with existing Zotero field codes.
+- **Acceptance Tests:** Opening exported `.docx` in Microsoft Word with Zotero plugin allows clicking "Refresh" with zero errors.
 
 ---
 
@@ -441,6 +455,7 @@ gantt
 CiteDocs ships as free open-source software with **no paywalls**. Operators may self-host for $0 (own hardware) or run a low-cost public instance; agents must never deploy or spend money without an explicit human ask.
 
 ### 7.1 Single-Server Self-Hosting (Docker Compose)
+
 CiteDocs is fully containerized for one-click self-hosting on any VPS (DigitalOcean, Hetzner, Linode, or home server):
 
 ```yaml
@@ -494,8 +509,9 @@ services:
 **Total Hardware Footprint:** $<1\text{ GB}$ RAM, 1 vCPU, runs comfortably on a $5/month cloud VPS.
 
 ### 7.2 Low-Cost AWS Production Blueprint ($15 - $25 / month)
-* **Frontend:** Cloudflare Pages or AWS S3 + CloudFront CDN ($0.50/mo).
-* **Backend API & Collab:** AWS Lightsail Container Service ($7/mo) or single ECS Fargate Spot task.
-* **Database:** Managed Postgres on Supabase Free Tier / Neon Serverless ($0–$5/mo) or Lightsail Database.
-* **Storage:** AWS S3 Standard with Infrequent Access or Cloudflare R2 ($1/mo for 100GB with zero egress fees).
-* **Translation Service:** Container running alongside server in Lightsail cluster.
+
+- **Frontend:** Cloudflare Pages or AWS S3 + CloudFront CDN ($0.50/mo).
+- **Backend API & Collab:** AWS Lightsail Container Service ($7/mo) or single ECS Fargate Spot task.
+- **Database:** Managed Postgres on Supabase Free Tier / Neon Serverless ($0–$5/mo) or Lightsail Database.
+- **Storage:** AWS S3 Standard with Infrequent Access or Cloudflare R2 ($1/mo for 100GB with zero egress fees).
+- **Translation Service:** Container running alongside server in Lightsail cluster.

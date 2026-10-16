@@ -13,7 +13,10 @@
     "@citedocs/editor": "workspace:*",
     "@citedocs/shared": "workspace:*",
     "@citedocs/zotero-core": "workspace:*",
+    "@hocuspocus/provider": "^2.15.3",
     "@tiptap/core": "^3.32.0",
+    "@tiptap/extension-collaboration": "^3.32.0",
+    "@tiptap/extension-collaboration-caret": "^3.32.0",
     "@tiptap/extension-link": "^3.32.0",
     "@tiptap/extension-placeholder": "^3.32.0",
     "@tiptap/extension-text-align": "^3.32.0",
@@ -21,11 +24,13 @@
     "@tiptap/pm": "^3.32.0",
     "@tiptap/react": "^3.32.0",
     "@tiptap/starter-kit": "^3.32.0",
+    "@tiptap/y-tiptap": "^3.0.10",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.0.2"
+    "tailwind-merge": "^3.0.2",
+    "yjs": "^13.6.33"
   },
   "devDependencies": {
     "@types/react": "^19.0.10",

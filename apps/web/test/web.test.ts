@@ -42,9 +42,53 @@ describe("@citedocs/web", () => {
     const citationNode = container.querySelector(".citedocs-citation");
     expect(citationNode).not.toBeNull();
 
+    // Verify Collaborative Presence Avatars and Connection Status Indicator in Docs Chrome
+    const statusIndicator = container.querySelector("[data-testid='collab-status']");
+    expect(statusIndicator).not.toBeNull();
+
+    const presenceAvatars = container.querySelector("[data-testid='collab-presence']");
+    expect(presenceAvatars).not.toBeNull();
+
+    // Footer shows document ID
+    expect(container.querySelector("footer")?.textContent).toContain("doc: demo-document");
+
     await act(async () => {
       root.unmount();
     });
     container.remove();
   });
+
+  it("reads document ID and user parameters from URL and renders custom presence", async () => {
+    // Simulate window.location.search with ?doc=assignment-quantum&user=Niels%20Bohr&color=%2316a34a
+    const originalSearch = window.location.search;
+    delete (window as any).location;
+    (window as any).location = new URL(
+      "http://localhost:5173/?doc=assignment-quantum&user=Niels%20Bohr&color=%2316a34a",
+    );
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(createElement(App));
+    });
+
+    // Header presence contains Niels Bohr's initials "NB"
+    const presenceContainer = container.querySelector("[data-testid='collab-presence']");
+    expect(presenceContainer).not.toBeNull();
+    expect(presenceContainer?.textContent).toContain("NB");
+
+    // Footer displays the custom document ID from the URL
+    expect(container.querySelector("footer")?.textContent).toContain("doc: assignment-quantum");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+
+    // Restore location
+    (window as any).location = new URL(`http://localhost:5173/${originalSearch}`);
+  });
 });
+

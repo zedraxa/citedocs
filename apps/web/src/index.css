@@ -136,3 +136,50 @@ body {
   height: 0;
   pointer-events: none;
 }
+
+/* Real-time Collaboration Carets, Labels & Selections */
+.collaboration-carets__caret {
+  border-left: 1px solid #0d0d0d;
+  border-right: 1px solid #0d0d0d;
+  margin-left: -1px;
+  margin-right: -1px;
+  pointer-events: none;
+  position: relative;
+  word-break: normal;
+}
+
+.collaboration-carets__label {
+  border-radius: 3px 3px 3px 0;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  left: -1px;
+  line-height: normal;
+  padding: 0.1rem 0.35rem;
+  position: absolute;
+  top: -1.4em;
+  user-select: none;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+.collaboration-carets__selection {
+  opacity: 0.35;
+}
+
+.ProseMirror-yjs-cursor {
+  position: absolute;
+  border-left: 1px solid black;
+  border-right: 1px solid black;
+  margin-left: -1px;
+  margin-right: -1px;
+  box-sizing: border-box;
+  display: inline;
+  pointer-events: none;
+}
+
+.ProseMirror-yjs-selection {
+  opacity: 0.35;
+}
+

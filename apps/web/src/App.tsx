@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import { createEditorExtensions } from "@citedocs/editor";
+import { useCollab } from "./hooks/useCollab.js";
 import {
   FileText,
   Share2,
@@ -53,6 +54,17 @@ export function App() {
   const [citationSearchOpen, setCitationSearchOpen] = useState(false);
   const [citationQuery, setCitationQuery] = useState("");
 
+  // Real-time Hocuspocus CRDT Collaboration provider
+  const {
+    provider,
+    ydoc,
+    documentId,
+    currentUser,
+    collaborators,
+    status: collabStatus,
+    isReadOnly,
+  } = useCollab();
+
   const mockCitations = [
     {
       id: "einstein1935",
@@ -69,14 +81,29 @@ export function App() {
     },
   ];
 
-  // TipTap Editor instance
+  // TipTap Editor instance with Yjs CRDT Collaboration and Carets
   const editor = useEditor({
     extensions: createEditorExtensions({
       placeholder: "Start typing your academic paper, or click 'Add Citation' to cite...",
+      provider,
+      document: ydoc,
+      user: currentUser,
     }),
-    content: INITIAL_CONTENT,
-    editable: mode !== "viewing",
+    editable: mode !== "viewing" && !isReadOnly,
+    onCreate({ editor: instance }) {
+      if (instance.isEmpty) {
+        instance.commands.setContent(INITIAL_CONTENT);
+      }
+    },
   });
+
+  // Ensure content is seeded if the collaborative document is newly created/empty
+  useEffect(() => {
+    if (editor && editor.isEmpty) {
+      editor.commands.setContent(INITIAL_CONTENT);
+    }
+  }, [editor]);
+
 
   // Calculate live statistics
   const docText = editor?.getText() || "";
@@ -197,6 +224,45 @@ export function App() {
               <span className="text-xs text-gray-500 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> Saved to Zotero &amp; Cloud
               </span>
+              {/* Connection Status Indicator */}
+              <div className="flex items-center ml-2" data-testid="collab-status">
+                {collabStatus === "connected" && (
+                  <span
+                    className="flex items-center gap-1 text-[11px] text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full font-medium"
+                    title={`Connected to document: ${documentId}`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <span>Live Collab</span>
+                  </span>
+                )}
+                {collabStatus === "read-only" && (
+                  <span
+                    className="flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full font-medium"
+                    title="Read-only viewer access"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    <span>Read-Only</span>
+                  </span>
+                )}
+                {collabStatus === "connecting" && (
+                  <span
+                    className="flex items-center gap-1 text-[11px] text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full font-medium"
+                    title="Connecting to collaboration server..."
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping" />
+                    <span>Connecting</span>
+                  </span>
+                )}
+                {collabStatus === "disconnected" && (
+                  <span
+                    className="flex items-center gap-1 text-[11px] text-gray-500 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded-full font-medium"
+                    title="Working offline"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+                    <span>Offline</span>
+                  </span>
+                )}
+              </div>
             </div>
             {/* Menu items */}
             <nav className="flex space-x-3 text-xs text-gray-700 mt-0.5">
@@ -271,13 +337,49 @@ export function App() {
             <span>PDF Split Reader</span>
           </button>
 
+          {/* Presence Avatar List */}
+          <div
+            className="flex items-center -space-x-1.5 overflow-hidden px-1"
+            data-testid="collab-presence"
+            title={`${collaborators.length} collaborator${collaborators.length !== 1 ? "s" : ""} online`}
+          >
+            {collaborators.map((c) => {
+              const initials =
+                c.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase() || "U";
+              return (
+                <div
+                  key={c.clientId}
+                  style={{ backgroundColor: c.color }}
+                  className="relative inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-[11px] font-bold ring-2 ring-white shadow-sm select-none transition-transform hover:scale-110 hover:z-20 cursor-default"
+                  title={`${c.name}${c.isSelf ? " (You)" : ""}`}
+                >
+                  {initials}
+                </div>
+              );
+            })}
+          </div>
+
           <button className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-sm">
             <Share2 className="w-4 h-4" />
             <span>Share</span>
           </button>
 
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-amber-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs ring-2 ring-white">
-            YK
+          <div
+            style={{ backgroundColor: currentUser.color }}
+            className="w-8 h-8 rounded-full text-white flex items-center justify-center font-bold text-xs ring-2 ring-white shadow-sm select-none"
+            title={`Active user: ${currentUser.name}`}
+          >
+            {currentUser.name
+              .split(" ")
+              .map((n) => n[0])
+              .slice(0, 2)
+              .join("")
+              .toUpperCase() || "ME"}
           </div>
         </div>
       </header>
@@ -662,9 +764,31 @@ export function App() {
           <span>Reading time: {readTime} min</span>
         </div>
         <div className="flex items-center space-x-3">
-          <span className="flex items-center gap-1 text-green-700">
-            <span className="w-2 h-2 rounded-full bg-green-500"></span> Online (PWA Ready)
+          <span className="flex items-center gap-1.5 text-gray-600">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                collabStatus === "connected"
+                  ? "bg-green-500 animate-pulse"
+                  : collabStatus === "read-only"
+                    ? "bg-amber-500"
+                    : collabStatus === "connecting"
+                      ? "bg-blue-500 animate-pulse"
+                      : "bg-gray-400"
+              }`}
+            />
+            {collabStatus === "connected"
+              ? `Collab Active (${collaborators.length} online)`
+              : collabStatus === "read-only"
+                ? "Read-Only Mode"
+                : collabStatus === "connecting"
+                  ? "Connecting..."
+                  : "Offline (Local)"}
           </span>
+          <span className="text-gray-400">|</span>
+          <span className="font-mono text-[11px] text-gray-600 truncate max-w-[150px]">
+            doc: {documentId}
+          </span>
+          <span className="text-gray-400">|</span>
           <span>Style: {cslStyle.toUpperCase()}</span>
         </div>
       </footer>

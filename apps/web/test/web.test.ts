@@ -1,8 +1,50 @@
-import { describe, it, expect } from "vitest";
+// @vitest-environment happy-dom
+import { describe, it, expect, beforeEach } from "vitest";
+import { createElement, act } from "react";
+import { createRoot } from "react-dom/client";
 import { App } from "../src/App.js";
 
 describe("@citedocs/web", () => {
+  beforeEach(() => {
+    (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
+      true;
+  });
+
   it("exports App component function", () => {
     expect(typeof App).toBe("function");
+  });
+
+  it("renders Google Docs chrome and TipTap editor canvas", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(createElement(App));
+    });
+
+    // Verify Google Docs Header
+    expect(container.querySelector("header")).not.toBeNull();
+    expect(container.textContent).toContain("Scientific Writing Assignment");
+
+    // Verify Action Toolbar controls exist
+    expect(container.querySelector("button[title*='Bold']")).not.toBeNull();
+    expect(container.querySelector("button[title*='Italic']")).not.toBeNull();
+    expect(container.querySelector("button[title*='Underline']")).not.toBeNull();
+    expect(container.querySelector("button[title*='Add Citation']")).not.toBeNull();
+
+    // Verify TipTap ProseMirror editable canvas surface is mounted
+    const tiptapSurface = container.querySelector(".tiptap.ProseMirror");
+    expect(tiptapSurface).not.toBeNull();
+    expect(tiptapSurface?.getAttribute("contenteditable")).toBe("true");
+
+    // Verify Citation atom nodes rendered inside document canvas
+    const citationNode = container.querySelector(".citedocs-citation");
+    expect(citationNode).not.toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
   });
 });

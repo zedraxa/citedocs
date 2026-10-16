@@ -76,8 +76,11 @@ function toCSLItem(
         publicationTitle?: string;
       },
 ): CSLItem {
-  let authorsList: Array<{ family: string; given?: string }> = [];
-  if (item.authors) {
+  let authorsList: Array<{ family?: string; given?: string; literal?: string }> = [];
+  const structured = (item as { cslAuthors?: Array<{ family?: string; given?: string; literal?: string }> }).cslAuthors;
+  if (structured && structured.length) {
+    authorsList = structured;
+  } else if (item.authors) {
     const parts = item.authors.split(/;|\sand\s/);
     authorsList = parts.map((part) => {
       const trimmed = part.trim();
@@ -103,7 +106,10 @@ function toCSLItem(
 
   return {
     id: String(item.id),
-    type: item.itemType || "article-journal",
+    type:
+      ({ journalArticle: "article-journal", book: "book", bookSection: "chapter", conferencePaper: "paper-conference", thesis: "thesis", webpage: "webpage", report: "report" } as Record<string, string>)[item.itemType || ""] ||
+      item.itemType ||
+      "article-journal",
     title: item.title || "Untitled",
     author: authorsList,
     issued: { "date-parts": [[yearNum]] },

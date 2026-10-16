@@ -10,6 +10,8 @@ export interface AddByIdentifierItem {
   itemType?: string;
   publicationTitle?: string;
   url?: string;
+  /** Structured CSL names (family/given) mapped from Zotero creators or CSL authors. */
+  cslAuthors?: Array<{ family?: string; given?: string; literal?: string }>;
 }
 
 export interface AddByIdentifierProps {
@@ -93,6 +95,19 @@ export function extractItemDetails(data: unknown): AddByIdentifierItem {
       .filter(Boolean)
       .join(", ");
   }
+  let cslAuthors: Array<{ family?: string; given?: string; literal?: string }> | undefined;
+  if (Array.isArray(item.creators) && item.creators.length > 0) {
+    cslAuthors = (item.creators as RawCreator[])
+      .filter((c) => !(c as { creatorType?: string }).creatorType || (c as { creatorType?: string }).creatorType === "author")
+      .map((c) =>
+        c.lastName ? { family: c.lastName, given: c.firstName || "" } : { literal: c.name || "" },
+      )
+      .filter((a) => a.family || a.literal);
+  } else if (Array.isArray(csl.author) && csl.author.length > 0) {
+    cslAuthors = (csl.author as RawCslAuthor[]).map((a) =>
+      a.family ? { family: a.family, given: a.given || "" } : { literal: a.literal || "" },
+    );
+  }
   if (!authors) {
     authors = typeof item.authors === "string" ? item.authors : "Unknown Authors";
   }
@@ -126,6 +141,7 @@ export function extractItemDetails(data: unknown): AddByIdentifierItem {
     itemType,
     publicationTitle,
     url,
+    cslAuthors,
   };
 }
 

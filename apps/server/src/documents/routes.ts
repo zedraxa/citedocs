@@ -187,7 +187,7 @@ export const createDocumentRoutes = (
         throw err;
       }
 
-      const fileId = `doc-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const fileId = crypto.randomUUID(); // documents.id is a Postgres uuid column
       const docTitle = title?.trim() || (format === "odt" ? "Untitled Document.odt" : "Untitled Document");
       const baseFileName = docTitle.toLowerCase().endsWith(ext) ? docTitle : `${docTitle}${ext}`;
       const s3Key = `users/${userId}/documents/${fileId}${ext}`;
@@ -290,7 +290,7 @@ export const createDocumentRoutes = (
         throw err;
       }
 
-      const fileId = `doc-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const fileId = crypto.randomUUID(); // documents.id is a Postgres uuid column
       const s3Key = `users/${userId}/documents/${fileId}${ext}`;
       const docTitle = filename.replace(/\.(docx|odt|pdf)$/i, "");
 

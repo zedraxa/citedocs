@@ -398,3 +398,10 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 - `pnpm lint`, `pnpm typecheck`, `pnpm build` geçti. `pnpm -r test` mevcut CSL başlangıç hook'unda 10 saniye zaman aşımına takıldı; 60 saniyelik limitlerle CSL'de 11 test geçti, 300 ms performans testi ~441 ms ile başarısız oldu. CSL kaynakları değiştirilmedi.
 - Kalan paketlerin ayrı çalıştırılmasında editörün mevcut performans testi ~524 ms / 450 ms sınırıyla başarısız oldu (15 test geçti); sunucu 60, DOCX 11 test geçti. Bu kapsam dışı performans sorunları nedeniyle tüm repo kabul testleri yeşil değil.
 - Web'in ayrı test çalıştırmasında 13 test geçti. Uzatılmış limitlerle ayrı çalıştırmaların toplamı: 171 geçti, 2 performans testi başarısız, 1 mevcut test atlandı; yeni PDF paketinde 18/18 başarılı.
+||||||| 67e164c
+## M4 Part C — Reaktif belge taslağı (2026-10-16, cd-m4-outline)
+
+- `apps/web` içinde transaction dinleyen H1–H6 OutlineSidebar eklendi; girinti, başlığa seçim/kaydırma, imlece göre aktif bölüm ve aç/kapat desteği var. Collaboration/Caret ve Add-by-Identifier bağlantıları korundu.
+- Testing Library ile 6 yeni çevrimdışı kabul testi geçti. Web'in toplam 19 testi ayrı koşularda `--testTimeout=30000` ile doğrulandı; varsayılan 5 saniye sınırında zaman aşımı görülüyor.
+- `pnpm lint`, `pnpm typecheck`, `pnpm build` geçti. `pnpm -r test`, kapsam dışındaki CSL 300 ms performans sınırında iki kez başarısız oldu (~964–985 ms); ayrıca editor testlerinde 450 ms sınırı (~781 ms) ve 35 saniye zaman aşımı var. Paket kodlarına müdahale edilmedi.
+- Testing Library bağımlılığı apps/web/package.json'a eklendi. Kök lockfile değişikliği kapsam dışında olduğundan onay bekliyor; frozen-lockfile kurulumu öncesinde güncellenmeli. Push/deploy yapılmadı.

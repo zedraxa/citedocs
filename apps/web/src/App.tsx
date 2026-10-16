@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { AddByIdentifier, type AddByIdentifierItem } from "./components/AddByIdentifier.js";
 
+import { OutlineSidebar } from "./components/OutlineSidebar.js";
+
 const INITIAL_CONTENT = `
 <h1 style="text-align: center">Scientific Writing Assignment: Quantum Gravity &amp; Spacetime</h1>
 <p style="text-align: center"><em>Yusuf Kavak &bull; Scientific Writing Class &bull; October 2026</em></p>
@@ -139,24 +141,6 @@ export function App() {
   }, [docText]);
   const charCount = docText.length;
   const readTime = Math.max(1, Math.ceil(wordCount / 200));
-
-  // Extract outline headings from document state
-  const outlineHeadings = useMemo(() => {
-    if (!editor) return [];
-    const list: Array<{ id: number; text: string; level: number; pos: number }> = [];
-    let counter = 0;
-    editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === "heading") {
-        list.push({
-          id: counter++,
-          text: node.textContent || `Heading ${node.attrs.level}`,
-          level: node.attrs.level,
-          pos,
-        });
-      }
-    });
-    return list;
-  }, [editor, docText]);
 
   // Handle citation insert from Quick Citation Picker
   const handleInsertCitation = (cite: {
@@ -343,6 +327,8 @@ export function App() {
             onClick={() => setShowOutline(!showOutline)}
             className={`p-1.5 rounded-full hover:bg-gray-100 text-gray-600 ${showOutline ? "bg-gray-100" : ""}`}
             title="Toggle Document Outline"
+            aria-expanded={showOutline}
+            aria-controls="document-outline"
           >
             <Bookmark className="w-5 h-5" />
           </button>
@@ -674,39 +660,7 @@ export function App() {
       {/* 3. WORKSPACE BODY: OUTLINE + CANVAS + DRAWER */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Document Outline Sidebar */}
-        {showOutline && (
-          <aside className="w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto flex-shrink-0 hidden md:block">
-            <div className="flex items-center justify-between mb-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-              <span>Document Outline</span>
-              <Bookmark className="w-3.5 h-3.5" />
-            </div>
-            {outlineHeadings.length > 0 ? (
-              <ul className="space-y-2 text-sm text-gray-700">
-                {outlineHeadings.map((h) => (
-                  <li
-                    key={h.id}
-                    onClick={() => {
-                      editor?.chain().focus().setTextSelection(h.pos).run();
-                    }}
-                    className={`cursor-pointer hover:text-blue-600 truncate transition-colors ${
-                      h.level === 1
-                        ? "font-semibold text-gray-900"
-                        : h.level === 2
-                          ? "pl-3 text-gray-700"
-                          : "pl-6 text-gray-500 text-xs"
-                    }`}
-                  >
-                    {h.text}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-xs text-gray-400 italic">
-                No headings yet. Add headings to outline.
-              </p>
-            )}
-          </aside>
-        )}
+        {showOutline && <OutlineSidebar editor={editor} />}
 
         {/* Center: Real Google Docs Style TipTap Editor Canvas */}
         <main className="flex-1 google-docs-canvas overflow-y-auto p-4 md:p-8 flex justify-center">

@@ -47,10 +47,10 @@ export function LoginPage({
   return (
     <div
       className={`w-full max-w-md mx-auto ${
-        standalone ? "min-h-[80vh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8" : ""
+        standalone ? "sm:min-h-[80vh] flex flex-col justify-center py-2 sm:py-12 px-0 sm:px-6 lg:px-8" : ""
       }`}
     >
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-8">
         {/* Header Branding */}
         <div className="flex flex-col items-center text-center mb-6">
           <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-md mb-3">
@@ -61,6 +61,16 @@ export function LoginPage({
           </h2>
           <p className="text-xs text-gray-500 mt-1 max-w-xs">{t("tagline")}</p>
         </div>
+
+        {/* Prominent sign-up CTA (visible without scrolling on phones) */}
+        <a
+          href="/signup"
+          data-testid="login-signup-cta"
+          className="mb-5 flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3.5 text-base font-semibold text-white shadow-md hover:bg-emerald-700 active:bg-emerald-800"
+        >
+          Hesap oluştur
+        </a>
+        <p className="-mt-3 mb-4 text-center text-xs text-gray-500">Zaten hesabın var mı? Aşağıdan giriş yap.</p>
 
         {/* Free Plan / Student Guarantee Badge */}
         <div className="mb-5 bg-blue-50/70 border border-blue-200/60 rounded-xl p-3 flex items-start gap-2.5">

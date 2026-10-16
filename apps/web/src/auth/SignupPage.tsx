@@ -64,10 +64,10 @@ export function SignupPage({
   return (
     <div
       className={`w-full max-w-md mx-auto ${
-        standalone ? "min-h-[80vh] flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8" : ""
+        standalone ? "sm:min-h-[80vh] flex flex-col justify-center py-2 sm:py-12 px-0 sm:px-6 lg:px-8" : ""
       }`}
     >
-      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8">
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-8">
         {/* Header Branding */}
         <div className="flex flex-col items-center text-center mb-6">
           <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-md mb-3">

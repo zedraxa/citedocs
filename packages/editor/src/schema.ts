@@ -47,6 +47,15 @@ export interface CitationNodeAttributes {
   noteIndex?: number;
 }
 
+export interface BibliographyNodeAttributes {
+  bibliographyId?: string;
+  styleId?: string;
+  lang?: string;
+  entries?: string[];
+  html?: string;
+  text?: string;
+}
+
 export interface SuggestionMarkAttributes {
   suggestionId: string;
   userId: string;

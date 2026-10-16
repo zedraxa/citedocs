@@ -1,6 +1,12 @@
-import type { CitationNodeAttributes } from "./schema.js";
+import type { CitationNodeAttributes, BibliographyNodeAttributes } from "./schema.js";
+import type { SwitchStyleOptions } from "./csl.js";
+import type { BibliographyStorage } from "./extensions/bibliography.js";
 
 declare module "@tiptap/core" {
+  interface Storage {
+    bibliography?: BibliographyStorage;
+  }
+
   interface Commands<ReturnType> {
     undoRedo: {
       undo: () => ReturnType;
@@ -56,6 +62,12 @@ declare module "@tiptap/core" {
     citation: {
       setCitation: (attributes: CitationNodeAttributes) => ReturnType;
       insertCitation: (attributes: CitationNodeAttributes) => ReturnType;
+    };
+    bibliography: {
+      setBibliography: (attributes?: Partial<BibliographyNodeAttributes>) => ReturnType;
+      insertBibliography: (attributes?: Partial<BibliographyNodeAttributes>) => ReturnType;
+      updateBibliography: (attributes?: Partial<BibliographyNodeAttributes>) => ReturnType;
+      switchStyle: (styleId: string, options?: SwitchStyleOptions) => ReturnType;
     };
   }
 }

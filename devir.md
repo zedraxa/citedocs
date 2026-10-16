@@ -378,3 +378,15 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - `pnpm -r test` (tüm paketler), `pnpm lint`, `pnpm typecheck` ve `pnpm build` hatasız geçti.
 7. **Kapsamlı Dokümantasyon:**
    - `packages/docx-exporter/README.md` alan kodu mimarisi, JSON şeması ve kullanım örnekleriyle detaylandırıldı.
+
+## 13. Milestone 3 Part B — Canlı Kaynakça & CSL Editör Entegrasyonu (Kayıt #009)
+
+> **Kayıt No:** #009  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m3-biblio`  
+> **Aşama:** M3 Part B (`Bibliography` TipTap node, `collectCitationClusters` / `switchStyle`, `@citedocs/csl-engine` wire)
+
+### Yapılan İşler:
+1. `packages/editor` içine canlı Bibliography atom/block node ve CSL yardımcıları eklendi.
+2. `switchStyle` APA→IEEE güncellemesi ve kaynakça yeniden üretimi; kabul testleri yeşil.
+3. Collaboration / CollaborationCaret factory ile uyumlu opsiyonel Bibliography etkinleştirme.

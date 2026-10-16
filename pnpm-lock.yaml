@@ -380,6 +380,9 @@ importers:
 
   packages/editor:
     dependencies:
+      '@citedocs/csl-engine':
+        specifier: workspace:*
+        version: link:../csl-engine
       '@citedocs/shared':
         specifier: workspace:*
         version: link:../shared

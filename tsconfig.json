@@ -6,6 +6,7 @@
     { "path": "./packages/zotero-core" },
     { "path": "./packages/editor" },
     { "path": "./packages/docx-exporter" },
+    { "path": "./packages/pdf-reader" },
     { "path": "./apps/server" },
     { "path": "./apps/web" }
   ]

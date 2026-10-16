@@ -551,6 +551,7 @@ describe("WOPI Host Endpoints", () => {
       const res = await app.inject({
         method: "POST",
         url: `/api/documents/${brandNewDocId}/collabora-session`,
+        headers: { "x-user-id": "new-user" },
         payload: {
           userId: "new-user",
         },

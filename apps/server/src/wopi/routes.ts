@@ -9,6 +9,7 @@ import { exportDocumentToDocx } from "@citedocs/docx-exporter";
 import type { IDocumentRepository } from "../repositories/documentRepository.js";
 import { resolveExtension } from "../documents/templates.js";
 import { OwnershipError, NotFoundError } from "../repositories/errors.js";
+import { requireAuth } from "../auth/middleware.js";
 
 export interface WopiRoutesOptions {
   storage: WopiStorage;
@@ -451,12 +452,12 @@ export const createWopiRoutes = (options: WopiRoutesOptions): FastifyPluginAsync
     fastify.get<{
       Params: WopiParams;
       Querystring: { userId?: string; userName?: string; action?: string; ext?: string };
-    }>("/api/documents/:id/collabora-session", handleCollaboraSession);
+    }>("/api/documents/:id/collabora-session", { preHandler: requireAuth }, handleCollaboraSession);
 
     fastify.post<{
       Params: WopiParams;
       Querystring: { userId?: string; userName?: string; action?: string; ext?: string };
       Body?: { userId?: string; userName?: string; action?: string; ext?: string };
-    }>("/api/documents/:id/collabora-session", handleCollaboraSession);
+    }>("/api/documents/:id/collabora-session", { preHandler: requireAuth }, handleCollaboraSession);
   };
 };

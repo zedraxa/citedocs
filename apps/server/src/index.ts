@@ -8,13 +8,24 @@ import { createCollabServer } from "./collab/server.js";
 import { createItemRoutes, itemRoutes } from "./routes/items.js";
 import { ItemRepository } from "./repositories/itemRepository.js";
 
+import { zoteroWeblibRoutes } from "./zotero/routes.js";
+import { ZoteroAccountService } from "./zotero/accountService.js";
+import { ZoteroProxyService } from "./zotero/proxyService.js";
+import { ZoteroOAuthService } from "./zotero/oauthService.js";
+import { ZoteroCredentialRepository } from "./repositories/zoteroRepository.js";
+
 export * from "./db/index.js";
 export * from "./repositories/index.js";
+export * from "./zotero/index.js";
 export { createItemRoutes, itemRoutes };
 
 export interface BuildAppOptions {
   itemRepo?: ItemRepository;
   zoteroClient?: TranslationClient;
+  zoteroCredentialRepo?: ZoteroCredentialRepository;
+  zoteroAccountService?: ZoteroAccountService;
+  zoteroProxyService?: ZoteroProxyService;
+  zoteroOAuthService?: ZoteroOAuthService;
 }
 
 /** @deprecated use BuildAppOptions */
@@ -31,6 +42,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   });
 
   const itemRepo = options.itemRepo || new ItemRepository();
+  const credentialRepo = options.zoteroCredentialRepo || new ZoteroCredentialRepository();
 
   await fastify.register(healthRoutes);
   await fastify.register(cslRoutes);
@@ -39,6 +51,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     itemRepo,
   });
   await fastify.register(createItemRoutes(itemRepo));
+  await fastify.register(zoteroWeblibRoutes, {
+    accountService: options.zoteroAccountService,
+    proxyService: options.zoteroProxyService,
+    oauthService: options.zoteroOAuthService,
+    credentialRepo,
+  });
 
   return fastify;
 }

@@ -3,6 +3,8 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   HeadObjectCommand,
+  CreateBucketCommand,
+  HeadBucketCommand,
   type S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import type { WopiFileMetadata, WopiStorage } from "../types.js";
@@ -23,6 +25,29 @@ export class S3WopiStorage implements WopiStorage {
   private client: S3Client;
   private bucket: string;
   private prefix: string;
+  private bucketChecked = false;
+
+  private async ensureBucket(): Promise<void> {
+    if (this.bucketChecked) return;
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+      this.bucketChecked = true;
+    } catch (err: unknown) {
+      const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+      if (
+        error.name === "NotFound" ||
+        error.name === "NoSuchBucket" ||
+        error.$metadata?.httpStatusCode === 404
+      ) {
+        try {
+          await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }));
+          this.bucketChecked = true;
+        } catch {
+          this.bucketChecked = true;
+        }
+      }
+    }
+  }
 
   constructor(options: S3WopiStorageOptions = {}) {
     this.bucket = options.bucket || process.env.S3_BUCKET || "citedocs-attachments";
@@ -30,6 +55,7 @@ export class S3WopiStorage implements WopiStorage {
 
     if (options.client) {
       this.client = options.client;
+      this.bucketChecked = true;
     } else {
       const endpoint = options.endpoint || process.env.S3_ENDPOINT || "http://localhost:9000";
       const region = options.region || process.env.S3_REGION || "us-east-1";
@@ -157,6 +183,7 @@ export class S3WopiStorage implements WopiStorage {
     const contentType =
       currentMeta?.contentType || "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
+    await this.ensureBucket();
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -194,6 +221,7 @@ export class S3WopiStorage implements WopiStorage {
     const key = this.getKey(fileId);
     const version = `v1_${Date.now()}`;
 
+    await this.ensureBucket();
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,

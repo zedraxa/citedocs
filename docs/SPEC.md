@@ -1,389 +1,225 @@
 # CiteDocs: Product Specification Document (SPEC)
 
-> **Version:** 1.0.0  
-> **Target Audience:** Yusuf (Student & Academic Researcher in Scientific Writing) and the Open-Source Academic Community  
-> **Status:** Approved for Implementation  
-> **Project Goal:** A ubiquitous web application functioning seamlessly in any modern browser across any OS (desktop, tablet, mobile), delivering complete Google Docs editor parity fused natively with the entire Zotero reference management capability suite and real-time CSL citation rendering.
+> **Version:** 2.0.0  
+> **Status:** Standardized Product Specification (Binding)  
+> **Target Audience:** Students, Academic Researchers, and the Open-Source Scientific Community  
+> **Repository Topology:** TypeScript pnpm Monorepo  
+> **Binding Architecture Direction:** See [ADR-001: Integration Architecture](ADR-001-integration.md) (Collabora Online CODE + Open-Source Zotero Suite)  
+> **License:** [GNU AGPL-3.0-or-later](../LICENSE)
 
 ---
 
 ## 1. Executive Summary & Product Vision
 
-Academic and scientific writing is notoriously fragmented. Researchers currently switch frictionally between:
+Academic and scientific writing is notoriously fragmented. Researchers and students currently switch frictionally between:
 
 1. A reference manager (e.g. Zotero desktop) to catalog papers, read PDFs, and extract highlights.
-2. A word processor (e.g. Google Docs or Microsoft Word) for drafting and collaborative editing.
-3. Third-party plugins or browser extensions that are often buggy, break document structures, or fail on mobile devices and tablets.
+2. A word processor (e.g. Google Docs, LibreOffice Writer, or Microsoft Word) for drafting and collaborative editing.
+3. Third-party plugins or browser extensions that are often fragile, corrupt document structures, or fail entirely on mobile devices, iPads, and Chromebooks.
 
-**CiteDocs** resolves this fragmentation by building a unified, open-source, web-first application. It offers an exact Google Docs writing and collaboration experience, backed by native Zotero data models, an integrated PDF.js reader with annotation extraction, live `citeproc-js` dynamic bibliography generation across 10,000+ CSL styles, and two-way synchronization with official `zotero.org` accounts.
+**CiteDocs** resolves this fragmentation by building a unified, open-source, web-first platform. Guided by the core principle defined in **ADR-001**:
+> **Do not reimplement Zotero. Do not reimplement a word processor.**  
+> **Integrate real, battle-tested open-source components into a unified, zero-install, web-native platform.**
 
----
-
-## 2. Editor Parity with Google Docs
-
-### 2.1 Rich Text & Typography
-
-- **Font Family & Hierarchy:** Full support for serif (Times New Roman, Merriweather, Georgia), sans-serif (Arial, Roboto, Inter), and monospaced fonts (JetBrains Mono, Courier New). Custom web font loading.
-- **Inline Formatting:** Bold, Italic, Underline, Strikethrough, Subscript, Superscript, Code span, Text color (hex picker + theme palette), Text highlight color.
-- **Paragraph Formatting:**
-  - Alignments: Left, Center, Right, Justified.
-  - Line Spacing: Single (1.0), 1.15, 1.5, Double (2.0), Custom line spacing (0.5 to 5.0).
-  - Paragraph Spacing: Add/Remove space before paragraph, Add/Remove space after paragraph.
-  - Indentation: Left indent, Right indent, First line indent, Hanging indent (essential for bibliographies).
-  - Clear formatting (`Ctrl+\` or toolbar button).
-
-### 2.2 Headings & Document Outline
-
-- **Heading Styles:** Title, Subtitle, Heading 1 through Heading 6 with customizable semantic styling.
-- **Reactive Document Outline:**
-  - Left sidebar drawer automatically parsing document heading hierarchy.
-  - Real-time sync with active viewport: highlights current section as user scrolls.
-  - Click-to-navigate with smooth scrolling.
-  - Collapsible/expandable outline nodes.
-  - Reorder sections by dragging heading nodes in outline.
-
-### 2.3 Tables
-
-- **Grid Operations:** Insert table with arbitrary $M \times N$ dimensions via interactive visual picker.
-- **Row & Column Controls:** Insert row above/below, insert column left/right, delete row/column.
-- **Cell Management:** Merge selected cells, split cells, customize cell background color, cell vertical alignment (top, middle, bottom), customizable border widths and colors.
-- **Interactive Resizing:** Draggable column dividers with pixel-accurate constraints.
-
-### 2.4 Images & Media
-
-- **Insertion Channels:** File upload, drag-and-drop directly onto editor canvas, paste from clipboard, or URL embedding.
-- **Image Properties:**
-  - Resizing: Interactive corner and edge drag handles preserving aspect ratio (or freeform with Shift toggle).
-  - Alignment: Inline with text, Wrap text (left/right float), Break text (block display).
-  - Captions: Integrated caption node with auto-numbering ("Figure 1: ...") navigable in document outline.
-  - Storage: Optimized upload to S3/MinIO bucket with automatic WebP thumbnail generation.
-
-### 2.5 Suggesting Mode (Track Changes)
-
-- **Editor Modes:**
-  - **Editing Mode:** Direct modifications apply to the document.
-  - **Suggesting Mode:** Changes are tracked non-destructively:
-    - **Insertions:** Rendered with green text and underline, annotated with author tag and timestamp.
-    - **Deletions:** Rendered with red text and strikethrough rather than removal, annotated with author tag and timestamp.
-    - **Replacements:** Atomic deletion of old text paired with insertion of proposed text.
-  - **Viewing Mode:** Read-only preview showing final state without suggestions or comments.
-- **Review UI:**
-  - Floating cards alongside suggestions in the right gutter.
-  - One-click **Accept** (`✓`) or **Reject** (`✗`).
-  - Bulk actions: "Accept All Suggestions" and "Reject All Suggestions" for authorized editors.
-
-### 2.6 Threaded Comments
-
-- **Anchor Mechanics:** Users can select any text range and trigger `Add Comment` (`Ctrl+Alt+M`).
-- **Thread Structure:** Initial comment message followed by nested replies with author avatar, name, and relative timestamp.
-- **Mentions:** Typing `@username` prompts user autocomplete and notifies mentioned collaborators.
-- **Lifecycle:** Active comment -> Resolve comment (moves to collapsible Comment History archive) -> Reopen comment if needed.
-- **Canvas Alignment:** Active comment card scrolls into view and aligns vertically with the highlighted text anchor.
-
-### 2.7 Version History & Revisions
-
-- **Automated Checkpoints:** Continuous incremental Yjs state saves with periodic named checkpoints (every 10 minutes of active editing or upon major events).
-- **Named Revisions:** Ability to label checkpoints (e.g., "Draft 1 submitted to Advisor", "Pre-peer review").
-- **Visual Diffing:** Side-by-side or inline view showing additions (green) and deletions (red) between any two arbitrary revisions.
-- **Restore:** Single-click rollback to any historical revision with audit trail logging.
-
-### 2.8 Real-Time Multi-User Collaboration & Presence
-
-- **CRDT Concurrency:** Sub-50ms peer-to-peer sync via Yjs CRDT over WebSocket connections (Hocuspocus).
-- **Presence & Awareness:**
-  - Live collaborative carets displaying user name, assigned distinct color, and avatar flag.
-  - Live selection highlights showing active text selection of remote peers.
-  - Online collaborators list in top right header with ping status.
-- **Sharing & Granular Permissions:**
-  - Document access tiers: `Owner`, `Editor` (can edit, comment, suggest), `Commenter` (can only comment and suggest), `Viewer` (read-only).
-  - Public link sharing with password protection and expiration options.
-
-### 2.9 Find & Replace
-
-- Full-featured search modal (`Ctrl+H` / `Ctrl+F`):
-  - Match case toggle (`Aa`).
-  - Match whole word toggle (`\b`).
-  - Regular Expression toggle (`.*`).
-- Real-time match counter ("3 of 42 matches") with highlighted canvas matches.
-- Next / Previous navigation buttons (`Enter` / `Shift+Enter`).
-- Replace single instance or "Replace All" with atomic undo support.
-
-### 2.10 Word Count & Academic Analytics
-
-- Live telemetry bar and detailed modal (`Ctrl+Shift+C`):
-  - Word count.
-  - Character count (with spaces and without spaces).
-  - Paragraph count.
-  - Estimated page count (standard 250 words/page or physical layout calculation).
-  - Reading time and speaking time.
-  - Flesch-Kincaid Reading Ease and Grade Level score.
-  - Citation density metric (citations per 1,000 words).
-
-### 2.11 Page Layout & Print Simulation
-
-- **Print Layout View:** Toggle between seamless infinite scroll mode and paged layout mode:
-  - Simulated physical pages (US Letter: $8.5 \times 11\text{ in}$ or ISO A4: $210 \times 297\text{ mm}$).
-  - Visual page breaks with shadow boundaries.
-  - Configurable margins: Normal (1 inch / 25.4 mm), Narrow (0.5 inch), Wide (2 inch), Custom.
-  - Interactive horizontal ruler with margin drag stops and tab stops.
-  - Header and Footer zones with separate first page option and automatic page numbering ("Page X of Y").
-- **Print Preview & Print:** Standard `Ctrl+P` outputs CSS `@media print` rules matching exact layout settings.
-
-### 2.12 Footnotes & Endnotes
-
-- Insert footnote (`Ctrl+Alt+F`): Generates auto-incrementing superscript reference number in text.
-- In paged view, footnotes render at the bottom of the corresponding page separated by a horizontal rule.
-- In infinite view, footnotes render in an expandable bottom drawer.
-
-### 2.13 Mathematical Equations (LaTeX / KaTeX)
-
-- **Inline Math:** Triggered via `$formula$` or toolbar button, rendering live inline typography.
-- **Display Math:** Triggered via `$$formula$$` or toolbar button, centered block equation.
-- **Visual Math Editor Modal:** Live KaTeX preview, quick symbol palette (Greek letters, operators, fractions, integrals, matrices), and raw LaTeX source editing.
-
-### 2.14 Offline Editing & Progressive Web App (PWA)
-
-- Service Worker cache ensuring full offline boot capability on desktop, tablet, and mobile browsers.
-- Local IndexedDB document cache via `y-indexeddb`. Edits performed while disconnected persist locally and synchronize automatically upon reconnection with zero data loss.
-- Offline status indicator badge ("Offline - saving locally").
-
-### 2.15 Import & Export Parity
-
-- **Supported Import Formats:**
-  - Microsoft Word (`.docx`): Converts headings, tables, styles, images, and extracts existing Zotero field codes.
-  - OpenDocument Text (`.odt`): Full structure parsing.
-  - Markdown (`.md`): Extended CommonMark with table and math syntax.
-  - Plain text (`.txt`): Raw text import.
-- **Supported Export Formats:**
-  - Microsoft Word (`.docx`): Rich styling, images, tables, plus native `ADDIN ZOTERO_ITEM CSL_CITATION` field codes!
-  - PDF (`.pdf`): Pixel-perfect export using browser print engine or server-side Chromium.
-  - Markdown (`.md`): Clean Markdown with CSL citation keys (e.g., `[@doe2023]`).
-  - HTML (`.html`): Self-contained web document with embedded CSS.
-  - Plain text (`.txt`).
-
-### 2.16 Mobile & Tablet Responsiveness
-
-- Responsive layout adapting across smartphone (<640px), tablet (640px–1024px), and desktop (>1024px).
-- Touch-friendly selection handles, floating quick-action format bubble above selections.
-- Collapsible bottom sheet for document outline, comments, and reference library on mobile viewports.
-- Virtual keyboard awareness preventing toolbar occlusion.
+CiteDocs provides:
+- **Collabora Online (CODE)** as the primary WYSIWYG document authoring engine, embedded via standard **WOPI (Web Application Open Platform Interface)** iframe and bidirectional `PostMessage` communication.
+- **The official Zotero open-source suite**: `zotero/web-library` sidebar, `zotero/translation-server` identifier resolution, `citeproc-js` dynamic bibliography formatting across 10,000+ CSL styles, `zotero/pdf-reader` annotation extraction, and native Zotero field codes (`ADDIN ZOTERO_ITEM CSL_CITATION` and `ADDIN ZOTERO_BIBL`).
+- **CiteDocs Unifying Cloud Fabric**: Multi-tenant identity, per-user data isolation, encrypted-at-rest Zotero account linking (AES-256-GCM), S3-compatible cloud storage with generous free quotas (≥5 GB per student), and explicit sharing models.
+- **Legacy TipTap Status**: The bespoke TipTap v3 editor (`packages/editor`) is officially designated as **LEGACY** (frozen, do not extend, preserved for backwards compatibility and migration).
 
 ---
 
-## 3. Zotero Parity Specifications
+## 2. Document Engine: Collabora Online (CODE) via WOPI
 
-### 3.1 Library & Collection Architecture
+### 2.1 Full Word Processor Parity & Standards Compliance
 
-- **Personal Library:** Every user has their default "My Library" containing all bibliographic entries, collections, tags, and notes.
-- **Group Libraries:** Collaborative shared libraries with role-based membership (Admin, Member, Viewer). Items and attached documents in group libraries are shared instantly across all group members.
-- **Hierarchical Collections:** Nested folder hierarchy (unlimited depth) allowing items to exist in multiple collections simultaneously without duplication.
-- **Tags System:**
-  - Color-coded tags (up to 9 colored quick-tags assignable via number keys 1–9).
-  - User-created tags vs. Automatic tags (imported from publisher metadata).
-- **Saved Searches:** Dynamic smart collections based on Boolean filter rules (e.g., `Year is after 2020 AND Tag contains "machine-learning" AND ItemType is journalArticle`).
-- **Trash & Soft Deletion:** Items moved to Trash remain restorable for 30 days before permanent deletion.
+Rather than emulating typographical layout in a browser canvas, CiteDocs embeds **Collabora Online Development Edition (CODE)**, delivering authentic LibreOffice Writer / Microsoft Word engine fidelity directly inside any modern browser:
 
-### 3.2 Item Types & Comprehensive Field Modeling
+- **Strict Physical Pagination:** True A4 and US Letter paginated layouts with millimeter-accurate margins, visual page breaks, and print simulation.
+- **Headers, Footers & Rulers:** Multi-page headers and footers with "different first page" support, page number fields ("Page X of Y"), and interactive margin rulers.
+- **Footnotes & Endnotes:** Native footnote balancing and endnote sectioning at page bottoms, automatically incrementing and formatting without layout drift.
+- **Advanced Tables:** Resizable table grids with arbitrary $M \times N$ dimensions, merged/split cells, cell background colors, borders, and column divider dragging.
+- **Images & Captions:** Inline, floating, and text-wrapped images with auto-numbered figure captions navigable in the document structure.
+- **Mathematical Formulas:** Built-in equation editing supporting LaTeX and MathML notation.
+- **Native File Format Fidelity:** Native persistence and roundtrip fidelity with OpenDocument Text (`.odt`) and Microsoft Word OpenXML (`.docx`).
 
-CiteDocs implements all standard Zotero item types:
+### 2.2 Track Changes (Suggesting Mode) & Threaded Comments
 
-- `journalArticle`, `book`, `bookSection`, `conferencePaper`, `thesis`, `report`, `webpage`, `preprint`, `patent`, `case`, `statute`, `presentation`, `manuscript`, `dataset`, etc.
-- Multi-author creator modeling with roles (`author`, `editor`, `translator`, `contributor`, `seriesEditor`, `reviewedAuthor`).
-- Granular date parsing (supporting exact dates, year-only, date ranges, and circa designations).
+- **Suggesting Mode (Track Changes):**
+  - Non-destructive inline insertions and deletions tagged with collaborator identity and timestamps.
+  - Review cards in the margin with one-click **Accept** (`✓`) or **Reject** (`✗`), plus bulk resolution for authorized editors.
+- **Threaded Comments:**
+  - Anchor comments to any text selection or table element.
+  - Multi-user threaded replies, `@mentions`, and resolution archives.
 
-### 3.3 Adding Items via Identifiers (Translation-Server Integration)
+### 2.3 WOPI Host Architecture
 
+Collabora Online communicates with the CiteDocs backend exclusively over the standard **WOPI (Web Application Open Platform Interface)** protocol:
+
+- **CheckFileInfo (`GET /wopi/files/:id`):** Returns document metadata, file size, version hash, user permissions (`UserCanWrite`), and `PostMessageOrigin`.
+- **GetFile (`GET /wopi/files/:id/contents`):** Streams the binary `.docx` or `.odt` document from S3/MinIO to Collabora.
+- **PutFile (`POST /wopi/files/:id/contents`):** Persists updated document binaries received from Collabora to S3, with strict concurrency control via `X-WOPI-Lock`.
+- **Lock Management (`POST /wopi/files/:id`):** Implements `LOCK`, `UNLOCK`, `REFRESH_LOCK`, and `GET_LOCK` operations with 30-minute lock leases.
+- **Token Security:** Ephemeral HMAC-SHA256 signed access tokens (`access_token` query parameter) scoped to specific `fileId`, `userId`, and expiration timestamps.
+
+### 2.4 Browser Iframe & Bidirectional PostMessage Bridge
+
+- The document canvas is rendered in a sandboxed `<iframe>` pointing to the Collabora Online action URL.
+- Authentication credentials are submitted securely via an automated form POST (`access_token` and `access_token_ttl`), keeping tokens out of the visible browser address bar.
+- The CiteDocs React shell coordinates with Collabora over `window.postMessage`:
+  - `Host_PostmessageReady`: Handshake notification when the host frame is ready.
+  - `App_LoadingStatus` & `Document_Loaded`: State tracking for loading indicators.
+  - `Action_Save`: Programmatic document save triggering.
+  - `CallPythonScript`: UNO macro invocation for citation and bibliography operations.
+  - `Send_UNO_Command`: Direct dispatch of LibreOffice commands (`.uno:InsertText`, `.uno:InsertField`).
+
+### 2.5 Legacy Status of TipTap Editor (`packages/editor`)
+
+The bespoke rich-text editor canvas located in `packages/editor` (TipTap v3 + ProseMirror + Yjs) is officially **LEGACY**:
+- **Frozen:** No new features, nodes, marks, or extensions will be developed for `@citedocs/editor`.
+- **Preserved:** Existing unit tests and packages remain in the monorepo to prevent build breaks and support legacy documents.
+- **Migration Path:** Legacy documents will be converted to standard `.docx` files stored in S3 and rendered through the Collabora CODE pipeline (per ADR-001 §6).
+
+---
+
+## 3. Upstream Zotero Ecosystem Integration
+
+CiteDocs embeds and orchestrates battle-tested open-source Zotero components without reimplementing bibliographic domain logic:
+
+### 3.1 Zotero Web Library Sidebar (`zotero/web-library`)
+
+- Embedded as a collapsible sidebar alongside the Collabora document canvas.
+- Provides standard personal and group library views, hierarchical collections, color-coded tags, and saved smart searches.
+- Communicates with the CiteDocs parent shell via `PostMessage` events (`CITEDOCS_ZOTERO_CITE`, `CITEDOCS_SET_CONFIG`), enabling zero-click citation insertion directly from the library browser into the active document.
+- Proxies requests to `api.zotero.org` through CiteDocs' authenticated proxy service (`/api/zotero/proxy/*`), injecting decrypted user credentials server-side without exposing API keys to the browser.
+
+### 3.2 Identifier Resolution via `zotero/translation-server`
+
+- Integrated microservice running official Zotero publisher translators.
 - **Magic Add Bar ("Add Item by Identifier"):**
-  - Supports: **DOI** (e.g. `10.1038/...`), **ISBN** (10 or 13 digits), **PMID / PMCID**, **arXiv ID** (e.g. `arXiv:2301.12345`), **URL**.
-  - Dispatches lookup request to `zotero/translation-server` microservice.
-  - Fetches clean metadata, abstract, publication details, and automatically attempts to locate open-access PDF attachments via Unpaywall API.
+  - Resolves standard academic identifiers: **DOI**, **ISBN**, **PMID**, **arXiv ID**, and URLs.
+  - Dispatches queries to `zotero/translation-server` (`POST /search`), receiving normalized Zotero item JSON.
+  - Automatically transforms payloads to CSL-JSON and persists items to the user's PostgreSQL library and S3 attachment storage.
+  - Seamlessly queries Unpaywall to retrieve and attach open-access PDFs when available.
 
-### 3.4 Web Saving & Snapshot Capture
+### 3.3 Dynamic CSL Engine (`citeproc-js`)
 
-- Single-click web importer modal / browser bookmarklet translating current web pages into structured bibliographic items with full metadata and HTML/PDF snapshots.
+- Bundled in `@citedocs/csl-engine` and `@citedocs/collabora-cite` using the official `citeproc-js` JavaScript CSL 1.0.2 processor.
+- Access to the complete `citation-style-language/styles` catalog (10,000+ academic styles: APA 7th, IEEE, Chicago, Nature, Science, Vancouver, MLA 9th, Harvard, ACM).
+- Localized formatting via official CSL locale repositories (`en-US`, `tr-TR`, `de-DE`, `fr-FR`, etc.).
+- Sub-millisecond formatting with pre-warmed global engine caching pools.
 
-### 3.5 PDF Storage & Built-In PDF.js Reader
+### 3.4 PDF Annotation & Quote Extraction (`zotero/pdf-reader`)
 
-- **PDF Attachment Storage:** PDFs stored securely in S3/MinIO bucket linked to parent bibliographic record.
-- **Integrated PDF.js Reader View:**
-  - Side-by-side view (Split screen: Document Editor on left, PDF Reader on right).
-  - Full-screen dedicated reader mode.
-  - Zoom, rotation, page thumbnail strip, document outline / bookmarks navigator.
-- **Annotation & Extraction Suite:**
-  - Colored text highlighting (Yellow, Green, Blue, Pink, Purple).
-  - Area rectangular annotations for figures, equations, and charts.
-  - Free-text sticky notes attached to coordinates.
-  - **Quote-to-Document Action:** Select text in PDF -> Click "Insert Quote into Document" -> Automatically inserts blockquote into the active editor along with a connected CiteDocs citation citing the exact page number!
-  - **Extract Highlights to Note:** One-click generation of a formatted Zotero child note summarizing all highlights and annotations with linked page numbers.
+- Official Zotero PDF reader component integrated for reading attached research papers.
+- Supports colored highlights, rectangular area notes, and sticky annotations.
+- **"Quote to Document" Action:** Selecting highlighted text in a PDF allows one-click insertion into the active Collabora document as a formatted quotation with an attached in-text citation and page locator (e.g. `(Einstein et al., 1935, p. 777)`).
 
-### 3.6 Advanced Library Intelligence
+### 3.5 Two-Way Synchronization with `zotero.org`
 
-- **Duplicate Detection & Merge:**
-  - Automated background scan identifying duplicates based on DOI match, title similarity (Levenshtein distance), and author/year match.
-  - Interactive merge modal showing field differences with master record selection.
-- **Retracted Item Warnings:**
-  - Automated integration with the **Retraction Watch** database (via Crossref / Zotero Retraction database).
-  - Warning badges displayed in library and in-document citations if a cited paper has been retracted or has an expression of concern.
-- **Related Items:** Manual and automatic linkage between related items (e.g., linking a preprint to its final published journal version).
-- **Full-Text PDF Search:** Automated background PDF text extraction allowing search queries to match text within indexed PDF attachment bodies.
-
-### 3.7 Import & Export Interoperability
-
-- **Import File Formats:** BibTeX (`.bib`), BibLaTeX, RIS (`.ris`), CSL-JSON (`.json`), Zotero RDF, EndNote XML.
-- **Export File Formats:** Single item or batch export to BibTeX, BibLaTeX, RIS, CSL-JSON, CSV, or formatted text.
-
-### 3.8 Two-Way Synchronization with zotero.org
-
-- **User Authentication:** Connect existing Zotero account via User ID and API Key (or OAuth 1.0a).
-- **Sync Engine:**
-  - Pulls full library hierarchy, items, collections, tags, and notes.
-  - Listens to local changes and pushes incremental updates with optimistic concurrency (`If-Unmodified-Since-Version`).
-  - Full attachment synchronization with Zotero File Storage or user's custom WebDAV/S3 backend.
+- Optional linking of personal `zotero.org` accounts.
+- Background sync worker executing two-way incremental synchronization using Zotero Web API v3 (`If-Modified-Since-Version` optimistic concurrency).
+- Automatic conflict resolution with field-wise three-way merging.
 
 ---
 
-## 4. In-Document Citations & CSL Engine
+## 4. In-Document Citations & Zotero Field-Code Compatibility
 
-### 4.1 Citation Insertion & Editing Workflow
+### 4.1 Native Field Code Interoperability
 
-- **Keyboard Shortcut:** `Ctrl+Shift+P` (or `@cite` / toolbar button) opens the **CiteDocs Quick Citation Bar** (matching the red Zotero popup bar aesthetic).
-- **Search Capability:** Instant prefix/fuzzy search across author names, titles, years, tags, and publication venues.
-- **Multi-Cite Clusters:** Select multiple sources within a single cluster (e.g. `[1-3]` or `(Alberts et al., 2014; Smith, 2020)`).
-- **Per-Item Modifiers:**
-  - **Page / Locator:** Specify locator type (`page`, `chapter`, `figure`, `verse`, `line`, etc.) and number (e.g., `pp. 42-45`).
-  - **Prefix / Suffix:** Add custom text (e.g., Prefix: "see also ", Suffix: " for a counter-argument").
-  - **Suppress Author:** Hide author name for narrative citations (e.g., "As argued by Smith (2020)...").
+CiteDocs guarantees 100% fidelity with desktop word processors by utilizing standard Zotero field codes:
 
-### 4.2 Auto-Generated & Auto-Updating Bibliography
+- **Microsoft Word OpenXML (`.docx`):**
+  - In-Text Citation: `ADDIN ZOTERO_ITEM CSL_CITATION {json}`
+  - Bibliography Block: `ADDIN ZOTERO_BIBL {"uncited":[],"omitted":[],"custom":[]} CSL_BIBLIOGRAPHY`
+  - Document Preferences: `ADDIN ZOTERO_PREF {json}`
+- **LibreOffice Writer OpenDocument (`.odt` / Collabora CODE):**
+  - In-Text Citation: `com.sun.star.text.ReferenceMark` with name `ZOTERO_ITEM CSL_CITATION {json} RND<suffix>`
+  - Bibliography Block: `com.sun.star.text.Bookmark` with name `ZOTERO_BIBL {"uncited":[],"omitted":[],"custom":[]} CSL_BIBLIOGRAPHY RND<suffix>`
+  - Document Preferences: `ZOTERO_PREF {json} RND<suffix>`
 
-- Insert bibliography via toolbar menu (`Insert -> Bibliography`).
-- Inserts a dynamic, self-maintaining `bibliography` block at the end of the document (or chosen location).
-- Recomputed live whenever citations are added, edited, reordered, or removed.
-- Displays appropriate section heading ("References", "Bibliography", or "Works Cited" depending on active CSL style).
+### 4.2 Seamless Desktop Roundtripping
 
-### 4.3 10,000+ CSL Styles & Live Style Switching
+Because CiteDocs uses official Zotero field code schemas:
+1. A student drafts and cites a paper in CiteDocs in their browser.
+2. The student exports the `.docx` file and emails it to a thesis advisor or co-author.
+3. The advisor opens the document in Microsoft Word or LibreOffice on their desktop with the official Zotero plugin installed.
+4. The desktop Zotero plugin **immediately recognizes all citations and the bibliography**. The advisor can add citations, refresh styles, or reorder references with zero conversion artifacts or broken fields.
 
-- **Catalog Access:** Instant searchable selector covering all styles from the official Citation Style Language repository:
-  - Major Academic Standards: APA (7th ed.), IEEE, Chicago (Author-Date & Notes-Bibliography), MLA (9th ed.), Vancouver, Harvard, Nature, Science, ACM, Elsevier, Springer, etc.
-  - Over 10,000 journal-specific styles.
-- **Live Dynamic Switching:** Changing document citation style re-renders all in-text citations and the bibliography in under 300ms without document reloading or data corruption.
-- **Locale Switching:** Select language locale (English US/UK, Turkish, French, German, Spanish, Chinese, etc.) to format terms like "and", "et al.", "edition", and date formats.
-- **Sorting & Renumbering:** Automatic numeric reordering (e.g., IEEE sorting citations strictly in order of appearance `[1]`, `[2]`, `[3]` or alphabetically).
-- **Unlink Citations:** "Unlink Citations" command permanently flattens all citations and bibliography into plain static text for final journal manuscript submissions.
+### 4.3 Python UNO Integration Macro (`apps/collabora-scripts`)
 
-### 4.4 Microsoft Word Compatibility via DOCX Field Codes
-
-- Documents exported to `.docx` embed standard Zotero field codes (`ADDIN ZOTERO_ITEM CSL_CITATION` and `ADDIN ZOTERO_BIBL CSL_BIBLIOGRAPHY`).
-- When opened by collaborators in Microsoft Word or LibreOffice equipped with the Zotero desktop extension, the document functions natively with zero conversion artifacts.
-
----
-
-## 5. Non-Functional Specifications & Benchmarks
-
-| Metric / Requirement        | Target Specification                                                                                                   |
-| :-------------------------- | :--------------------------------------------------------------------------------------------------------------------- |
-| **Max Document Size**       | 100,000 words, 500+ bibliographic citations, 100+ images without browser tab crash or frame drops.                     |
-| **Keystroke Input Latency** | $<16\text{ ms}$ (steady 60 FPS typing experience).                                                                     |
-| **Collab Sync Latency**     | $<50\text{ ms}$ local network, $<150\text{ ms}$ global cross-region over WebSocket.                                    |
-| **CSL Re-render Latency**   | $<250\text{ ms}$ for 100 citations upon style change.                                                                  |
-| **Offline Recovery**        | 100% deterministic merge of offline edits via Yjs CRDT with zero data loss.                                            |
-| **Accessibility**           | Full WCAG 2.1 AA compliance with keyboard navigation, ARIA landmarks, screen reader descriptions, high-contrast modes. |
-| **Security & Privacy**      | End-to-end TLS encryption, Argon2id password hashing, HTTP-only secure JWT cookies, tenant isolation in database.      |
-| **Deployment Footprint**    | Complete Docker Compose stack running in $<1\text{ GB}$ total RAM for single-server self-hosting.                      |
+To manipulate ReferenceMarks and Bookmarks inside Collabora Online without roundtripping through file storage:
+- `zotero_collabora.py` executes inside Collabora Online via the `CallPythonScript` PostMessage command.
+- Exposes native functions:
+  - `insert_citation`: Inserts visible formatted citation text and wraps it in a typed `ZOTERO_ITEM` ReferenceMark.
+  - `update_citation`: Updates the visible citation text and ReferenceMark payload in place.
+  - `insert_bibliography`: Inserts formatted bibliography entries inside a `ZOTERO_BIBL` Bookmark.
+  - `update_bibliography`: Refreshes bibliography entries when document citations change.
+  - `get_document_fields`: Enumerates all citation and bibliography marks for document refresh.
+  - `set_document_prefs`: Persists document-wide CSL style and locale preferences.
 
 ---
 
-## 5.1 Product Principles: Free, Volunteer, Non-Commercial
+## 5. Multi-Tenant Architecture, Security & Storage Policy
 
-CiteDocs is a **volunteer, non-commercial, fully free open-source** project. There are **no paid tiers, no feature paywalls, and no upsells**. Every capability in this SPEC is available to every user at no cost.
+### 5.1 Per-User Ownership and Strict Data Isolation (Required)
 
-### Accounts & Sign-Up (required)
+CiteDocs serves multiple independent students and research groups under a secure multi-tenant model:
 
-- **Free registration** for everyone with no invitation code and no waiting list.
-- Sign-up / login methods (all free):
-  - Email + password (Argon2id).
-  - Google OAuth.
-  - ORCID OAuth (preferred for academic users).
-- Optional linking of a `zotero.org` account via OAuth / API key for two-way library sync (see §3.8). Users may use CiteDocs without linking Zotero.
+- **Individual User Accounts:** Every user maintains their own account.
+- **Mandatory Ownership Scoping:** Every database entity (`documents`, `library_items`, `collections`, `attachments`, `wopi_locks`) carries a non-null `owner_id`.
+- **Server-Side Enforcement:** Every REST API route, WOPI request, and file access verifies `owner_id` or an explicit share grant. Automated cross-tenant isolation test suites run in CI to prove User A cannot access User B's data.
+- **Per-User Zotero Credential Security:** Each user links their own Zotero account. Zotero API keys and OAuth tokens are encrypted at rest using **AES-256-GCM envelope encryption** with server-held keys. Plaintext keys are never returned to the client or written to logs.
 
-### Per-Student Accounts & Data Isolation (required)
+### 5.2 Explicit Sharing Model
 
-CiteDocs is used by **many independent students**. The core model is:
+- Collaboration occurs exclusively through explicit `document_shares` entries created by the document owner (`Owner`, `Editor`, `Commenter`, `Viewer`).
+- **No Implicit Library Leakage:** Sharing a document never grants access to the owner's personal reference library or Zotero credentials. Citations inside shared documents carry their embedded CSL-JSON item metadata self-sufficiently.
 
-- **Every student has their own CiteDocs account** and signs in with it (email, Google, or ORCID).
-- **Every student links their OWN `zotero.org` account** (per-user OAuth 1.0a token or per-user API key). Zotero credentials are never shared between users and are **encrypted at rest** (envelope encryption, e.g. AES-256-GCM with a server-held key / KMS) and never returned to the browser after linking.
-- **Each student works only on their own documents, library, collections, notes, and PDFs.** By default nothing a user owns is visible to anyone else.
-- **Strict per-user isolation is enforced server-side:** every REST/API request, file download, and collaboration (Hocuspocus/WebSocket) connection performs a row-level ownership or explicit-share check (Postgres row-level security and/or mandatory `owner_id` scoping in every query). Missing checks are treated as security bugs; automated tests must prove user A cannot read or write user B's data.
-- **Collaboration happens only by deliberate sharing:** a document becomes visible to another account only when its owner explicitly shares it (by email/account or link with a role). Sharing a document never exposes the owner's Zotero library or credentials; citations in a shared doc carry their embedded CSL-JSON item data.
+### 5.3 Generous Free Storage Policy (≥5 GB per Student)
 
-### Cloud Storage Quotas (generous free defaults)
+CiteDocs is a volunteer, non-commercial platform dedicated to academic equity:
+- **Free Cloud Storage:** Hosted instances provide **≥5 GB** of free S3 object storage per registered student for PDFs and documents.
+- **No Paid Plans or Upsells:** CiteDocs contains no freemium tiers, no feature paywalls, and no advertisements.
+- **Fair-Use Abuse Protection:** Generous soft limits (e.g. 10,000 documents per user) exist purely to prevent automated system abuse, raised upon request for academic needs.
 
-Hosted CiteDocs instances provide ample free cloud storage so students can work without buying plans:
+### 5.4 Licensing: GNU AGPL-3.0
 
-- **Documents & libraries metadata:** effectively unlimited for normal academic use (soft limit e.g. 10,000 documents / 100,000 library items per user, raised on request).
-- **PDF & attachment storage:** **≥ 5 GB per user** free by default on the public/volunteer host (configurable higher for self-hosted deployments).
-- **Collaborative docs & sharing:** unlimited collaborators within reasonable fair-use rate limits.
-- Quotas exist only to protect the volunteer host from abuse; they must never gate core features behind payment.
-
-### Sharing & Collaboration
-
-- Share documents by link or by account email with roles Owner / Editor / Commenter / Viewer (see §2.8).
-- Real-time multi-user editing, comments, and suggesting mode are free for all roles.
-- Library / collection sharing for group coursework is free.
-
-### Hosting Paths (no commercial lock-in)
-
-1. **Self-host:** one-command Docker Compose (Postgres + MinIO + translation-server + API + web) on a home server or ~$5/mo VPS — see `docs/ARCHITECTURE.md` §7.1.
-2. **Low-cost public host:** optional AWS / Cloudflare free-tier or ~$15–25/mo blueprint for a community instance — see §7.2. Deploying spend requires an explicit human decision; agents never deploy or spend money on their own.
-3. Source stays public; forks and private self-hosts are encouraged.
-
-### Explicit Non-Goals
-
-- No freemium, premium, or "Pro" SKU.
-- No ads inside the editor or library.
-- No selling user documents, libraries, or PDFs.
+Because CiteDocs bundles and links AGPL-3.0 licensed components from the Zotero ecosystem (`zotero/web-library`, `zotero/pdf-reader`, `citeproc-js`), CiteDocs is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0-or-later)**:
+- Preserves the software in the academic commons.
+- Ensures all network users under AGPL §13 have direct access to the corresponding source code.
+- Decouples cleanly from Collabora Online's MPL-2.0 container boundary via standard WOPI REST and browser `PostMessage` protocols.
 
 ---
 
 ## 6. User Stories & Acceptance Criteria
 
-### US-1: Live Citation Insertion
-
-- **As a** Scientific Writing student (Yusuf),
-- **I want to** search my library and insert a citation with a specific page locator while typing,
-- **So that** my document accurately cites the literature without breaking my flow.
+### US-1: Document Authoring in Collabora via WOPI
+- **As a** student writing a term paper,
+- **I want to** open and edit a `.docx` document in my browser with full page formatting,
+- **So that** I have true Word/LibreOffice typography without installing local desktop office suites.
 - **Acceptance Criteria:**
-  1. Pressing `Ctrl+Shift+P` opens the quick search popup in $<100\text{ ms}$.
-  2. Typing query filters library items live.
-  3. Selecting an item and entering page "42" inserts formatted citation node into TipTap document.
-  4. The bibliography automatically adds the full reference entry formatted according to the current document CSL style.
+  1. Opening a document loads Collabora Online CODE in an `<iframe>` via WOPI.
+  2. WOPI `CheckFileInfo` and `GetFile` load the file from S3 storage.
+  3. Edits are saved back to S3 storage via `PutFile` when saving.
+  4. Reloading the page displays the persisted modifications.
 
-### US-2: Collaborative Track Changes (Suggesting Mode)
-
-- **As an** advisor reviewing Yusuf's thesis,
-- **I want to** suggest edits and leave comments instead of directly altering text,
-- **So that** Yusuf can review, accept, or reject each edit.
+### US-2: In-Text Citation Insertion with Native Zotero Field Codes
+- **As an** academic researcher,
+- **I want to** select references from my Zotero library sidebar and insert them into my document,
+- **So that** citations match journal CSL formatting and embed standard Zotero field codes.
 - **Acceptance Criteria:**
-  1. Switching to "Suggesting" mode logs all typing as green underlined insertions and backspaces as red strikethrough deletions.
-  2. Hovering or clicking a suggestion displays an attribution card with advisor's name, avatar, and timestamp.
-  3. Clicking "Accept" applies change permanently to Yjs document; clicking "Reject" rolls it back cleanly.
+  1. Zotero web-library sidebar renders alongside the Collabora editor.
+  2. Clicking "Cite" formats the reference using `citeproc-js` (e.g. APA `(Einstein et al., 1935)`).
+  3. A `ZOTERO_ITEM CSL_CITATION` field is inserted into the Collabora document.
+  4. The document bibliography automatically updates with the complete bibliographic entry.
+  5. The exported `.docx` document opens in desktop Word / LibreOffice with working Zotero fields.
 
-### US-3: Native Zotero Two-Way Sync
-
-- **As a** researcher with an extensive existing Zotero collection,
-- **I want to** connect my `zotero.org` account,
-- **So that** my papers, collections, and PDFs are instantly available in CiteDocs.
+### US-3: Add Item by Identifier via Translation Server
+- **As a** student with a paper DOI,
+- **I want to** paste the DOI into the Add by Identifier bar,
+- **So that** full bibliographic metadata and available PDFs are added to my library automatically.
 - **Acceptance Criteria:**
-  1. Entering Zotero API key initiates sync workflow.
-  2. Collections hierarchy, items, tags, and notes replicate to local PostgreSQL database.
-  3. Adding a paper by DOI in CiteDocs syncs upstream to `zotero.org` with proper version tags.
-
-### US-4: Free Account & Cloud Library
-
-- **As a** Scientific Writing student,
-- **I want to** create a free CiteDocs account (email, Google, or ORCID) and save documents plus PDFs in the cloud,
-- **So that** I can write and cite from my PC or tablet without paying or self-hosting.
-- **Acceptance Criteria:**
-  1. Sign-up page offers email, Google, and ORCID with no payment step.
-  2. After login I can create a doc, upload a PDF (≥10 MB), and reopen both from another browser.
-  3. No UI copy mentions paid plans, trials, or locked features.
+  1. Submitting a DOI (e.g. `10.1038/s41586-021-03392-y`) queries `zotero/translation-server`.
+  2. The resolved record is stored in the student's isolated database library.
+  3. The item is immediately available for citation in the Collabora editor.

@@ -199,6 +199,9 @@ importers:
       '@citedocs/csl-engine':
         specifier: workspace:*
         version: link:../../packages/csl-engine
+      '@citedocs/docx-exporter':
+        specifier: workspace:*
+        version: link:../../packages/docx-exporter
       '@citedocs/pdf-reader':
         specifier: workspace:*
         version: link:../../packages/pdf-reader

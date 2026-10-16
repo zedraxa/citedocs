@@ -11,6 +11,16 @@ export async function runMigrations(): Promise<void> {
   const migrationsFolder = path.resolve(__dirname, "../../drizzle");
   console.log(`Running migrations from ${migrationsFolder}...`);
   await migrate(db, { migrationsFolder });
+  try {
+    const { sql } = await import("drizzle-orm");
+    await db.execute(
+      sql`INSERT INTO users (id, email, display_name)
+          VALUES ('00000000-0000-0000-0000-000000000001', 'demo@citedocs.local', 'Demo Student')
+          ON CONFLICT (id) DO NOTHING;`
+    );
+  } catch {
+    // Non-fatal if table not created or user already exists
+  }
   console.log("Migrations applied successfully.");
 }
 

@@ -5,7 +5,7 @@ COPY pnpm-lock.yaml* pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY packages/ ./packages/
 COPY apps/server/ ./apps/server/
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @citedocs/server build
+RUN pnpm --filter @citedocs/server... build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

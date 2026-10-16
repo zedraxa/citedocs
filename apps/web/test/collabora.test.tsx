@@ -295,5 +295,29 @@ describe("CollaboraEditorPage Component", () => {
 
     // Eventually iframe container is rendered
     expect(await screen.findByTestId("collabora-iframe")).toBeDefined();
+    // Zotero Library sidebar is rendered alongside the document
+    expect(screen.getByTestId("zotero-sidebar")).toBeDefined();
+    expect(screen.getByTestId("collabora-zotero-toggle-btn")).toBeDefined();
+    expect(screen.getByTestId("collabora-add-identifier-btn")).toBeDefined();
+
+    // Toggle Zotero sidebar
+    fireEvent.click(screen.getByTestId("collabora-zotero-toggle-btn"));
+    expect(screen.queryByTestId("zotero-sidebar")).toBeNull();
+
+    // Toggle back
+    fireEvent.click(screen.getByTestId("collabora-zotero-toggle-btn"));
+    expect(screen.getByTestId("zotero-sidebar")).toBeDefined();
+  });
+
+  it("opens Add by Identifier modal when Add by DOI is clicked", async () => {
+    render(
+      <CollaboraEditorPage
+        documentId="doc-test-page"
+        documentTitle="My Quantum Research Paper"
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("collabora-add-identifier-btn"));
+    expect(screen.getByText("Add Item by Identifier (DOI, ISBN, PMID, arXiv)")).toBeDefined();
   });
 });

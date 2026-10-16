@@ -1,8 +1,24 @@
 import { useState, useEffect, useRef } from "react";
 import { CollaboraFrame } from "./CollaboraFrame.js";
-import { sendActionSave } from "./postMessage.js";
-import { FileText, Save, ArrowLeft, CheckCircle2, BookOpen } from "lucide-react";
+import { sendActionSave, sendUnoCommand } from "./postMessage.js";
+import {
+  FileText,
+  Save,
+  ArrowLeft,
+  CheckCircle2,
+  BookMarked,
+  BookOpen,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { PdfReaderPanel, type PdfAttachment } from "../pdf/index.js";
+import { ZoteroSidebar } from "../zotero/index.js";
+import type { ZoteroItemPayload } from "../zotero/types.js";
+import { AddByIdentifier, type AddByIdentifierItem } from "../components/AddByIdentifier.js";
+import {
+  CollaboraBridge,
+  type ZoteroCitationPayload,
+} from "@citedocs/collabora-cite";
 
 export interface CollaboraEditorPageProps {
   documentId?: string;
@@ -40,6 +56,8 @@ export function CollaboraEditorPage({
       downloadUrl: "/api/attachments/demo-pdf/content",
     },
   );
+  const [showZoteroSidebar, setShowZoteroSidebar] = useState(true);
+  const [showAddIdentifier, setShowAddIdentifier] = useState(false);
   const frameRef = useRef<HTMLIFrameElement | null>(null);
 
 
@@ -48,6 +66,11 @@ export function CollaboraEditorPage({
     (typeof import.meta !== "undefined" &&
       (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) ||
     "http://localhost:3000";
+
+  const currentUserId =
+    (typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("userId")
+      : null) || "00000000-0000-0000-0000-000000000001";
 
   useEffect(() => {
     let active = true;
@@ -60,7 +83,7 @@ export function CollaboraEditorPage({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-User-Id": "yusuf-kavak",
+            "X-User-Id": currentUserId,
           },
           body: JSON.stringify({
             userName: "Yusuf Kavak",
@@ -107,6 +130,65 @@ export function CollaboraEditorPage({
     setTimeout(() => setSaveSuccess(false), 2000);
   };
 
+  const handleCiteItem = (item: ZoteroItemPayload | AddByIdentifierItem) => {
+    let author = "Unknown";
+    if (item.authors) {
+      author = item.authors.split(",")[0]?.trim() || item.authors;
+    }
+
+    let year = "2026";
+    if (item.year) {
+      const match = String(item.year).match(/\d{4}/);
+      if (match) year = match[0];
+    }
+
+    const title = item.title || "Untitled";
+    const formattedCitation = `(${author}, ${year})`;
+    const citationId = `cit-${Date.now()}`;
+    const itemId = String(item.id || `item-${Date.now()}`);
+    const doi = item.doi;
+    const publicationTitle = item.publicationTitle;
+
+    const citationPayload: ZoteroCitationPayload = {
+      citationID: citationId,
+      properties: {
+        formattedCitation,
+        plainText: formattedCitation,
+        dontUpdate: false,
+      },
+      citationItems: [
+        {
+          id: itemId,
+          uris: [`http://zotero.org/users/local/items/${itemId}`],
+          itemData: {
+            id: itemId,
+            type: item.itemType || "article-journal",
+            title,
+            author: [{ family: author, given: "" }],
+            issued: { "date-parts": [[parseInt(year, 10) || 2026]] },
+            DOI: doi,
+            publicationTitle,
+          },
+        },
+      ],
+      schema: "https://github.com/citation-style-language/schema/raw/master/csl-citation.json",
+    };
+
+    if (frameRef.current?.contentWindow) {
+      const bridge = new CollaboraBridge(frameRef.current.contentWindow, session?.collaboraUrl || "*");
+      bridge.insertCitation(citationPayload, formattedCitation);
+
+      // Also send UNO insert text command so text is immediately visual at the cursor
+      sendUnoCommand(frameRef.current, ".uno:InsertText", {
+        Text: { type: "string", value: ` ${formattedCitation} ` },
+      });
+
+      // Update bibliography with formatted entry
+      const biblText = `${author} (${year}). ${title}.`;
+      bridge.insertBibliography(biblText);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen bg-slate-100 overflow-hidden" data-testid="collabora-editor-page">
       {/* Top Header */}
@@ -116,7 +198,7 @@ export function CollaboraEditorPage({
             <button
               onClick={onBackToTipTap}
               title="Back to legacy editor"
-              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors"
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
@@ -140,6 +222,33 @@ export function CollaboraEditorPage({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Add by Identifier Button */}
+          <button
+            onClick={() => setShowAddIdentifier(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors cursor-pointer"
+            title="Add citation by DOI, ISBN, PMID or arXiv"
+            data-testid="collabora-add-identifier-btn"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <span>Add by DOI</span>
+          </button>
+
+          {/* Toggle Zotero Library Sidebar */}
+          <button
+            onClick={() => setShowZoteroSidebar((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer border ${
+              showZoteroSidebar
+                ? "bg-slate-200 text-slate-800 border-slate-300"
+                : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+            }`}
+            title="Toggle Zotero Web Library sidebar"
+            data-testid="collabora-zotero-toggle-btn"
+          >
+            <BookMarked className="w-3.5 h-3.5 text-red-600" />
+            <span>Zotero Library</span>
+          </button>
+
+          {/* Save Button */}
           <button
             type="button"
             onClick={() => setShowPdfReader(!showPdfReader)}
@@ -157,7 +266,7 @@ export function CollaboraEditorPage({
 
           <button
             onClick={handleSave}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors cursor-pointer ml-1"
           >
             {saveSuccess ? (
               <>
@@ -174,7 +283,7 @@ export function CollaboraEditorPage({
         </div>
       </header>
 
-      {/* Editor Body */}
+      {/* Editor Body + Zotero Sidebar Split */}
       <div className="flex-1 w-full flex relative bg-slate-200 overflow-hidden">
         <main className="flex-1 h-full relative">
           {loading && (
@@ -216,7 +325,45 @@ export function CollaboraEditorPage({
             collaboraIframeRef={frameRef}
           />
         )}
+
+        {/* Zotero Web Library Sidebar */}
+        {showZoteroSidebar && (
+          <ZoteroSidebar
+            userId={currentUserId}
+            isOpen={showZoteroSidebar}
+            onClose={() => setShowZoteroSidebar(false)}
+            onCiteItem={handleCiteItem}
+          />
+        )}
       </div>
+
+      {/* Add by Identifier Modal */}
+      {showAddIdentifier && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-200 relative">
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <span className="font-semibold text-slate-800 text-sm">Add Item by Identifier (DOI, ISBN, PMID, arXiv)</span>
+              <button
+                onClick={() => setShowAddIdentifier(false)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-md cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4">
+              <AddByIdentifier
+                userId={currentUserId}
+                apiUrl={apiBaseUrl}
+                onCiteItem={(item) => {
+                  handleCiteItem(item);
+                  setShowAddIdentifier(false);
+                }}
+                onClose={() => setShowAddIdentifier(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
 
   );

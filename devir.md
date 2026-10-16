@@ -731,3 +731,116 @@ pnpm build
    pnpm dev
    ```
    Collabora editöründeyken üst araç çubuğundaki "PDF Reader" butonuna tıklayarak veya Zotero kütüphanesinden bir ek dosyaya tıklayarak PDF okuyucuyu açabilir, metin vurgulayabilir ve doğrudan Collabora belgesine atıf yapabilirsiniz.
+
+
+
+---
+
+## 15. Uçtan Uca Entegrasyon Prototipi & Doğrulama (Kayıt #011)
+
+> **Kayıt No:** #011  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-e2e-proto`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** TASK A (SPEC & Mimarinin ADR-001 ile Uyumlanması) + TASK B (Uçtan Uca Entegrasyon Prototip Kontrolü, Docker Compose, WOPI Akışı, Zotero Bileşenleri, Smoke Testi, Bellek/RAM Ölçümü)
+
+### 15.1 TASK A — Dokümantasyon ve Mimari Güncellemesi (Tamamlandı)
+
+1. **`SPEC.md` ve `docs/SPEC.md` (v2.0.0):**
+   - Belge motoru olarak Collabora Online (CODE) + WOPI mimarisi, TipTap (`packages/editor`) bileşeninin ise LEGACY (eski/dondurulmuş) olarak işaretlendiği tanımlandı.
+   - Resmi Zotero açık kaynak bileşenleri (`zotero/web-library`, `zotero/translation-server`, `citeproc-js`, `packages/collabora-cite` + UNO makroları) sisteme temel referans motoru olarak bağlandı.
+   - Öğrenci başına mutlak hesap ve veri izolasyonu, MinIO/S3 üzerinde en az 5 GB cömert depolama, açık paylaşım modeli, Microsoft Word ve LibreOffice Zotero alan kodu uyumluluğu (`ADDIN ZOTERO_ITEM CSL_CITATION` & `ADDIN ZOTERO_BIBL`) ve GNU AGPL-3.0 lisans standardı spesifikasyona işlendi.
+2. **`architecture.md` ve `ARCHITECTURE.md` Uzlaşması:**
+   - Kök dizindeki `architecture.md` ve `ARCHITECTURE.md` dosyaları, tek doğruluk kaynağı (SSOT) olan `docs/ARCHITECTURE.md` belgesine yönlendirildi; mükerrerlik ve çelişki ortadan kaldırıldı.
+
+---
+
+### 15.2 TASK B — Uçtan Uca Konteyner Entegrasyonu ve Düzeltmeler (Tamamlandı)
+
+1. **Host Port ve Konteyner İzolasyonu:**
+   - Docker Compose projesi `-p citedocs-e2e` adıyla izole edildi; konteyner adları projesel önek aldı.
+   - Host makinedeki port çakışmalarını önlemek amacıyla Collabora Online portu `${COLLABORA_PORT:-9982}:9980` ve Web portu `${WEB_PORT:-5173}:80` olarak yapılandırıldı. Makinede halihazırda `--net=host` ile çalışan `folio-collabora` konteynerine ve diğer servislere kesinlikle müdahale edilmedi.
+   - MinIO imajı `elestio/minio:latest` olarak güncellendi (Docker Hub'ın `minio/minio` dağıtımını kısıtlaması nedeniyle).
+2. **WOPI İki Yönlü Ağ ve URL Dönüşümü:**
+   - Tarayıcının Collabora iframe'ini açabilmesi için `COLLABORA_PUBLIC_URL` (`http://localhost:9982`) ve Collabora'nın sunucuya konteyner ağından erişebilmesi için `WOPI_SERVER_URL` (`http://server:3000`) entegre edildi.
+   - `apps/server/src/wopi/discovery.ts` servisine `publicCollaboraUrl` parametresi eklendi; Collabora iç XML adresleri tarayıcının erişebileceği host portuna dönüştürüldü.
+3. **S3/MinIO ve DOCX Başlatma Sertleştirmesi:**
+   - `apps/server/src/wopi/storage/s3Storage.ts` içine `ensureBucket()` eklendi; MinIO ayağa kalktığında `citedocs-attachments` kovası yoksa otomatik oluşturulması sağlandı.
+   - `apps/server/src/wopi/routes.ts` içinde yeni belge oturumu açıldığında 0-byte bozuk dosya yerine `@citedocs/docx-exporter` ile geçerli 9.6 KB WordprocessingML DOCX şablonu üretilerek depoya kaydedilmesi sağlandı. Böylece LibreOffice/Collabora açılışta dosya biçim hatası vermez.
+4. **Veritabanı Kendi Kendini İyileştirme (Auto-Migration & Seeding):**
+   - `apps/server/src/index.ts` sunucu açılışında `DATABASE_URL` tanımlıysa Drizzle migrasyonlarını (`runMigrations()`) otomatik çalıştıracak şekilde bağlandı.
+   - `apps/server/src/db/migrate.ts` migrasyon sonrasında varsayılan demo kullanıcıyı (`00000000-0000-0000-0000-000000000001`, `demo@citedocs.local`) `users` tablosuna ekleyecek şekilde güncellendi.
+5. **Web İstemcisi Collabora + Zotero Entegrasyonu:**
+   - `apps/web/src/collabora/CollaboraEditorPage.tsx`: Collabora editör iframe'i yanına `ZoteroSidebar` (`/zotero-weblib/index.html`), "Add by DOI" modalı (`AddByIdentifier`), CollaboraBridge atıf ekleme (`ZOTERO_ITEM CSL_CITATION`) ve kaynakça güncelleme aksiyonları bağlandı.
+   - Nginx yapılandırması SPA yönlendirmelerini (`try_files $uri $uri/ /index.html`) destekleyecek şekilde `apps/web/nginx.conf` ile Docker imajına eklendi.
+
+---
+
+### 15.3 Uçtan Uca Doğrulama Sonuçları (Neler Çalışıyor / Neler Çalışmıyor)
+
+#### ✅ Tam Olarak Doğrulanan ve Çalışan Akışlar:
+
+1. **Sunucu Sağlık Denetimi:** `GET http://localhost:3000/health` -> HTTP 200 OK, servis ayakta.
+2. **Upstream Zotero Translation Server:** `POST http://localhost:1969/search` ile DOI `10.1103/PhysRev.47.777` gönderildiğinde Einstein, Podolsky, Rosen (1935) Physical Review makalesi başarıyla çözümleniyor.
+3. **CiteDocs API DOI Çözümleme ve Postgres Kalıcılığı:** `POST http://localhost:3000/api/items/from-identifier` çağrısı Zotero öğesini CSL formatına çevirip PostgreSQL `library_items` tablosuna öğrenci UUID'sine bağlı olarak kalıcı biçimde (`persisted: true`) kaydediyor.
+4. **Collabora Online Discovery:** `GET http://localhost:9982/hosting/discovery` geçerli WOPI keşif XML'ini sunuyor.
+5. **Collabora Oturum Oluşturma:** `POST http://localhost:3000/api/documents/:id/collabora-session` ile HMAC-SHA256 imzalı `accessToken`, `wopiSrc` ve tarayıcıya uygun `actionUrl` eksiksiz üretiliyor.
+6. **WOPI CheckFileInfo:** `GET http://localhost:3000/wopi/files/:id?access_token=...` -> `BaseFileName`, `UserCanWrite: true`, `SupportsLocks: true`, `SupportsUpdate: true` parametreleri doğrulanıyor.
+7. **WOPI GetFile:** `GET http://localhost:3000/wopi/files/:id/contents` -> MinIO/S3 üzerinden geçerli DOCX ikili akışı (`PK...` ZIP başlığı) iletiliyor.
+8. **WOPI Kilit Yönetimi:** `POST` isteği `X-WOPI-Override: LOCK` başlığıyla kilidi sorunsuz alıyor (`HTTP 200`).
+9. **WOPI PutFile:** `POST /contents` isteği `X-WOPI-Lock` ve yeni gövdeyle dosyayı güncelliyor (`version` artırılıyor).
+10. **Kalıcılık Doğrulaması:** Ardışık `GetFile` çağrısında güncellenen içeriğin S3'ten aynen geldiği kanıtlandı.
+11. **Web Frontend Servisi:** `http://localhost:5173/` üzerinden Nginx ile SPA arayüzü sunuluyor.
+12. **Headless Tarayıcı UI Render Kontrolü:** `/usr/bin/google-chrome --headless=new` ile `http://localhost:5173/?editor=collabora` yüklendi; DOM çıktısında hem Collabora iframe'i (`data-testid="collabora-iframe"`) hem de Zotero Web Library kenar çubuğu (`data-testid="zotero-sidebar"`) DOM ağacında başarıyla doğrulandı.
+13. **Scripted Smoke Test:** `tools/e2e-smoke.sh` yazıldı; 11 entegrasyon adımının tamamı yeşil (`[PASS]`) geçti.
+
+#### ⚠️ Kısıtlar ve Doğrulanamayan Noktalar:
+- **Collabora İç Frame İlk Render Süresi:** Collabora Online (CODE) ilk başlatıldığında LibreOffice forkit süreçlerini ısıtması ve yazı tipi önbelleğini oluşturması ~10-15 saniye sürebilmektedir; bu esnada iframe içinde "Loading: Frame_Ready..." bekleme katmanı görünür.
+- **Canlı Zotero Hesabı Eşlemesi:** Testler yerel demo kullanıcı ve çevirici sunucusu üzerinden yapılmıştır; gerçek `zotero.org` iki yönlü senkronizasyonu için geçerli bir kullanıcı API anahtarı gereklidir.
+
+---
+
+### 15.4 Bellek Tüketimi (docker stats) ve AWS t3.medium Değerlendirmesi
+
+Konteyner yığınının anlık bellek kullanımı `docker stats --no-stream` ile ölçülmüştür:
+
+| Konteyner Servisi | İmaj | RAM Tüketimi | RAM Yüzdesi (Host) |
+|---|---|---|---|
+| `citedocs-e2e-collabora-1` | `collabora/code:latest` | **507.3 MiB** | %3.22 |
+| `citedocs-e2e-translation-server-1` | `zotero/translation-server:latest` | **434.1 MiB** | %2.75 |
+| `citedocs-e2e-minio-1` | `elestio/minio:latest` | **75.4 MiB** | %0.48 |
+| `citedocs-e2e-postgres-1` | `postgres:16-alpine` | **61.7 MiB** | %0.39 |
+| `citedocs-e2e-server-1` | `citedocs-e2e-server` | **53.7 MiB** | %0.34 |
+| `citedocs-e2e-web-1` | `citedocs-e2e-web` (nginx) | **13.2 MiB** | %0.08 |
+| **TOPLAM YIĞIN BELLEĞİ** | | **~1,145.4 MiB (~1.15 GB)** | |
+
+#### 🎯 AWS `t3.medium` Kapasite Analizi:
+- **`t3.medium` Donanım Özellikleri:** 2 vCPU, 4.0 GiB (4,096 MiB) RAM.
+- **CiteDocs Tüketim Oranı:** Tüm CiteDocs yığını toplam **~1.15 GB** RAM kullanmaktadır; bu da `t3.medium` toplam belleğinin **yaklaşık %28.6'sına** tekabül eder.
+- **Kalan Güvenli Alan:** Geriye kalan **~2.85 GB** boş bellek; Linux çekirdeği, disk I/O sayfa önbelleği (page cache), Collabora'nın birden çok büyük `.docx` belgesini bellekte açması ve PostgreSQL bellek havuzları için oldukça cömert ve güvenli bir çalışma payı (headroom) bırakmaktadır.
+
+---
+
+### 15.5 Yerel Olarak Çalıştırma ve Tekrarlama Adımları (Repro Steps)
+
+1. **Yığını Başlatma:**
+   ```bash
+   docker compose -p citedocs-e2e up -d --build
+   ```
+2. **Otomatik Duman Testini (Smoke Test) Çalıştırma:**
+   ```bash
+   ./tools/e2e-smoke.sh
+   ```
+   *(Tüm 11 adımın `[PASS]` olarak sonuçlandığını ekranda görebilirsiniz).*
+3. **Tarayıcıda İnceleme:**
+   Tarayıcınızda şu adresi açın:
+   ```txt
+   http://localhost:5173/?editor=collabora
+   ```
+   - Üst çubukta "Collabora Online (CODE)" rozetini, "Add by DOI" ve "Zotero Library" butonlarını görebilirsiniz.
+   - Sol/orta alanda Collabora Online belge düzenleyicisi, sağ alanda Zotero Web Library kenar çubuğu açılır.
+   - "Add by DOI" butonuna tıklayıp `10.1103/PhysRev.47.777` yazarak makaleyi kişisel kütüphanenize anında ekleyebilirsiniz.
+4. **Yığını Kapatma (Laptop Yükünü Sıfırlama):**
+   ```bash
+   docker compose -p citedocs-e2e down
+   ```

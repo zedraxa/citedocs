@@ -5,6 +5,7 @@ interface CacheEntry {
 
 export interface CollaboraDiscoveryOptions {
   collaboraUrl?: string;
+  publicCollaboraUrl?: string;
   discoveryUrl?: string;
   actionUrlOverride?: string;
   cacheTtlMs?: number;
@@ -16,6 +17,7 @@ const DEFAULT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 export class CollaboraDiscoveryService {
   private collaboraUrl: string;
+  private publicCollaboraUrl?: string;
   private actionUrlOverride?: string;
   private cacheTtlMs: number;
   private cache: CacheEntry | null = null;
@@ -23,6 +25,8 @@ export class CollaboraDiscoveryService {
 
   constructor(options: CollaboraDiscoveryOptions = {}) {
     this.collaboraUrl = options.collaboraUrl || process.env.COLLABORA_URL || DEFAULT_COLLABORA_URL;
+    this.publicCollaboraUrl =
+      options.publicCollaboraUrl || process.env.COLLABORA_PUBLIC_URL || (options.collaboraUrl ? undefined : process.env.COLLABORA_URL);
     this.actionUrlOverride = options.actionUrlOverride || process.env.COLLABORA_ACTION_URL_OVERRIDE;
     this.cacheTtlMs = options.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
     this.fetchFn = options.fetchFn || globalThis.fetch;
@@ -85,7 +89,8 @@ export class CollaboraDiscoveryService {
 
     // Default fallback actions
     const fallbackActions = new Map<string, string>();
-    const defaultUrlSrc = `${this.collaboraUrl.replace(/\/+$/, "")}/browser/dist/cool.html?`;
+    const publicOrigin = (this.publicCollaboraUrl || this.collaboraUrl).replace(/\/+$/, "");
+    const defaultUrlSrc = `${publicOrigin}/browser/dist/cool.html?`;
     for (const ext of ["docx", "doc", "odt", "xlsx", "pptx", "txt"]) {
       fallbackActions.set(`${ext}:edit`, defaultUrlSrc);
       fallbackActions.set(`${ext}:view`, defaultUrlSrc);
@@ -112,11 +117,26 @@ export class CollaboraDiscoveryService {
     let baseUrlSrc = this.actionUrlOverride;
     if (!baseUrlSrc) {
       const actions = await this.getActions();
-      baseUrlSrc =
+      const rawUrl =
         actions.get(`${ext}:${action}`) ||
         actions.get(`${ext}:edit`) ||
         actions.get(`${ext}:view`) ||
         `${this.collaboraUrl.replace(/\/+$/, "")}/browser/dist/cool.html?`;
+
+      if (this.publicCollaboraUrl) {
+        try {
+          const publicUrlObj = new URL(this.publicCollaboraUrl);
+          const parsedBase = new URL(rawUrl);
+          parsedBase.protocol = publicUrlObj.protocol;
+          parsedBase.hostname = publicUrlObj.hostname;
+          parsedBase.port = publicUrlObj.port;
+          baseUrlSrc = parsedBase.toString();
+        } catch {
+          baseUrlSrc = rawUrl.replace(this.collaboraUrl, this.publicCollaboraUrl);
+        }
+      } else {
+        baseUrlSrc = rawUrl;
+      }
     }
 
     // Ensure baseUrlSrc has appropriate query separator

@@ -1,0 +1,1 @@
+{"root":["./src/bridge.ts","./src/citeproc.d.ts","./src/engine.ts","./src/fields.ts","./src/index.ts","./src/parser.ts","./src/postMessageInterface.ts","./src/refresher.ts","./src/types.ts","./src/assets/locales.ts","./src/assets/styles.ts"],"version":"5.9.3"}

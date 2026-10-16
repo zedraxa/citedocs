@@ -3,14 +3,13 @@ version: "3.8"
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: citedocs-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: citedocs
       POSTGRES_USER: citedocs
       POSTGRES_PASSWORD: citedocs_secret_password
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,31 +19,28 @@ services:
       retries: 5
 
   minio:
-    image: minio/minio:latest
-    container_name: citedocs-minio
+    image: elestio/minio:latest
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: citedocs_minio
       MINIO_ROOT_PASSWORD: citedocs_minio_password
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio_data:/data
 
   translation-server:
     image: zotero/translation-server:latest
-    container_name: citedocs-translation-server
     restart: unless-stopped
     ports:
-      - "1969:1969"
+      - "${TRANSLATION_SERVER_PORT:-1969}:1969"
 
   server:
     build:
       context: .
       dockerfile: apps/server/Dockerfile
-    container_name: citedocs-server
     restart: unless-stopped
     environment:
       PORT: 3000
@@ -55,9 +51,12 @@ services:
       S3_ACCESS_KEY: citedocs_minio
       S3_SECRET_KEY: citedocs_minio_password
       S3_BUCKET: citedocs-attachments
+      COLLABORA_URL: http://collabora:9980
+      COLLABORA_PUBLIC_URL: http://localhost:${COLLABORA_PORT:-9982}
+      WOPI_SERVER_URL: http://server:3000
     ports:
-      - "3000:3000"
-      - "1234:1234"
+      - "${SERVER_PORT:-3000}:3000"
+      - "${COLLAB_PORT:-1234}:1234"
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,27 +67,26 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    container_name: citedocs-web
     restart: unless-stopped
     ports:
-      - "5173:5173"
+      - "${WEB_PORT:-5173}:80"
     depends_on:
       - server
 
   collabora:
     image: collabora/code:latest
-    container_name: citedocs-collabora
     restart: unless-stopped
     environment:
-      aliasgroup1: "http://server:3000,http://localhost:3000"
-      extra_params: "--o:ssl.enable=false --o:ssl.termination=false"
+      aliasgroup1: "http://server:3000,http://localhost:3000,http://127.0.0.1:3000"
+      extra_params: "--o:ssl.enable=false --o:ssl.termination=false --o:net.frame_ancestors=*"
       DONT_GEN_SSL_CERT: "true"
     ports:
-      - "9980:9980"
+      - "${COLLABORA_PORT:-9982}:9980"
+    volumes:
+      - ./apps/collabora-scripts:/opt/collaboraoffice/share/Scripts/python:ro
     depends_on:
       - server
 
 volumes:
   postgres_data:
   minio_data:
-

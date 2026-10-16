@@ -10,7 +10,7 @@
 
 **CiteDocs** is built for students, researchers, and scientific writers who need the seamless real-time collaboration and user experience of **Google Docs**, paired directly with the complete reference management and PDF annotation extraction power of **Zotero**—running ubiquitously in any browser on any operating system (desktop, tablet, mobile).
 
-> **Architectural Direction (ADR-001):** CiteDocs does not reinvent the wheel. Per [ADR-001: Integration Architecture](file:///home/yusuf/projects/citedocs-wt/adr-proto/docs/ADR-001-integration.md), document editing is powered by **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage, seamlessly integrated with the official **Zotero open-source suite** (`zotero/web-library`, `zotero/translation-server`, `citeproc-js`, `zotero/pdf-reader`, and native Zotero field codes). Purely web-based with zero client-side installation. TipTap (`packages/editor`) is maintained as a legacy component.
+> **Architectural Direction (ADR-001):** CiteDocs does not reinvent the wheel. Per [ADR-001: Integration Architecture](docs/ADR-001-integration.md), document editing is powered by **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage, seamlessly integrated with the official **Zotero open-source suite** (`zotero/web-library`, `zotero/translation-server`, `citeproc-js`, `zotero/pdf-reader`, and native Zotero field codes). Purely web-based with zero client-side installation. TipTap (`packages/editor`) is maintained as a legacy component.
 
 ### ✨ Core Capabilities
 
@@ -87,27 +87,42 @@ Copy the example environment file:
 cp .env.example .env
 ```
 
-### 3. Start Local Infrastructure
+### 3. Start Full End-to-End Containerized Stack
 
-Launch PostgreSQL, MinIO object storage, and the Zotero translation microservice:
+To run the complete production-grade integration stack (Collabora Online CODE, WOPI Server, PostgreSQL, MinIO S3, Zotero Translation Server, Web Frontend) with Docker Compose:
+
+```bash
+docker compose -p citedocs-e2e up -d --build
+```
+
+- **CiteDocs Collabora Editor:** [`http://localhost:5173/?editor=collabora`](http://localhost:5173/?editor=collabora)
+- **Collabora Online (CODE):** `http://localhost:9982` (`http://localhost:9982/hosting/discovery`)
+- **CiteDocs REST API & WOPI Host:** `http://localhost:3000` (`http://localhost:3000/health`)
+- **Upstream Zotero Translation Server:** `http://localhost:1969`
+- **MinIO S3 Console:** `http://localhost:9001` (login: `citedocs_minio` / `citedocs_minio_password`)
+- **PostgreSQL Database:** `localhost:5432` (`citedocs`)
+
+To stop the stack when finished (preserving data volumes):
+```bash
+docker compose -p citedocs-e2e down
+```
+
+### 4. Run Automated E2E Smoke Test
+
+Verify the entire integration pipeline end-to-end (API health, translation-server DOI lookup, postgres storage, Collabora discovery, session generation, WOPI CheckFileInfo/GetFile/Lock/PutFile, web delivery, and headless browser rendering):
+
+```bash
+./tools/e2e-smoke.sh
+```
+
+### 5. Run Development Servers (Bare Metal)
+
+Alternatively, start only the backing services and run Node/Vite locally:
 
 ```bash
 docker compose up -d postgres minio translation-server
-```
-
-### 4. Run Development Servers
-
-Start both the Fastify/Hocuspocus backend and the Vite React frontend in parallel:
-
-```bash
 pnpm dev
 ```
-
-- **Web Application:** `http://localhost:5173`
-- **REST API:** `http://localhost:3000` (`http://localhost:3000/health`)
-- **Hocuspocus WebSocket:** `ws://localhost:1234`
-- **Zotero Translation Server:** `http://localhost:1969`
-- **MinIO Console:** `http://localhost:9001` (login: `citedocs_minio` / `citedocs_minio_password`)
 
 ---
 

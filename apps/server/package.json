@@ -15,6 +15,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
     "@citedocs/csl-engine": "workspace:*",
+    "@citedocs/docx-exporter": "workspace:*",
     "@citedocs/pdf-reader": "workspace:*",
     "@citedocs/shared": "workspace:*",
     "@citedocs/zotero-core": "workspace:*",

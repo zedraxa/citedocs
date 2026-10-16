@@ -10,6 +10,8 @@
 
 **CiteDocs** is built for students, researchers, and scientific writers who need the seamless real-time collaboration and user experience of **Google Docs**, paired directly with the complete reference management and PDF annotation extraction power of **Zotero**—running ubiquitously in any browser on any operating system (desktop, tablet, mobile).
 
+> **Architectural Direction (ADR-001):** CiteDocs does not reinvent the wheel. Per [ADR-001: Integration Architecture](file:///home/yusuf/projects/citedocs-wt/adr-proto/docs/ADR-001-integration.md), document editing is powered by **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage, seamlessly integrated with the official **Zotero open-source suite** (`zotero/web-library`, `zotero/translation-server`, `citeproc-js`, `zotero/pdf-reader`, and native Zotero field codes). Purely web-based with zero client-side installation. TipTap (`packages/editor`) is maintained as a legacy component.
+
 ### ✨ Core Capabilities
 
 - **Google Docs Parity:**
@@ -52,6 +54,7 @@ citedocs/
 ├── docs/
 │   ├── SPEC.md                 # Complete Product Specification
 │   ├── ARCHITECTURE.md         # Detailed System Architecture & Design
+│   ├── ADR-001-integration.md  # Binding Integration Architecture (Collabora + Zotero)
 │   └── research.md             # Technical Research Report
 └── devir.md                    # Project Memory & Agent Handover Record
 ```
@@ -131,13 +134,15 @@ pnpm build
 
 ## 📄 Documentation
 
-- [Product Specification (`docs/SPEC.md`)](file:///home/yusuf/projects/citedocs/docs/SPEC.md)
-- [System Architecture (`docs/ARCHITECTURE.md`)](file:///home/yusuf/projects/citedocs/docs/ARCHITECTURE.md)
-- [Technical Research Report (`docs/research.md`)](file:///home/yusuf/projects/citedocs/docs/research.md)
-- [Project Memory & Handover (`devir.md`)](file:///home/yusuf/projects/citedocs/devir.md)
+- [Product Specification (`docs/SPEC.md`)](docs/SPEC.md)
+- [System Architecture (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)
+- [Binding Integration Architecture (`docs/ADR-001-integration.md`)](docs/ADR-001-integration.md)
+- [Technical Research Report (`docs/research.md`)](docs/research.md)
+- [Project Memory & Handover (`devir.md`)](devir.md)
 
 ---
 
 ## 📜 License
 
-Licensed under the [MIT License](LICENSE).
+Currently licensed under the [MIT License](LICENSE).  
+*(Note: As analyzed in [ADR-001](docs/ADR-001-integration.md), relicensing CiteDocs to GNU AGPL-3.0 is recommended for complete legal compliance with integrated Zotero AGPL-3.0 components; pending final approval).*

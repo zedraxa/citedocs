@@ -306,4 +306,32 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 6. **Dokümantasyon:**
    - `packages/zotero-core/README.md` eksiksiz oluşturuldu.
 
+---
+
+## 11. Milestone 2 Part C — Add Item by Identifier UI (@citedocs/web) (Kayıt #007)
+
+> **Kayıt No:** #007  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m2-id-ui`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** M2 Part C (Add Item by Identifier UI, VITE_API_URL, X-User-Id Tenant Header, Result Card & In-App Library List Entegrasyonu)
+
+### Yapılan İşler:
+1. **`AddByIdentifier` Bileşeni Geliştirildi (`apps/web/src/components/AddByIdentifier.tsx`):**
+   - DOI, ISBN, PMID, arXiv ID ve URL girdilerini kabul eden şık ve erişilebilir form arayüzü kuruldu.
+   - `VITE_API_URL` (varsayılan `http://localhost:3001`) ve URL `?user=` parametresinden (veya `demo-user` varsayılanından) çözümlenen `X-User-Id` başlığıyla `POST /api/items/from-identifier` uç noktasına bağlanıldı.
+   - Boş gönderimlerde gereksiz istek engellendi; istek esnasında yükleme durumu (`loading` animasyonu, pasif buton) sağlandı.
+   - Başarılı sonuçlarda başlık, yazarlar, yıl ve DOI içeren sonuç kartı (`result card`) gösterildi ve doğrudan "Cite in Document" butonu sunuldu.
+   - 4xx/5xx ve özellikle upstream translation-server 502 hatalarında çökmeyen, açıklayıcı hata bildirim kartı oluşturuldu.
+2. **Google Docs Chrome ve Zotero Atıf Seçici Entegrasyonu (`apps/web/src/App.tsx`):**
+   - Araç çubuğuna "Add by Identifier" hızlı butonu eklendi.
+   - Zotero modal penceresine "Search Library" ve "Add by Identifier" sekmeleri eklendi.
+   - Eklenen öğeler anında uygulama içi `libraryItems` listesine dahil edilerek arama ve hızlı atıf ekleme (`Quick Citation Picker`) akışında anında kullanılabilir hale getirildi.
+   - TipTap v3 ve Hocuspocus çok kullanıcılı işbirliği (collaboration carets/presence) altyapısı bozulmadan korundu.
+3. **Kapsamlı Kabul Testleri & Doğrulama (`apps/web/test/`):**
+   - `add-by-identifier.test.ts`: 7 birim testi (URL/User çözümleri, Nature DOI `10.1038/s41586-021-03392-y` ile `atherosclerosis` makalesinin çekilmesi, 502 upstream hata yönetimi, boş submit denetimi, callback tetiklenmesi).
+   - `web.test.ts`: 6 entegrasyon testi (App seviyesinde modal açılışı, DOI araması, kart gösterimi, kütüphane listesine ekleme, belgeye atıf düğümü ekleme ve TipTap canvas bütünlüğü).
+   - Monorepo genelinde 137 test geçerli (1 skipped canlı test), lint temiz, tsc hatasız ve build başarılı.
+
+
 

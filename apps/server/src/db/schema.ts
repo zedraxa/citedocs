@@ -31,6 +31,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   displayName: text("display_name"),
   avatarUrl: text("avatar_url"),
+  emailVerified: boolean("email_verified").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -318,3 +319,5 @@ export type NewAttachment = InferInsertModel<typeof attachments>;
 
 export type ZoteroCredential = InferSelectModel<typeof zoteroCredentials>;
 export type NewZoteroCredential = InferInsertModel<typeof zoteroCredentials>;
+
+export * from "../auth/schema.js";

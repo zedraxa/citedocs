@@ -52,55 +52,7 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 
 ---
 
-## 5. Milestone 2 (Part B - Add-by-Identifier) Tamamlanan İşler (Kayıt #002)
-
-> **Kayıt No:** #002  
-> **Tarih:** 2026-10-16  
-> **Dal:** `cd-m2-identifier`  
-> **Görev:** M2 Part B — Add-by-identifier (TranslationClient hardening, Fastify routes, Vitest DOI 10.1038/s41586-021-03392-y assertions)
-
-### 5.1 `@citedocs/zotero-core` İyileştirmeleri
-1. **TranslationClient Sertleştirildi:**
-   - Zotero `translation-server` mikroservisinin `/search` endpoint'i `text/plain` gövdesi ve normalize edilmiş tanımlayıcı (DOI, ISBN, PMID, arXiv) bekleyecek şekilde güncellendi.
-   - `/web` (text/plain URL), `/import` (raw BibTeX/RIS), `/export?format=<format>` (JSON item serileştirme) uçları tip güvenli hale getirildi.
-   - `translateAndConvert(identifier)` metodu ile hem ZoteroItem hem CSLItem çıktılarını aynı anda dönebilen yardımcı eklendi.
-   - `normalizeIdentifier`: `https://doi.org/`, `http://dx.doi.org/`, `doi:`, `arxiv:`, `pmid:`, `isbn:` ön eklerini otomatik temizleme mantığı eklendi.
-   - `normalizeZoteroItem` & `generateZoteroKey`: Eksik veya boş dönen çevirici çıktılarında Zotero standardı 8 karakterlik büyük harf alfanümerik anahtar (`generateZoteroKey()`) ve varsayılan alanlar otomatik dolduruldu.
-   - `TranslationServerError`: HTTP status code ve upstream gövde metnini içeren özel hata sınıfı eklendi; `AbortController` ile timeout desteği sağlandı.
-2. **Kabul Testi ve DOI Doğrulaması:**
-   - Nature makalesi olan DOI `10.1038/s41586-021-03392-y` için mock test fiksürü yazıldı.
-   - `title` ("The changing landscape of atherosclerosis"), `authors` ("Peter Libby"), `year` (2021) ve `DOI` alanlarının eksiksiz geldiği hem ZoteroItem hem CSLItem formatlarında doğrulandı.
-   - `TRANSLATION_SERVER_URL` ortam değişkeniyle korunan canlı entegrasyon testi eklendi.
-
-### 5.2 `apps/server` Rota ve Güvenlik İyileştirmeleri
-1. **Yeni Fastify Rotaları:**
-   - `POST /api/zotero/translate`: DOI/ISBN/PMID/arXiv/URL kabul eden ve Zotero + CSL metadata'sı dönen ana uç.
-   - `POST /api/items/from-identifier`: REST standardı takma ad (alias) uç; `{ identifier }` veya `{ query }` gövdesi kabul eder.
-   - `POST /api/zotero/search`: M0 geriye dönük uyumluluğu korundu.
-   - `GET /api/items`: Bellek içi oturum kayıtlarını kullanıcı bazlı listeleyen uç.
-2. **Per-Student Yetkilendirme Saplaması (`X-User-Id`):**
-   - İstek başlığında gelen `X-User-Id` okunarak dönen yanıta ve bellek içi depoya işlenir; öğrenciler arası veri izolasyonu sağlanır.
-3. **Kalıcılık Stratejisi (Drizzle ile Uyum):**
-   - Bu daldaki dosya çakışmalarını önlemek adına tam veritabanı yazımı `cd-m2-drizzle` dalında Drizzle ORM ile geliştirilmektedir.
-   - Bu dalda `memoryItemStore` (`Map<string, StoredItemRecord>`) ile geçici oturum içi kalıcılık sağlandı ve `persisted: true`, `persistenceMode: "in-memory"`, `todo: "TODO(persist)..."` açıkça dokümante edildi.
-
----
-
-## 6. Sonraki Ajan İçin Devir Notları ve Doğrulama
-- `pnpm test`: 6 test dosyası, 41 test geçerli, 0 hata.
-- `pnpm lint`: Temiz (0 hata).
-- `pnpm typecheck`: `tsc -b` hatasız.
-- `pnpm build`: Tüm monorepo paketleri ve uygulamaları hatasız derleniyor.
-- `cd-m2-drizzle` dalı tamamlandığında `apps/server/src/routes/zotero.ts` içindeki `memoryItemStore` kısmı Drizzle repository metodlarıyla kolayca birleştirilebilir.
-
-1. `pnpm install` çalıştırarak monorepo kütüphane bağlarını kesinleştir.
-2. `pnpm test`, `pnpm typecheck`, `pnpm lint`, `pnpm build` komutlarını çalıştır ve yeşil olduğunu doğrula.
-3. TipTap v3 editörünü `apps/web` içinde canlı ProseMirror instance'ına bağla ve `y-prosemirror` ile Hocuspocus sunucusuna bağla.
-4. Docker üzerinde `translation-server` mikroservisini ayağa kaldırıp DOI çözümleme testlerini entegre et.
-
----
-
-## 6. Milestone 2 Part A (Drizzle Data Layer & Row-Level Ownership) - Kayıt #002
+## 5. Milestone 2 Part A (Drizzle Data Layer & Row-Level Ownership) - Kayıt #002
 
 > **Kayıt No:** #002  
 > **Tarih:** 2026-10-16  
@@ -145,4 +97,64 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
    - Monorepo genelinde 11 dosya, 68 test %100 yeşil; lint ve build sorunsuz.
 8. **Dokümantasyon:**
    - `apps/server/README.md` oluşturuldu.
+
+---
+
+## 6. Milestone 2 (Part B - Add-by-Identifier) Tamamlanan İşler (Kayıt #003)
+
+> **Kayıt No:** #003  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m2-identifier`  
+> **Görev:** M2 Part B — Add-by-identifier (TranslationClient hardening, Fastify routes, Vitest DOI 10.1038/s41586-021-03392-y assertions)
+
+### 6.1 `@citedocs/zotero-core` İyileştirmeleri
+1. **TranslationClient Sertleştirildi:**
+   - Zotero `translation-server` mikroservisinin `/search` endpoint'i `text/plain` gövdesi ve normalize edilmiş tanımlayıcı (DOI, ISBN, PMID, arXiv) bekleyecek şekilde güncellendi.
+   - `/web` (text/plain URL), `/import` (raw BibTeX/RIS), `/export?format=<format>` (JSON item serileştirme) uçları tip güvenli hale getirildi.
+   - `translateAndConvert(identifier)` metodu ile hem ZoteroItem hem CSLItem çıktılarını aynı anda dönebilen yardımcı eklendi.
+   - `normalizeIdentifier`: `https://doi.org/`, `http://dx.doi.org/`, `doi:`, `arxiv:`, `pmid:`, `isbn:` ön eklerini otomatik temizleme mantığı eklendi.
+   - `normalizeZoteroItem` & `generateZoteroKey`: Eksik veya boş dönen çevirici çıktılarında Zotero standardı 8 karakterlik büyük harf alfanümerik anahtar (`generateZoteroKey()`) ve varsayılan alanlar otomatik dolduruldu.
+   - `TranslationServerError`: HTTP status code ve upstream gövde metnini içeren özel hata sınıfı eklendi; `AbortController` ile timeout desteği sağlandı.
+2. **Kabul Testi ve DOI Doğrulaması:**
+   - Nature makalesi olan DOI `10.1038/s41586-021-03392-y` için mock test fiksürü yazıldı.
+   - `title` ("The changing landscape of atherosclerosis"), `authors` ("Peter Libby"), `year` (2021) ve `DOI` alanlarının eksiksiz geldiği hem ZoteroItem hem CSLItem formatlarında doğrulandı.
+   - `TRANSLATION_SERVER_URL` ortam değişkeniyle korunan canlı entegrasyon testi eklendi.
+
+### 6.2 `apps/server` Rota ve Güvenlik İyileştirmeleri
+1. **Yeni Fastify Rotaları:**
+   - `POST /api/zotero/translate`: DOI/ISBN/PMID/arXiv/URL kabul eden ve Zotero + CSL metadata'sı dönen ana uç.
+   - `POST /api/items/from-identifier`: REST standardı takma ad (alias) uç; `{ identifier }` veya `{ query }` gövdesi kabul eder.
+   - `POST /api/zotero/search`: M0 geriye dönük uyumluluğu korundu.
+   - `GET /api/items`: Bellek içi oturum kayıtlarını kullanıcı bazlı listeleyen uç (M2 entegrasyonunda Drizzle ItemRepository ile birleştirilmek üzere işaretlendi).
+2. **Per-Student Yetkilendirme Saplaması (`X-User-Id`):**
+   - İstek başlığında gelen `X-User-Id` okunarak dönen yanıta ve bellek içi depoya işlenir; öğrenciler arası veri izolasyonu sağlanır.
+
+---
+
+## 7. Milestone 2 Entegrasyonu (Drizzle ItemRepository + Zotero Identifier Entegrasyonu) - Kayıt #004
+
+> **Kayıt No:** #004  
+> **Tarih:** 2026-10-16  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** M2 Entegrasyonu (Single Source of Truth, Row-Level Ownership & Per-Student Isolation)
+
+### Yapılan İşler:
+1. **Tek Doğruluk Kaynağı (Single Source of Truth) Kuruldu:**
+   - `apps/server/src/routes/zotero.ts` içindeki geçici `memoryItemStore`, `clearItemStore()` ve mükerrer `GET /api/items` kaldırıldı.
+   - Kütüphane kayıtları için `routes/items.ts` + `ItemRepository` tek yetkili ve tek doğruluk kaynağı haline getirildi.
+2. **Kimlik Doğrulama ve Sahiplik Zorunluluğu Genişletildi:**
+   - `POST /api/items/from-identifier`, `POST /api/zotero/translate` ve `POST /api/zotero/search` uçlarına `requireAuth` ara katmanı eklendi.
+   - `X-User-Id` başlığı eksik olan tüm istekler HTTP 401 Unauthorized ile reddedilir; anonim veri oluşturulamaz veya okunamaz.
+3. **Identifier Çözümleme ve Veritabanı Kalıcılığı:**
+   - `POST /api/items/from-identifier` (ve `translate`), tanımlayıcıyı (DOI/ISBN vb.) `TranslationClient` ile çözer ve dönen kaynakları `ItemRepository.create` aracılığıyla çağıran öğrencinin `ownerUserId` kimliğine bağlayarak eksiksiz meta veriyle (başlık, yazarlar, DOI, tarih, yayın/dergi başlığı, etiketler) kaydeder.
+   - Kaydedilen öğeler veritabanı `id` değerleriyle birlikte döndürülür.
+4. **Veritabanı Bağımsız Test Desteği (DB-Free InMemoryItemRepository):**
+   - Çalışan bir PostgreSQL gerektirmeden tam sahiplik ve tenant izolasyonu kurallarını denetleyen `InMemoryItemRepository` (`apps/server/src/repositories/inMemoryItemRepository.ts`) eklendi.
+   - `buildApp({ itemRepo, zoteroClient })` üzerinden test edilebilir mimari korundu; `buildApp()` parametresiz çağrıldığında varsayılan `ItemRepository` kullanarak rota çakışması olmadan ayağa kalktığı doğrulandı.
+5. **Kabul Testleri & Doğrulama:**
+   - DOI `10.1038/s41586-021-03392-y` ile `POST /api/items/from-identifier` çağrısının A kullanıcısı için `ItemRepository`'ye tüm meta verilerle kaydedildiği;
+   - `GET /api/items` çağrısında A kullanıcısının öğeyi gördüğü, B kullanıcısının boş liste aldığı;
+   - B kullanıcısı A'nın öğesine `GET /api/items/:id` ile erişmeye çalıştığında 403 Forbidden aldığı;
+   - `X-User-Id` olmadan yapılan isteklerin 401 Unauthorized döndüğü;
+   - `pnpm -r test`, `pnpm lint`, `pnpm typecheck`, `pnpm build` komutlarının monorepo kökünden %100 yeşil geçtiği doğrulandı.
 

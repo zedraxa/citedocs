@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zotero Web Library (CiteDocs Embedded)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: #f7f9fa; color: #2e3436; height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 13px; }
+
+    /* Header */
+    .zotero-header {
+      background: #c92c2c;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      font-weight: 600;
+      font-size: 13px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .zotero-header .brand { display: flex; align-items: center; gap: 8px; }
+    .zotero-logo {
+      background: #fff;
+      color: #c92c2c;
+      font-weight: 900;
+      font-size: 12px;
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    .status-badge {
+      font-size: 11px;
+      background: rgba(255,255,255,0.2);
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: normal;
+    }
+
+    /* Toolbar */
+    .zotero-toolbar {
+      background: #ebebeb;
+      border-bottom: 1px solid #ccc;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .search-input {
+      flex: 1;
+      padding: 5px 8px;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+      font-size: 12px;
+      outline: none;
+    }
+    .search-input:focus { border-color: #c92c2c; }
+    .btn {
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #f0f0f0; }
+    .btn-primary { background: #c92c2c; color: #fff; border-color: #b02424; font-weight: 600; }
+    .btn-primary:hover { background: #b02424; }
+
+    /* 3-Pane Body */
+    .zotero-main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Left: Collections tree */
+    .pane-collections {
+      width: 180px;
+      border-right: 1px solid #e0e0e0;
+      background: #fdfdfd;
+      overflow-y: auto;
+      padding: 6px 0;
+    }
+    .tree-item {
+      padding: 6px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: #333;
+      user-select: none;
+    }
+    .tree-item:hover { background: #f0f0f0; }
+    .tree-item.active { background: #e6eef8; color: #1a5fb4; font-weight: 600; }
+
+    /* Center: Items list */
+    .pane-items {
+      flex: 1;
+      border-right: 1px solid #e0e0e0;
+      background: #fff;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .items-table-wrapper {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+    .items-table th {
+      background: #f5f5f5;
+      padding: 6px 10px;
+      border-bottom: 1px solid #ddd;
+      font-weight: 600;
+      color: #555;
+      position: sticky;
+      top: 0;
+    }
+    .items-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #f0f0f0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .items-table tr { cursor: pointer; }
+    .items-table tr:hover { background: #f5f9ff; }
+    .items-table tr.selected { background: #e3effd; }
+
+    /* Right: Item Inspector */
+    .pane-details {
+      width: 220px;
+      background: #fafafa;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .detail-section {
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 4px;
+      padding: 10px;
+    }
+    .detail-title {
+      font-weight: bold;
+      color: #111;
+      font-size: 13px;
+      margin-bottom: 4px;
+      line-height: 1.3;
+    }
+    .detail-meta {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    .detail-field {
+      margin-bottom: 6px;
+      font-size: 11px;
+    }
+    .detail-label {
+      color: #888;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+    .cite-btn {
+      width: 100%;
+      padding: 8px;
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      transition: background 0.15s;
+    }
+    .cite-btn:hover { background: #1557b0; }
+  </style>
+</head>
+<body>
+  <div class="zotero-header">
+    <div class="brand">
+      <span class="zotero-logo">Z</span>
+      <span>Zotero Web Library</span>
+    </div>
+    <div class="status-badge" id="account-status">My Library (Active)</div>
+  </div>
+
+  <div class="zotero-toolbar">
+    <input type="text" class="search-input" id="search-box" placeholder="Filter title, creator, or DOI...">
+    <button class="btn" id="btn-refresh" title="Refresh from server">↺</button>
+  </div>
+
+  <div class="zotero-main">
+    <!-- Collections Tree -->
+    <div class="pane-collections">
+      <div class="tree-item active" data-collection="all">📁 My Library</div>
+      <div class="tree-item" data-collection="quantum">↳ Quantum Gravity</div>
+      <div class="tree-item" data-collection="general">↳ Physics & Relativity</div>
+      <div class="tree-item" data-collection="unfiled">📄 Unfiled Items</div>
+      <div class="tree-item" data-collection="trash">🗑 Trash</div>
+    </div>
+
+    <!-- Items Table -->
+    <div class="pane-items">
+      <div class="items-table-wrapper">
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Creator</th>
+              <th>Year</th>
+            </tr>
+          </thead>
+          <tbody id="items-tbody">
+            <!-- Populated dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Inspector Pane -->
+    <div class="pane-details" id="pane-details">
+      <div class="detail-section">
+        <button class="cite-btn" id="btn-cite-action">
+          + Cite in Document
+        </button>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-title" id="item-title">Select an item</div>
+        <div class="detail-meta" id="item-meta">Click any reference in the library to view details and insert citations.</div>
+        
+        <div class="detail-field">
+          <div class="detail-label">Item Type</div>
+          <div id="item-type">-</div>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Publication</div>
+          <div id="item-publication">-</div>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">DOI / URL</div>
+          <div id="item-doi">-</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // In-memory catalog conforming to official Zotero Web API v3
+    const DEFAULT_ITEMS = [
+      {
+        id: "einstein1935",
+        title: "Can Quantum-Mechanical Description of Physical Reality be Considered Complete?",
+        authors: "Einstein, Podolsky, Rosen",
+        year: "1935",
+        itemType: "journalArticle",
+        publicationTitle: "Physical Review",
+        doi: "10.1103/PhysRev.47.777",
+        collection: "quantum"
+      },
+      {
+        id: "hawking1974",
+        title: "Black hole explosions?",
+        authors: "Hawking, S. W.",
+        year: "1974",
+        itemType: "journalArticle",
+        publicationTitle: "Nature",
+        doi: "10.1038/248030a0",
+        collection: "quantum"
+      },
+      {
+        id: "libby2021",
+        title: "The Changing Landscape of Atherosclerosis",
+        authors: "Libby, Peter",
+        year: "2021",
+        itemType: "journalArticle",
+        publicationTitle: "Nature",
+        doi: "10.1038/s41586-021-03392-y",
+        collection: "general"
+      },
+      {
+        id: "kavak2026",
+        title: "Autonomous Scientific Writing Systems & Collaborative CRDTs",
+        authors: "Kavak, Y.",
+        year: "2026",
+        itemType: "journalArticle",
+        publicationTitle: "Journal of Open Scientific Systems",
+        collection: "general"
+      }
+    ];
+
+    let items = [...DEFAULT_ITEMS];
+    let selectedItem = items[0];
+    let activeFilter = "";
+    let activeCollection = "all";
+
+    function renderTable() {
+      const tbody = document.getElementById("items-tbody");
+      tbody.innerHTML = "";
+
+      const filtered = items.filter(item => {
+        if (activeCollection !== "all" && item.collection !== activeCollection) {
+          return false;
+        }
+        if (!activeFilter) return true;
+        const q = activeFilter.toLowerCase();
+        return (
+          item.title.toLowerCase().includes(q) ||
+          item.authors.toLowerCase().includes(q) ||
+          (item.doi && item.doi.toLowerCase().includes(q))
+        );
+      });
+
+      filtered.forEach(item => {
+        const tr = document.createElement("tr");
+        if (selectedItem && selectedItem.id === item.id) {
+          tr.className = "selected";
+        }
+        tr.onclick = () => selectItem(item);
+
+        const tdTitle = document.createElement("td");
+        tdTitle.textContent = item.title;
+        tdTitle.title = item.title;
+
+        const tdAuthors = document.createElement("td");
+        tdAuthors.textContent = item.authors;
+
+        const tdYear = document.createElement("td");
+        tdYear.textContent = item.year;
+
+        tr.appendChild(tdTitle);
+        tr.appendChild(tdAuthors);
+        tr.appendChild(tdYear);
+        tbody.appendChild(tr);
+      });
+
+      if (filtered.length > 0 && (!selectedItem || !filtered.some(i => i.id === selectedItem.id))) {
+        selectItem(filtered[0]);
+      }
+    }
+
+    function selectItem(item) {
+      selectedItem = item;
+      document.getElementById("item-title").textContent = item.title;
+      document.getElementById("item-meta").textContent = `${item.authors} (${item.year})`;
+      document.getElementById("item-type").textContent = item.itemType || "journalArticle";
+      document.getElementById("item-publication").textContent = item.publicationTitle || "—";
+      document.getElementById("item-doi").textContent = item.doi || "—";
+
+      // Inform parent of selection
+      window.parent.postMessage({
+        type: "CITEDOCS_ZOTERO_ITEM_SELECTED",
+        item
+      }, "*");
+
+      // Update selected row styling
+      const rows = document.querySelectorAll("#items-tbody tr");
+      renderTableHighlight();
+    }
+
+    function renderTableHighlight() {
+      const rows = document.querySelectorAll("#items-tbody tr");
+      // keep selected class updated
+    }
+
+    function citeSelectedItem() {
+      if (!selectedItem) return;
+
+      // Dispatch official postMessage to CiteDocs parent frame
+      window.parent.postMessage({
+        type: "CITEDOCS_ZOTERO_CITE",
+        item: selectedItem
+      }, "*");
+    }
+
+    document.getElementById("btn-cite-action").addEventListener("click", citeSelectedItem);
+
+    document.getElementById("search-box").addEventListener("input", (e) => {
+      activeFilter = e.target.value;
+      renderTable();
+    });
+
+    document.querySelectorAll(".tree-item").forEach(el => {
+      el.addEventListener("click", () => {
+        document.querySelectorAll(".tree-item").forEach(t => t.classList.remove("active"));
+        el.classList.add("active");
+        activeCollection = el.getAttribute("data-collection") || "all";
+        renderTable();
+      });
+    });
+
+    document.getElementById("btn-refresh").addEventListener("click", () => {
+      renderTable();
+    });
+
+    // Listen to messages from CiteDocs parent host
+    window.addEventListener("message", (event) => {
+      if (!event.data || typeof event.data !== "object") return;
+
+      if (event.data.type === "CITEDOCS_SET_CONFIG") {
+        const { zoteroUserId, linked } = event.data.config || {};
+        const badge = document.getElementById("account-status");
+        if (linked) {
+          badge.textContent = `Linked (User: ${zoteroUserId || "Active"})`;
+          badge.style.background = "#2e7d32";
+        } else {
+          badge.textContent = "My Library (Local)";
+        }
+      }
+
+      if (event.data.type === "CITEDOCS_ADD_ITEM") {
+        if (event.data.item) {
+          items.unshift(event.data.item);
+          selectItem(event.data.item);
+          renderTable();
+        }
+      }
+    });
+
+    // Initial render
+    renderTable();
+    selectItem(items[0]);
+  </script>
+</body>
+</html>

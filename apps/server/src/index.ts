@@ -1,5 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import type { TranslationClient } from "@citedocs/zotero-core";
 import { healthRoutes } from "./routes/health.js";
 import { cslRoutes } from "./routes/csl.js";
 import { zoteroRoutes } from "./routes/zotero.js";
@@ -13,7 +14,11 @@ export { createItemRoutes, itemRoutes };
 
 export interface BuildAppOptions {
   itemRepo?: ItemRepository;
+  zoteroClient?: TranslationClient;
 }
+
+/** @deprecated use BuildAppOptions */
+export type AppOptions = BuildAppOptions;
 
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -27,7 +32,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 
   await fastify.register(healthRoutes);
   await fastify.register(cslRoutes);
-  await fastify.register(zoteroRoutes);
+  await fastify.register(zoteroRoutes, { client: options.zoteroClient });
   await fastify.register(createItemRoutes(options.itemRepo));
 
   return fastify;

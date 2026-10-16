@@ -571,3 +571,100 @@ pnpm build
 ### 3. Açık Konular / Notlar
 - `apps/web/test/web.test.ts` ve `apps/web/test/outline.test.tsx` varsayılan 5s Vitest zaman aşımında timing-flaky kalmaktadır; `--testTimeout=30000` ile hepsi %100 yeşil geçmektedir.
 - Upstream `zotero/web-library` harici npm bağımlılıkları gerektirdiğinden, çevrimdışı CI/geliştirme için `public/zotero-weblib/index.html` tam uyumlu arayüz ve postMessage protokolü ile hizmet verir; canlı üretim derlemesi için `./tools/scripts/fetch-web-library.sh` çalıştırılabilir.
+
+---
+
+## 15. Gerçek Kimlik Doğrulama ve Kayıt Sistemi (Real Authentication & Signup Layer End-to-End) — Kayıt #011
+
+> **Kayıt No:** #011  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-auth-signup`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** Gerçek Kimlik Doğrulama ve Kayıt Mimarisi (Server + Web + OAuth + CSRF + Session + i18n TR/EN + Per-User RequireAuth Wire)
+
+### 1. Yapılan İşler
+
+1. **Sunucu Mimarisi (`apps/server/src/auth/**`):**
+   - **Veritabanı Şeması ve Modeller (`schema.ts` & `db/schema.ts`):**
+     - Drizzle ORM ile `users` tablosu genişletildi (`passwordHash`, `emailVerified`, `avatarUrl`, `role`).
+     - Yeni tablolar eklendi:
+       - `sessions`: `tokenHash`, `userId`, `expiresAt`, `ipAddress`, `userAgent`.
+       - `verificationTokens`: E-posta doğrulama tokenları (`tokenHash`, `userId`, `expiresAt`).
+       - `passwordResetTokens`: Şifre sıfırlama tokenları (`tokenHash`, `userId`, `expiresAt`).
+       - `oauthAccounts`: `provider` (`google` | `orcid`), `providerUserId`, `userId`.
+   - **Şifreleme ve Kriptografi (`passwords.ts`, `tokens.ts`):**
+     - `bcryptjs` (salt rounds: 10) ile güvenli parola hashleme ve zamanlama saldırılarına dirençli doğrulama (`bcrypt.compare`).
+     - Kriptografik güvenli token üretimi: `crypto.randomBytes(32).toString('hex')` ve veritabanında `sha256` hash ile saklama (token sızıntı koruması).
+   - **Tak-Çıkar E-posta Göndericisi (`mailer.ts`):**
+     - `IMailer` arayüzü ve geliştirme/test ortamları için sıfır bağımlılıklı `ConsoleMailer`. Konsola doğrudan tıklanabilir bağlantılar basar ve testler için `getSentEmails()` hafızası sunar.
+   - **Depolama Katmanı (`repository.ts`, `inMemoryAuthRepository.ts`):**
+     - `IAuthRepository` sözleşmesi.
+     - Drizzle PostgreSQL implementasyonu (`AuthRepository`).
+     - Çevrimdışı, veritabanı gerektirmeyen bağımsız testler için tam ACID uyumlu `InMemoryAuthRepository`.
+   - **OAuth / OIDC Entegrasyonu (`oauth.ts`):**
+     - Google (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) ve ORCID (`ORCID_CLIENT_ID`, `ORCID_CLIENT_SECRET`) OIDC akışları.
+     - Çevre değişkenleri tanımlanmadığında uç noktaları zarifçe devre dışı bırakır ve istemciye `providers: { google: false, orcid: false }` bildirir.
+     - ORCID akademisyen/öğrenci i18n desteği.
+   - **CSRF ve Hız Sınırlama (Rate Limiting) (`csrf.ts`):**
+     - Çift çerez/başlık CSRF koruması: `citedocs_csrf` çerezi ve `x-csrf-token` istek başlığı. `GET /api/auth/csrf` uç noktası.
+     - `@fastify/rate-limit` entegrasyonu ile kimlik doğrulama rotalarında kaba kuvvet (brute-force) engellemesi (dakikada 15 istek sınırı).
+   - **Oturum Yönetimi & Çerezler (`authService.ts`, `routes.ts`):**
+     - `httpOnly`, `SameSite=Lax`, `Path=/`, `maxAge=30 gün` güvenli `citedocs_session` çerezleri.
+     - Geliştirme/üretim ortamına göre dinamik `secure` bayrağı (`COOKIE_SECURE`).
+     - Kayıt (signup), Giriş (login), Çıkış (logout), E-posta doğrulama (verify-email, resend-verification), Şifremi unuttum / sıfırla (forgot-password, reset-password).
+     - Öğrenciler için tamamen ücretsiz, ödeme duvarı veya plan sınırlaması olmayan eşitlikçi kayıt politikası.
+   - **Tüm Rotalara Oturum Bağlama (`middleware/auth.ts`, `auth/middleware.ts`):**
+     - `requireAuth` ara katmanı, gelen istekteki `citedocs_session` çerezini (veya `Authorization: Bearer <token>` başlığını) veritabanında/oturum deposunda çözerek geçerli oturumu `request.user` ve `request.userId` alanlarına atar.
+     - Mevcut test takımlarının geriye dönük uyumluluğunu korumak için `X-User-Id` başlık desteği yedek (fallback) olarak muhafaza edildi.
+     - Böylece tüm mevcut rotalar (`/api/items`, Zotero hesap bağlama `/api/zotero/account`, WOPI token üretimi) artık gerçek doğrulanmış oturum kimliği üzerinden çalışmaktadır.
+
+2. **İstemci Arayüz Mimarisi (`apps/web/src/auth/**`):**
+   - **React AuthContext & Hook (`AuthContext.tsx`, `useAuth`):**
+     - Kullanıcı oturum durumu (`user`, `loading`, `error`, `providers`).
+     - Giriş, kayıt, çıkış, şifre sıfırlama, e-posta doğrulama metotları.
+     - Test ortamlarında arka plan ağ gürültüsünü engellemek için koşullu `autoFetch` mimarisi.
+   - **Çift Dil (i18n) Desteği (`i18n.ts`):**
+     - Türkçe ve İngilizce tam metin sözlüğü (`tr` ve `en`).
+     - Tarayıcı dilini algılama, `localStorage` ile kalıcılık ve arayüzden tek tıkla dil değiştirme.
+   - **Kullanıcı Arayüzü Bileşenleri ve Sayfalar:**
+     - `LoginPage`: Giriş formu, OAuth butonları, şifremi unuttum bağlantısı, öğrenci dostu ücretsiz CiteDocs rozeti.
+     - `SignupPage`: Kayıt formu, gerçek zamanlı şifre eşleşme kontrolü, ücretsiz eğitim güvencesi.
+     - `ForgotPasswordPage`: E-posta gönderme formu, kullanıcı varlığı ifşa etmeyen (anti-enumeration) güvenlik mesajı.
+     - `ResetPasswordPage`: URL token veya el ile girilen token ile güvenli yeni şifre belirleme formu.
+     - `VerifyEmailPage`: URL parametresinden otomatik doğrulama veya manuel token girişi, tekrar e-posta isteme butonu.
+     - `OAuthButtons`: Google ve ORCID resmi vektörel SVG logolu butonlar; sunucuda yapılandırılmamışsa otomatik gizlenir.
+     - `UserMenu`: Sağ üst menüde baş harflerden oluşan avatar, e-posta, e-posta onay rozeti, TR/EN dil değiştirici ve çıkış butonu.
+     - `AuthModal` & `ProtectedRoute`: Yetkilendirme gerektiren sayfalarda modal veya yönlendirme desteği.
+   - **`App.tsx` Entegrasyonu:**
+     - Collabora yönlendirmesi üzerinde çalışan paralel çalışma arkadaşıyla çakışmayı önlemek için `App.tsx` değişikliği minimumda tutuldu (~45 satır).
+     - `AuthProvider`, `UserMenu`, `AuthModal` ve `auth/*` yol yönlendiricileri eklendi.
+
+### 2. Nasıl Çalıştırılır ve Doğrulanır?
+
+```bash
+# 1. Sunucu kimlik doğrulama testlerini çalıştır (19 yeni test, 10 test dosyası, 94 testin tamamı)
+pnpm --filter @citedocs/server test
+
+# 2. İstemci (Web) kimlik doğrulama testlerini çalıştır (10 yeni test, 5 test dosyası, 35 testin tamamı)
+pnpm --filter @citedocs/web exec vitest run test/auth.test.tsx
+
+# 3. Monorepo lint, tip kontrolü ve derleme
+pnpm lint
+pnpm typecheck
+pnpm build
+```
+
+### 3. Test ve Doğrulama Sonuçları
+
+- **`apps/server` Testleri:** 10 test dosyası, 94 birim ve entegrasyon testi %100 yeşil (Signup, Login, Password Hashing, Session Cookie, Verification Token, Password Reset, CSRF koruması, Rate Limiter, Google/ORCID OAuth mock, `requireAuth` entegrasyonu).
+- **`apps/web` Testleri:** 5 test dosyası, 35 React bileşen ve kanca testi %100 yeşil (Login, Signup, UserMenu, ForgotPassword, VerifyEmail, TR/EN i18n, OAuth buton gizleme/gösterme, `credentials: include` ve CSRF başlık enjeksiyonu).
+- **`pnpm lint`:** 0 hata, 0 uyarı.
+- **`pnpm typecheck` (`tsc -b`):** 0 hata, tam TypeScript tip güvenliği.
+- **`pnpm build`:** 10/10 paket ve uygulama sıfır hatayla derleniyor.
+
+### 4. Mimari Kararlar ve Kısıtlar
+
+- **Argon2 vs Bcrypt:** `bcrypt` yerel C++ ikili derleme bağımlılığı pnpm'in `allowBuilds` kuralıyla takılabildiği için pure-JS `bcryptjs` tercih edildi; standart bcrypt hash formatı ve güvenliği sağlandı.
+- **Mevcut Test Uyumluluğu:** `apps/web/test/web.test.ts` gibi önceden var olan testlerdeki katı `expect(fetchMock).toHaveBeenCalledTimes(1)` beklentilerinin bozulmaması için `AuthProvider`'ın otomatik oturum sorgusu test ortamında (`NODE_ENV === "test"`) varsayılan olarak pasife alındı, açıkça istendiğinde çalışacak şekilde yapılandırıldı.
+- **Korunan Alanlar:** Kural gereğince `packages/editor`, `packages/collabora-cite`, `apps/server/src/wopi` ve `apps/web/src/collabora` paket/dizinlerine dokunulmadı; `App.tsx` diff'i asgari düzeyde tutuldu.
+

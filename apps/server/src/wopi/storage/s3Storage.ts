@@ -55,6 +55,7 @@ export class S3WopiStorage implements WopiStorage {
 
     if (options.client) {
       this.client = options.client;
+      this.bucketChecked = true;
     } else {
       const endpoint = options.endpoint || process.env.S3_ENDPOINT || "http://localhost:9000";
       const region = options.region || process.env.S3_REGION || "us-east-1";

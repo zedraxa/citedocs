@@ -92,6 +92,14 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
 }
 
 async function start() {
+  if (process.env.DATABASE_URL) {
+    try {
+      const { runMigrations } = await import("./db/migrate.js");
+      await runMigrations();
+    } catch (e) {
+      console.warn("Database auto-migration warning:", e);
+    }
+  }
   const app = await buildApp();
   const apiPort = parseInt(process.env.PORT || "3000", 10);
   const collabPort = parseInt(process.env.COLLAB_PORT || "1234", 10);

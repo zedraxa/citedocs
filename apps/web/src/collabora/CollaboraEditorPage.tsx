@@ -51,6 +51,11 @@ export function CollaboraEditorPage({
       (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) ||
     "http://localhost:3000";
 
+  const currentUserId =
+    (typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("userId")
+      : null) || "00000000-0000-0000-0000-000000000001";
+
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -62,7 +67,7 @@ export function CollaboraEditorPage({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-User-Id": "yusuf-kavak",
+            "X-User-Id": currentUserId,
           },
           body: JSON.stringify({
             userName: "Yusuf Kavak",
@@ -282,7 +287,7 @@ export function CollaboraEditorPage({
         {/* Zotero Web Library Sidebar */}
         {showZoteroSidebar && (
           <ZoteroSidebar
-            userId="yusuf-kavak"
+            userId={currentUserId}
             isOpen={showZoteroSidebar}
             onClose={() => setShowZoteroSidebar(false)}
             onCiteItem={handleCiteItem}
@@ -305,7 +310,7 @@ export function CollaboraEditorPage({
             </div>
             <div className="p-4">
               <AddByIdentifier
-                userId="yusuf-kavak"
+                userId={currentUserId}
                 apiUrl={apiBaseUrl}
                 onCiteItem={(item) => {
                   handleCiteItem(item);

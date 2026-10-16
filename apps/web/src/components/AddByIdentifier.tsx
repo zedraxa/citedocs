@@ -26,7 +26,7 @@ export function resolveApiUrl(customUrl?: string): string {
   const envUrl =
     typeof import.meta !== "undefined" &&
     (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL;
-  return (envUrl || "http://localhost:3000").replace(/\/$/, "");
+  return (envUrl || "http://localhost:3001").replace(/\/$/, "");
 }
 
 export function resolveUserId(customUserId?: string): string {

@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import {
   LogOut,
-  CheckCircle2,
-  AlertTriangle,
   Globe,
   LogIn,
   UserPlus,
@@ -129,38 +127,6 @@ export function UserMenu({ currentUser }: UserMenuProps) {
                 </p>
               )}
             </div>
-          </div>
-
-          {/* Verification Status */}
-          <div className="px-4 py-2.5 border-b border-gray-100">
-            {user?.emailVerified ? (
-              <div
-                data-testid="user-verification-badge"
-                className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 px-2.5 py-1 rounded-lg border border-green-200 font-medium"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
-                <span>{t("verifiedBadge")}</span>
-              </div>
-            ) : (
-              <div
-                data-testid="user-verification-badge"
-                className="flex items-center justify-between gap-1 text-xs text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 font-medium"
-              >
-                <div className="flex items-center gap-1.5 truncate">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                  <span className="truncate">{t("unverifiedBadge")}</span>
-                </div>
-                <button
-                  onClick={() => {
-                    setDropdownOpen(false);
-                    openModal("verify-email");
-                  }}
-                  className="text-[11px] font-bold text-blue-700 hover:underline flex-shrink-0 cursor-pointer ml-1"
-                >
-                  {t("verifyNow")}
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Action Items */}

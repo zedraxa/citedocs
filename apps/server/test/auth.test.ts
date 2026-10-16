@@ -151,7 +151,7 @@ describe("Authentication & Signup System (apps/server)", () => {
       expect(JSON.parse(weakPassword.body).error).toBe("WEAK_PASSWORD");
     });
 
-    it("registers a student, issues session cookie, and sends verification email", async () => {
+    it("registers a student as verified and issues session cookie (no verification email)", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/api/auth/signup",
@@ -167,19 +167,15 @@ describe("Authentication & Signup System (apps/server)", () => {
       expect(data.user.id).toBeDefined();
       expect(data.user.email).toBe("yusuf@campus.edu");
       expect(data.user.displayName).toBe("Yusuf Researcher");
-      expect(data.user.emailVerified).toBe(false);
+      expect(data.user.emailVerified).toBe(true);
       expect(data.user.passwordHash).toBeUndefined(); // Never leaked
 
       // Check session cookie
       const cookies = parseCookies(res);
       expect(cookies.citedocs_session).toBeDefined();
 
-      // Check verification email was dispatched
-      expect(mailer.sentEmails.length).toBe(1);
-      const email = mailer.getLastEmail()!;
-      expect(email.to).toBe("yusuf@campus.edu");
-      expect(email.type).toBe("verification");
-      expect(email.url).toContain("/verify-email?token=");
+      // Email verification is disabled: no email is sent
+      expect(mailer.sentEmails.length).toBe(0);
     });
 
     it("prevents duplicate registration with HTTP 409 Conflict", async () => {
@@ -281,61 +277,6 @@ describe("Authentication & Signup System (apps/server)", () => {
 
       expect(res.statusCode).toBe(200);
       expect(JSON.parse(res.body).user.email).toBe("student@uni.edu");
-    });
-  });
-
-  describe("Email Verification Flow", () => {
-    it("verifies user email address and marks account as verified", async () => {
-      await app.inject({
-        method: "POST",
-        url: "/api/auth/signup",
-        payload: { email: "verify@uni.edu", password: "Password123!" },
-      });
-
-      const sentEmail = mailer.getLastEmail()!;
-      const token = sentEmail.token;
-      expect(token).toBeDefined();
-
-      const verifyRes = await app.inject({
-        method: "POST",
-        url: "/api/auth/verify-email",
-        payload: { token },
-      });
-
-      expect(verifyRes.statusCode).toBe(200);
-      const data = JSON.parse(verifyRes.body);
-      expect(data.success).toBe(true);
-      expect(data.user.emailVerified).toBe(true);
-
-      // Re-using token must fail
-      const repeatRes = await app.inject({
-        method: "POST",
-        url: "/api/auth/verify-email",
-        payload: { token },
-      });
-      expect(repeatRes.statusCode).toBe(400);
-    });
-
-    it("resends verification email upon request", async () => {
-      const signupRes = await app.inject({
-        method: "POST",
-        url: "/api/auth/signup",
-        payload: { email: "resend@uni.edu", password: "Password123!" },
-      });
-      const sessionToken = parseCookies(signupRes).citedocs_session;
-      mailer.clear();
-
-      const resendRes = await app.inject({
-        method: "POST",
-        url: "/api/auth/resend-verification",
-        headers: {
-          cookie: `citedocs_session=${sessionToken}`,
-        },
-      });
-
-      expect(resendRes.statusCode).toBe(200);
-      expect(mailer.sentEmails.length).toBe(1);
-      expect(mailer.getLastEmail()?.to).toBe("resend@uni.edu");
     });
   });
 

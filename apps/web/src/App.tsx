@@ -44,7 +44,6 @@ import {
   SignupPage,
   ForgotPasswordPage,
   ResetPasswordPage,
-  VerifyEmailPage,
 } from "./auth/index.js";
 import { PdfReaderPanel, type PdfAttachment } from "./pdf/index.js";
 
@@ -971,11 +970,7 @@ export function App() {
         <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
           <ResetPasswordPage standalone />
         </div>
-      ) : path === "/verify-email" ? (
-        <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
-          <VerifyEmailPage standalone />
-        </div>
-      ) : path === "/documents" ? (
+      ) : path === "/documents" || path === "/verify-email" ? (
         <DocumentsPage
           onOpenDocument={(doc) => {
             window.location.href = `/?editor=collabora&doc=${doc.id}&title=${encodeURIComponent(doc.title)}`;

@@ -104,20 +104,9 @@ export class AuthService {
       email,
       passwordHash: hashedPassword,
       displayName: input.displayName?.trim() || email.split("@")[0],
-      emailVerified: false,
+      // Email verification is disabled: accounts are usable immediately after signup.
+      emailVerified: true,
     });
-
-    // Generate email verification token (valid for 24h)
-    const verificationToken = generateVerificationToken();
-    const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await this.authRepo.createVerificationToken({
-      userId: userRecord.id,
-      token: verificationToken,
-      expiresAt: verificationExpiry,
-    });
-
-    const verifyUrl = `${this.clientBaseUrl}/verify-email?token=${verificationToken}`;
-    await this.mailer.sendVerificationEmail(email, verificationToken, verifyUrl);
 
     // Create session
     const sessionToken = generateSessionToken();

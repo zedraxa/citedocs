@@ -9,6 +9,9 @@ import {
   updateBibliographyField,
   setZoteroPrefs,
   escapeHtml,
+  saveCursor,
+  restoreCursor,
+  deleteCitationField,
 } from "./zoteroUno.js";
 import {
   FileText,
@@ -158,6 +161,8 @@ export function CollaboraEditorPage({
   // Citation & CSL Engine state
   const [activeStyleId, setActiveStyleId] = useState("apa");
   const [documentCitations, setDocumentCitations] = useState<DocumentCitationItem[]>([]);
+  const citationsRef = useRef<DocumentCitationItem[]>([]);
+  citationsRef.current = documentCitations;
   const [hasBibliography, setHasBibliography] = useState(false);
   const [bibliographyEntries, setBibliographyEntries] = useState<string[]>([]);
   const [bibliographyMarkName, setBibliographyMarkName] = useState<string | null>(null);
@@ -189,7 +194,19 @@ export function CollaboraEditorPage({
       insertCitation: (payload: ZoteroCitationPayload, text: string, _suffix?: string) =>
         insertCitationField(f, payload, text),
       updateCitation: noop,
-      removeCitation: noop,
+      removeCitation: (markName: string) => {
+        const list = citationsRef.current;
+        const target = list.find((c) => c.markName === markName);
+        const id = target?.payload?.citationID;
+        if (!target || !id) return;
+        saveCursor(f);
+        deleteCitationField(
+          f,
+          list.map((c) => ({ payload: c.payload, text: c.markName === markName ? "" : c.formattedText })),
+          id,
+        );
+        restoreCursor(f);
+      },
       insertBibliography: noop,
       updateBibliography: noop,
       setDocumentPrefs: noop,
@@ -255,6 +272,10 @@ export function CollaboraEditorPage({
   const rewriteCitationsRef = useRef(false);
   useEffect(() => {
     if (!documentLoaded || !syncReadyRef.current || !frameRef.current) return;
+    const willBib = hasBibliography && documentCitations.length > 0;
+    setZoteroPrefs(frameRef.current, activeStyleId, hasBibliography);
+    if (!rewriteCitationsRef.current && !willBib) return;
+    saveCursor(frameRef.current);
     if (rewriteCitationsRef.current) {
       rewriteCitationsRef.current = false;
       updateCitationFields(
@@ -269,7 +290,7 @@ export function CollaboraEditorPage({
         // ignore citeproc errors
       }
     }
-    setZoteroPrefs(frameRef.current, activeStyleId, hasBibliography);
+    restoreCursor(frameRef.current);
   }, [documentCitations, hasBibliography, activeStyleId, documentLoaded]);
 
   // Restore citation state from the fields stored in the saved document.

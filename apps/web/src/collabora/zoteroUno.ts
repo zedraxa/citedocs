@@ -16,10 +16,16 @@ export const CITATION_PREFIX = "ADDIN ZOTERO_ITEM CSL_CITATION";
 export const BIBL_PREFIX = "ADDIN ZOTERO_BIBL";
 const BIBL_CODE = `${BIBL_PREFIX} {"uncited":[],"omitted":[],"custom":[]} CSL_BIBLIOGRAPHY`;
 
+/** citationID is always serialized first so a single field can be addressed by command prefix. */
+function citationJson(payload: unknown) {
+  const p = (payload || {}) as Record<string, unknown>;
+  return JSON.stringify("citationID" in p ? { citationID: p.citationID, ...p } : p);
+}
+
 export function citationFieldArgs(payload: unknown, text: string) {
   return {
     FieldType: S(FIELD_TYPE),
-    FieldCommand: S(`${CITATION_PREFIX} ${JSON.stringify(payload)}`),
+    FieldCommand: S(`${CITATION_PREFIX} ${citationJson(payload)}`),
     FieldResult: S(text),
   };
 }
@@ -47,9 +53,38 @@ export function updateCitationFields(t: Target, list: Array<{ payload: unknown; 
       value: list.map((c) => citationFieldArgs(c.payload, c.text)),
     },
   });
-  // Updating fields leaves the cursor inside the last updated field result.
-  sendUnoCommand(t, ".uno:GoRight");
-  return true;
+}
+
+/**
+ * Bulk field rewrites leave a selection/cursor at the last rewritten field (often the bibliography),
+ * and typing then hits "Read-Only Content" or replaces text. Wrap them: drop a temporary bookmark at
+ * the user's cursor, then jump back to it (via start-of-doc, which clears the selection) and remove it.
+ */
+const CURSOR_MARK = "_citedocs_cursor";
+export function saveCursor(t: Target) {
+  sendUnoCommand(t, ".uno:InsertBookmark", { Bookmark: S(CURSOR_MARK) });
+}
+export function restoreCursor(t: Target) {
+  sendUnoCommand(t, ".uno:GoToStartOfDoc");
+  sendUnoCommand(t, ".uno:JumpToMark", { Bookmark: S(CURSOR_MARK) });
+  sendUnoCommand(t, ".uno:DeleteBookmark", { Bookmark: S(CURSOR_MARK) });
+}
+
+/**
+ * Deletes one citation field (field + its visible text). `list` is every citation in document order,
+ * with the target's text set to "": the bulk rewrite empties the target's result, then the target is
+ * deleted by its unique command prefix (citationID is serialized first).
+ */
+export function deleteCitationField(
+  t: Target,
+  list: Array<{ payload: unknown; text: string }>,
+  citationID: string,
+) {
+  updateCitationFields(t, list);
+  return sendUnoCommand(t, ".uno:DeleteTextFormFields", {
+    FieldType: S(FIELD_TYPE),
+    FieldCommandPrefix: S(`${CITATION_PREFIX} {"citationID":${JSON.stringify(citationID)},`),
+  });
 }
 
 /** Inserts the bibliography field at the end of the document. */
@@ -67,8 +102,6 @@ export function updateBibliographyField(t: Target, html: string) {
     FieldCommandPrefix: S(BIBL_PREFIX),
     Fields: { type: "[][]com.sun.star.beans.PropertyValue", value: [bibliographyFieldArgs(html)] },
   });
-  sendUnoCommand(t, ".uno:GoRight");
-  return true;
 }
 
 export function zoteroPrefsXml(styleId: string, hasBibliography: boolean, locale = "en-US") {

@@ -1,5 +1,7 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
+import cookie from "@fastify/cookie";
+import rateLimit from "@fastify/rate-limit";
 import type { TranslationClient } from "@citedocs/zotero-core";
 import { healthRoutes } from "./routes/health.js";
 import { cslRoutes } from "./routes/csl.js";
@@ -22,10 +24,22 @@ import { ZoteroProxyService } from "./zotero/proxyService.js";
 import { ZoteroOAuthService } from "./zotero/oauthService.js";
 import { ZoteroCredentialRepository } from "./repositories/zoteroRepository.js";
 
+import {
+  AuthService,
+  AuthRepository,
+  InMemoryAuthRepository,
+  createMailer,
+  authRoutes,
+  type IAuthRepository,
+  type Mailer,
+  type OAuthService,
+} from "./auth/index.js";
+
 export * from "./db/index.js";
 export * from "./repositories/index.js";
 export * from "./zotero/index.js";
 export * from "./wopi/index.js";
+export * from "./auth/index.js";
 export { createItemRoutes, itemRoutes };
 
 export interface BuildAppOptions {
@@ -40,6 +54,12 @@ export interface BuildAppOptions {
   discoveryService?: CollaboraDiscoveryService;
   secretKey?: string;
   serverUrl?: string;
+  authRepo?: IAuthRepository;
+  authService?: AuthService;
+  mailer?: Mailer;
+  oauthService?: OAuthService;
+  enableCsrf?: boolean;
+  enableRateLimit?: boolean;
 }
 
 /** @deprecated use BuildAppOptions */
@@ -55,8 +75,40 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     credentials: true,
   });
 
+  await fastify.register(cookie);
+
+  if (options.enableRateLimit !== false && process.env.NODE_ENV !== "test") {
+    await fastify.register(rateLimit, {
+      global: false,
+    });
+  } else if (options.enableRateLimit) {
+    await fastify.register(rateLimit, {
+      global: false,
+    });
+  }
+
   const itemRepo = options.itemRepo || new ItemRepository();
   const credentialRepo = options.zoteroCredentialRepo || new ZoteroCredentialRepository();
+
+  const mailer = options.mailer || createMailer();
+  const authRepo =
+    options.authRepo ||
+    (process.env.DATABASE_URL ? new AuthRepository() : new InMemoryAuthRepository());
+  const authService =
+    options.authService ||
+    new AuthService({
+      authRepo,
+      mailer,
+      oauthService: options.oauthService,
+    });
+
+  fastify.decorate("authService", authService);
+
+  await fastify.register(authRoutes, {
+    authService,
+    enableCsrf: options.enableCsrf,
+    enableRateLimit: options.enableRateLimit,
+  });
 
   await fastify.register(healthRoutes);
   await fastify.register(cslRoutes);

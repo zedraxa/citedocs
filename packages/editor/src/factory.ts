@@ -6,7 +6,10 @@ import { Collaboration } from "@tiptap/extension-collaboration";
 import { CollaborationCaret } from "@tiptap/extension-collaboration-caret";
 import type { Schema } from "@tiptap/pm/model";
 import type { Doc, XmlFragment } from "yjs";
+import type { CSLEngine } from "@citedocs/csl-engine";
+import type { CSLItem } from "@citedocs/shared";
 import { Citation } from "./extensions/citation.js";
+import { Bibliography, type BibliographyOptions } from "./extensions/bibliography.js";
 
 export interface CollabUser {
   name: string;
@@ -33,13 +36,19 @@ export interface EditorExtensionOptions {
   field?: string;
   user?: CollabUser;
   collab?: CollabExtensionOptions;
+  bibliography?: boolean | Partial<BibliographyOptions>;
+  enableBibliography?: boolean;
+  cslEngine?: CSLEngine;
+  cslItems?: CSLItem[];
+  cslStyleId?: string;
+  cslLang?: string;
 }
 
 /**
  * Creates the standard CiteDocs TipTap v3 extension bundle.
  * Includes: Document, Paragraph, Heading (1-6), BulletList, OrderedList,
  * ListItem, Blockquote, CodeBlock, Marks (Bold, Italic, Underline, Strike, Link, Code),
- * TextAlign, Placeholder, and the custom Citation atom node.
+ * TextAlign, Placeholder, the custom Citation atom node, and the live Bibliography node.
  *
  * When a collaboration provider is passed (either via `options.provider` or
  * `options.collab.provider`), Collaboration (Y.Doc fragment) and
@@ -74,6 +83,24 @@ export function createEditorExtensions(options: EditorExtensionOptions = {}): An
     }),
     Citation,
   ];
+
+  const enableBibliography =
+    options.enableBibliography !== false && options.bibliography !== false;
+
+  if (enableBibliography) {
+    const bibOptions: Partial<BibliographyOptions> =
+      typeof options.bibliography === "object" ? options.bibliography : {};
+
+    extensions.push(
+      Bibliography.configure({
+        engine: options.cslEngine ?? bibOptions.engine,
+        items: options.cslItems ?? bibOptions.items ?? [],
+        styleId: options.cslStyleId ?? bibOptions.styleId ?? "apa",
+        lang: options.cslLang ?? bibOptions.lang ?? "en-US",
+        autoUpdate: bibOptions.autoUpdate ?? true,
+      }),
+    );
+  }
 
   if (isCollab) {
     const document =

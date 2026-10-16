@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@citedocs/shared": "workspace:*",
+    "@citedocs/csl-engine": "workspace:*",
     "@tiptap/core": "^3.32.0",
     "@tiptap/extension-collaboration": "^3.32.0",
     "@tiptap/extension-collaboration-caret": "^3.32.0",

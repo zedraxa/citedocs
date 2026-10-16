@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import { createEditorExtensions } from "@citedocs/editor";
 import {
   FileText,
   Share2,
@@ -8,7 +10,8 @@ import {
   Printer,
   Bold,
   Italic,
-  Underline,
+  Underline as UnderlineIcon,
+  Strikethrough,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -21,8 +24,22 @@ import {
   ChevronDown,
   Search,
   BookMarked,
-  Highlighter,
+  Quote,
+  Code,
 } from "lucide-react";
+
+const INITIAL_CONTENT = `
+<h1 style="text-align: center">Scientific Writing Assignment: Quantum Gravity &amp; Spacetime</h1>
+<p style="text-align: center"><em>Yusuf Kavak &bull; Scientific Writing Class &bull; October 2026</em></p>
+<h2>1. Introduction</h2>
+<p>The reconciliation of general relativity and quantum mechanics remains one of the preeminent foundational problems in modern theoretical physics. As articulated in early foundational paradoxes <span data-citation-id="einstein1935" data-items='[{"id":"einstein1935","locator":"777"}]'>(Einstein, Podolsky, &amp; Rosen, 1935, p. 777)</span>, local realism imposes severe constraints on wave function collapse dynamics. Furthermore, thermodynamic properties of gravitational horizons imply that quantum fluctuations lead directly to particle emission <span data-citation-id="hawking1974" data-items='[{"id":"hawking1974"}]'>(Hawking, 1974)</span>.</p>
+<h2>2. Autonomous Systems &amp; Collaborative CRDTs</h2>
+<p>Recent breakthroughs in autonomous collaborative word processors have demonstrated decisive structural improvements in scientific manuscript workflows <span data-citation-id="kavak2026" data-items='[{"id":"kavak2026"}]'>(Kavak, 2026)</span>. The integration of citation clusters directly into the document AST guarantees citation integrity across collaborative editing sessions.</p>
+<h2>5. References</h2>
+<p>Einstein, A., Podolsky, B., &amp; Rosen, N. (1935). Can quantum-mechanical description of physical reality be considered complete? <em>Physical Review</em>, 47(10), 777–780. https://doi.org/10.1103/PhysRev.47.777</p>
+<p>Hawking, S. W. (1974). Black hole explosions? <em>Nature</em>, 248(5443), 30–31. https://doi.org/10.1038/248030a0</p>
+<p>Kavak, Y. (2026). Autonomous scientific writing systems &amp; collaborative CRDTs. <em>Journal of Open Scientific Systems</em>, 12(3), 45–62.</p>
+`;
 
 export function App() {
   const [docTitle, setDocTitle] = useState(
@@ -52,6 +69,115 @@ export function App() {
     },
   ];
 
+  // TipTap Editor instance
+  const editor = useEditor({
+    extensions: createEditorExtensions({
+      placeholder: "Start typing your academic paper, or click 'Add Citation' to cite...",
+    }),
+    content: INITIAL_CONTENT,
+    editable: mode !== "viewing",
+  });
+
+  // Calculate live statistics
+  const docText = editor?.getText() || "";
+  const wordCount = useMemo(() => {
+    const trimmed = docText.trim();
+    return trimmed ? trimmed.split(/\s+/).length : 0;
+  }, [docText]);
+  const charCount = docText.length;
+  const readTime = Math.max(1, Math.ceil(wordCount / 200));
+
+  // Extract outline headings from document state
+  const outlineHeadings = useMemo(() => {
+    if (!editor) return [];
+    const list: Array<{ id: number; text: string; level: number; pos: number }> = [];
+    let counter = 0;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "heading") {
+        list.push({
+          id: counter++,
+          text: node.textContent || `Heading ${node.attrs.level}`,
+          level: node.attrs.level,
+          pos,
+        });
+      }
+    });
+    return list;
+  }, [editor, docText]);
+
+  // Handle citation insert from Quick Citation Picker
+  const handleInsertCitation = (cite: {
+    id: string;
+    title: string;
+    authors: string;
+    year: string;
+  }) => {
+    if (!editor) return;
+    const authorShort = cite.authors.split(",")[0]?.trim() || cite.authors;
+    const formattedText = `(${authorShort}, ${cite.year})`;
+
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "citation",
+        attrs: {
+          citationId: `cit-${cite.id}-${Date.now()}`,
+          items: [{ id: cite.id }],
+          formattedText,
+          noteIndex: 0,
+        },
+      })
+      .run();
+
+    setCitationSearchOpen(false);
+  };
+
+  // Insert quote from PDF reader
+  const handleInsertQuote = () => {
+    if (!editor) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent([
+        {
+          type: "blockquote",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "“In this letter I describe a mechanism by which a black hole can emit radiation with a thermal spectrum...” ",
+                },
+                {
+                  type: "citation",
+                  attrs: {
+                    citationId: "hawking1974",
+                    items: [{ id: "hawking1974" }],
+                    formattedText: "(Hawking, 1974)",
+                    noteIndex: 0,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      ])
+      .run();
+  };
+
+  // Current heading selector value
+  const currentHeadingValue = editor?.isActive("heading", { level: 1 })
+    ? "h1"
+    : editor?.isActive("heading", { level: 2 })
+      ? "h2"
+      : editor?.isActive("heading", { level: 3 })
+        ? "h3"
+        : editor?.isActive("heading", { level: 4 })
+          ? "h4"
+          : "p";
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#f8f9fa] text-[#202124]">
       {/* 1. TOP HEADER & MENUBAR */}
@@ -69,7 +195,7 @@ export function App() {
                 className="text-base font-medium px-1.5 py-0.5 rounded border border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none max-w-md truncate"
               />
               <span className="text-xs text-gray-500 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> Saved to Zotero & Cloud
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> Saved to Zotero &amp; Cloud
               </span>
             </div>
             {/* Menu items */}
@@ -80,7 +206,10 @@ export function App() {
               <button className="hover:bg-gray-100 px-1 py-0.5 rounded">Insert</button>
               <button className="hover:bg-gray-100 px-1 py-0.5 rounded">Format</button>
               <button className="hover:bg-gray-100 px-1 py-0.5 rounded">Tools</button>
-              <button className="hover:bg-gray-100 px-1 py-0.5 rounded text-blue-700 font-semibold flex items-center gap-1">
+              <button
+                onClick={() => setCitationSearchOpen(true)}
+                className="hover:bg-gray-100 px-1 py-0.5 rounded text-blue-700 font-semibold flex items-center gap-1"
+              >
                 <BookOpen className="w-3 h-3 text-red-600" /> Zotero
               </button>
               <button className="hover:bg-gray-100 px-1 py-0.5 rounded">Help</button>
@@ -155,81 +284,222 @@ export function App() {
 
       {/* 2. GOOGLE DOCS STYLE ACTION TOOLBAR */}
       <div className="bg-[#edf2fa] border-b border-gray-300 px-4 py-1.5 flex items-center space-x-2 overflow-x-auto text-sm">
-        <button className="p-1 rounded hover:bg-white text-gray-700" title="Undo (Ctrl+Z)">
+        {/* Undo */}
+        <button
+          onClick={() => editor?.chain().focus().undo().run()}
+          disabled={!editor?.can().undo()}
+          className="p-1 rounded hover:bg-white text-gray-700 disabled:opacity-40 disabled:hover:bg-transparent"
+          title="Undo (Ctrl+Z)"
+        >
           <Undo2 className="w-4 h-4" />
         </button>
-        <button className="p-1 rounded hover:bg-white text-gray-700" title="Redo (Ctrl+Y)">
+
+        {/* Redo */}
+        <button
+          onClick={() => editor?.chain().focus().redo().run()}
+          disabled={!editor?.can().redo()}
+          className="p-1 rounded hover:bg-white text-gray-700 disabled:opacity-40 disabled:hover:bg-transparent"
+          title="Redo (Ctrl+Y)"
+        >
           <Redo2 className="w-4 h-4" />
         </button>
-        <button className="p-1 rounded hover:bg-white text-gray-700" title="Print (Ctrl+P)">
+
+        {/* Print */}
+        <button
+          onClick={() => window.print()}
+          className="p-1 rounded hover:bg-white text-gray-700"
+          title="Print (Ctrl+P)"
+        >
           <Printer className="w-4 h-4" />
         </button>
+
         <div className="h-4 w-[1px] bg-gray-300 mx-1" />
 
-        <select className="bg-transparent text-xs font-medium text-gray-800 px-2 py-1 rounded hover:bg-white focus:outline-none">
-          <option>Normal text</option>
-          <option>Title</option>
-          <option>Heading 1</option>
-          <option>Heading 2</option>
-          <option>Heading 3</option>
+        {/* Headings Dropdown */}
+        <select
+          value={currentHeadingValue}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val === "p") {
+              editor?.chain().focus().setParagraph().run();
+            } else if (val === "h1") {
+              editor?.chain().focus().setHeading({ level: 1 }).run();
+            } else if (val === "h2") {
+              editor?.chain().focus().setHeading({ level: 2 }).run();
+            } else if (val === "h3") {
+              editor?.chain().focus().setHeading({ level: 3 }).run();
+            } else if (val === "h4") {
+              editor?.chain().focus().setHeading({ level: 4 }).run();
+            }
+          }}
+          className="bg-transparent text-xs font-medium text-gray-800 px-2 py-1 rounded hover:bg-white focus:outline-none"
+        >
+          <option value="p">Normal text</option>
+          <option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+          <option value="h4">Heading 4</option>
         </select>
+
         <div className="h-4 w-[1px] bg-gray-300 mx-1" />
 
-        <select className="bg-transparent text-xs font-medium text-gray-800 px-2 py-1 rounded hover:bg-white focus:outline-none">
-          <option>Inter</option>
-          <option>Times New Roman</option>
-          <option>Georgia</option>
-          <option>Arial</option>
-        </select>
-        <div className="h-4 w-[1px] bg-gray-300 mx-1" />
-
+        {/* Bold */}
         <button
-          className="p-1 rounded hover:bg-white text-gray-800 font-bold"
+          onClick={() => editor?.chain().focus().toggleBold().run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive("bold") ? "bg-blue-100 text-blue-700 font-bold" : "hover:bg-white text-gray-800"
+          }`}
           title="Bold (Ctrl+B)"
         >
           <Bold className="w-4 h-4" />
         </button>
-        <button className="p-1 rounded hover:bg-white text-gray-800 italic" title="Italic (Ctrl+I)">
+
+        {/* Italic */}
+        <button
+          onClick={() => editor?.chain().focus().toggleItalic().run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive("italic")
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-800 italic"
+          }`}
+          title="Italic (Ctrl+I)"
+        >
           <Italic className="w-4 h-4" />
         </button>
+
+        {/* Underline */}
         <button
-          className="p-1 rounded hover:bg-white text-gray-800 underline"
+          onClick={() => editor?.chain().focus().toggleUnderline().run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive("underline")
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-800 underline"
+          }`}
           title="Underline (Ctrl+U)"
         >
-          <Underline className="w-4 h-4" />
+          <UnderlineIcon className="w-4 h-4" />
         </button>
-        <button className="p-1 rounded hover:bg-white text-yellow-600" title="Highlight">
-          <Highlighter className="w-4 h-4" />
+
+        {/* Strikethrough */}
+        <button
+          onClick={() => editor?.chain().focus().toggleStrike().run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive("strike")
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-800"
+          }`}
+          title="Strikethrough"
+        >
+          <Strikethrough className="w-4 h-4" />
         </button>
+
+        {/* Blockquote */}
+        <button
+          onClick={() => editor?.chain().focus().toggleBlockquote().run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive("blockquote")
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-700"
+          }`}
+          title="Blockquote"
+        >
+          <Quote className="w-4 h-4" />
+        </button>
+
+        {/* Code Block */}
+        <button
+          onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive("codeBlock")
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-700"
+          }`}
+          title="Code Block"
+        >
+          <Code className="w-4 h-4" />
+        </button>
+
         <div className="h-4 w-[1px] bg-gray-300 mx-1" />
 
-        <button className="p-1 rounded hover:bg-white text-gray-700">
+        {/* Text Alignments */}
+        <button
+          onClick={() => editor?.chain().focus().setTextAlign("left").run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive({ textAlign: "left" })
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-700"
+          }`}
+          title="Align Left"
+        >
           <AlignLeft className="w-4 h-4" />
         </button>
-        <button className="p-1 rounded hover:bg-white text-gray-700">
+        <button
+          onClick={() => editor?.chain().focus().setTextAlign("center").run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive({ textAlign: "center" })
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-700"
+          }`}
+          title="Align Center"
+        >
           <AlignCenter className="w-4 h-4" />
         </button>
-        <button className="p-1 rounded hover:bg-white text-gray-700">
+        <button
+          onClick={() => editor?.chain().focus().setTextAlign("right").run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive({ textAlign: "right" })
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-700"
+          }`}
+          title="Align Right"
+        >
           <AlignRight className="w-4 h-4" />
         </button>
-        <button className="p-1 rounded hover:bg-white text-gray-700">
+        <button
+          onClick={() => editor?.chain().focus().setTextAlign("justify").run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive({ textAlign: "justify" })
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-700"
+          }`}
+          title="Align Justify"
+        >
           <AlignJustify className="w-4 h-4" />
         </button>
+
         <div className="h-4 w-[1px] bg-gray-300 mx-1" />
 
-        <button className="p-1 rounded hover:bg-white text-gray-700">
+        {/* Bullet and Ordered Lists */}
+        <button
+          onClick={() => editor?.chain().focus().toggleBulletList().run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive("bulletList")
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-700"
+          }`}
+          title="Bulleted List"
+        >
           <List className="w-4 h-4" />
         </button>
-        <button className="p-1 rounded hover:bg-white text-gray-700">
+        <button
+          onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+          className={`p-1 rounded transition-colors ${
+            editor?.isActive("orderedList")
+              ? "bg-blue-100 text-blue-700 font-bold"
+              : "hover:bg-white text-gray-700"
+          }`}
+          title="Numbered List"
+        >
           <ListOrdered className="w-4 h-4" />
         </button>
+
         <div className="h-4 w-[1px] bg-gray-300 mx-1" />
 
         {/* ZOTERO CITATION QUICK BUTTON */}
         <button
           onClick={() => setCitationSearchOpen(true)}
           className="flex items-center space-x-1.5 bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded text-xs font-semibold shadow-sm transition-colors"
-          title="Add / Edit Citation (Ctrl+Shift+P)"
+          title="Add Citation (Ctrl+Shift+P)"
         >
           <BookMarked className="w-3.5 h-3.5" />
           <span>Add Citation</span>
@@ -258,83 +528,43 @@ export function App() {
               <span>Document Outline</span>
               <Bookmark className="w-3.5 h-3.5" />
             </div>
-            <ul className="space-y-2 text-sm text-gray-700">
-              <li className="font-semibold text-blue-600 cursor-pointer">1. Introduction</li>
-              <li className="pl-3 hover:text-blue-600 cursor-pointer text-gray-600">
-                1.1 Background & Motivation
-              </li>
-              <li className="pl-3 hover:text-blue-600 cursor-pointer text-gray-600">
-                1.2 Statement of Problem
-              </li>
-              <li className="font-semibold hover:text-blue-600 cursor-pointer">2. Related Works</li>
-              <li className="font-semibold hover:text-blue-600 cursor-pointer">
-                3. Theoretical Model
-              </li>
-              <li className="font-semibold hover:text-blue-600 cursor-pointer">4. Discussion</li>
-              <li className="font-semibold hover:text-blue-600 cursor-pointer">5. References</li>
-            </ul>
+            {outlineHeadings.length > 0 ? (
+              <ul className="space-y-2 text-sm text-gray-700">
+                {outlineHeadings.map((h) => (
+                  <li
+                    key={h.id}
+                    onClick={() => {
+                      editor?.chain().focus().setTextSelection(h.pos).run();
+                    }}
+                    className={`cursor-pointer hover:text-blue-600 truncate transition-colors ${
+                      h.level === 1
+                        ? "font-semibold text-gray-900"
+                        : h.level === 2
+                          ? "pl-3 text-gray-700"
+                          : "pl-6 text-gray-500 text-xs"
+                    }`}
+                  >
+                    {h.text}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-xs text-gray-400 italic">No headings yet. Add headings to outline.</p>
+            )}
           </aside>
         )}
 
-        {/* Center: Google Docs Style Paged Editor Canvas */}
+        {/* Center: Real Google Docs Style TipTap Editor Canvas */}
         <main className="flex-1 google-docs-canvas overflow-y-auto p-4 md:p-8 flex justify-center">
-          <div className="paged-sheet">
-            <h1 className="text-2xl font-bold mb-4 text-center">
-              Scientific Writing Assignment: Quantum Gravity & Spacetime
-            </h1>
-            <p className="text-center text-sm text-gray-600 mb-8">
-              Yusuf Kavak &bull; Scientific Writing Class &bull; October 2026
-            </p>
-
-            <h2 className="text-lg font-bold text-gray-800 mb-2">1. Introduction</h2>
-            <p className="text-justify leading-relaxed mb-4 text-[15px]">
-              The reconciliation of general relativity and quantum mechanics remains one of the
-              preeminent foundational problems in modern theoretical physics. As articulated in
-              early foundational paradoxes{" "}
-              <span className="citedocs-citation inline-block cursor-pointer px-1 rounded bg-blue-50 text-blue-800 hover:bg-blue-100 font-medium select-none transition-colors border border-blue-200">
-                (Einstein, Podolsky, &amp; Rosen, 1935, p. 777)
-              </span>
-              , local realism imposes severe constraints on wave function collapse dynamics.
-              Furthermore, thermodynamic properties of gravitational horizons imply that quantum
-              fluctuations lead directly to particle emission{" "}
-              <span className="citedocs-citation inline-block cursor-pointer px-1 rounded bg-blue-50 text-blue-800 hover:bg-blue-100 font-medium select-none transition-colors border border-blue-200">
-                (Hawking, 1974)
-              </span>
-              .
-            </p>
-
-            {/* Example Suggestion / Track Change */}
-            <div className="mb-4 text-justify leading-relaxed text-[15px]">
-              Recent breakthroughs in autonomous collaborative word processors{" "}
-              <span className="citedocs-suggestion-delete line-through decoration-red-500 decoration-2 text-red-700 bg-red-50/70 px-0.5">
-                have shown minor benefits
-              </span>{" "}
-              <span className="citedocs-suggestion-insert underline decoration-green-500 decoration-2 text-green-900 bg-green-50/70 px-0.5">
-                have demonstrated decisive structural improvements in scientific manuscript
-                workflows
-              </span>{" "}
-              <span className="citedocs-citation inline-block cursor-pointer px-1 rounded bg-blue-50 text-blue-800 hover:bg-blue-100 font-medium select-none transition-colors border border-blue-200">
-                (Kavak, 2026)
-              </span>
-              .
-            </div>
-
-            <h2 className="text-lg font-bold text-gray-800 mt-8 mb-2">5. References</h2>
-            <div className="csl-bib-body text-sm space-y-3 leading-relaxed border-t border-gray-200 pt-4">
-              <div className="csl-entry pl-6 -indent-6">
-                Einstein, A., Podolsky, B., &amp; Rosen, N. (1935). Can quantum-mechanical
-                description of physical reality be considered complete? <i>Physical Review</i>,
-                47(10), 777–780. https://doi.org/10.1103/PhysRev.47.777
-              </div>
-              <div className="csl-entry pl-6 -indent-6">
-                Hawking, S. W. (1974). Black hole explosions? <i>Nature</i>, 248(5443), 30–31.
-                https://doi.org/10.1038/248030a0
-              </div>
-              <div className="csl-entry pl-6 -indent-6">
-                Kavak, Y. (2026). Autonomous scientific writing systems &amp; collaborative CRDTs.{" "}
-                <i>Journal of Open Scientific Systems</i>, 12(3), 45–62.
-              </div>
-            </div>
+          <div
+            className="paged-sheet"
+            onClick={() => {
+              if (editor && !editor.isFocused) {
+                editor.commands.focus();
+              }
+            }}
+          >
+            <EditorContent editor={editor} />
           </div>
         </main>
 
@@ -362,7 +592,10 @@ export function App() {
                   &ldquo;In this letter I describe a mechanism by which a black hole can emit
                   radiation with a thermal spectrum...&rdquo;
                 </p>
-                <button className="w-full bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-300 py-1 rounded text-[11px] font-semibold mt-2">
+                <button
+                  onClick={handleInsertQuote}
+                  className="w-full bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-300 py-1 rounded text-[11px] font-semibold mt-2 transition-colors"
+                >
                   + Insert Quote into Document
                 </button>
               </div>
@@ -407,7 +640,7 @@ export function App() {
                 .map((cite) => (
                   <div
                     key={cite.id}
-                    onClick={() => setCitationSearchOpen(false)}
+                    onClick={() => handleInsertCitation(cite)}
                     className="p-3 hover:bg-blue-50 cursor-pointer flex flex-col text-left transition-colors"
                   >
                     <span className="text-xs font-semibold text-gray-800">{cite.title}</span>
@@ -424,9 +657,9 @@ export function App() {
       {/* 4. FOOTER STATUS BAR */}
       <footer className="bg-white border-t border-gray-200 px-4 py-1.5 flex items-center justify-between text-xs text-gray-500">
         <div className="flex items-center space-x-4">
-          <span>Words: 342</span>
-          <span>Characters: 2,145</span>
-          <span>Reading time: 2 min</span>
+          <span>Words: {wordCount}</span>
+          <span>Characters: {charCount}</span>
+          <span>Reading time: {readTime} min</span>
         </div>
         <div className="flex items-center space-x-3">
           <span className="flex items-center gap-1 text-green-700">

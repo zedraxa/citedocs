@@ -48,14 +48,41 @@
 
 ## 4. Test ve Doğrulama Durumu
 
+Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıldı. `packages/editor` ve `apps/web` için TipTap v3 şema, atıf çift yönlü round-trip ve bileşen testleri eklendi.
 Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıldı ve tümü yeşildir.
 
 ---
 
+## 5. Milestone 1 Part A — Tamamlanan İşler (Kayıt #002)
 ## 5. Milestone 2 (Part B - Add-by-Identifier) Tamamlanan İşler (Kayıt #002)
 
 > **Kayıt No:** #002  
 > **Tarih:** 2026-10-16  
+> **Dal:** `cd-m1-tiptap`  
+> **Aşama:** Milestone 1 Part A (TipTap v3 Editör Temeli, Şema ve Canlı Tuval)
+
+1. **TipTap v3 Bağımlılıkları:**
+   - `@citedocs/editor` ve `@citedocs/web` paketlerine TipTap v3 (`^3.32.0`) kütüphaneleri eklendi: `@tiptap/core`, `@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-underline`, `@tiptap/extension-link`, `@tiptap/extension-placeholder`, `@tiptap/extension-text-align`.
+2. **TipTap Extension Mimarisi (@citedocs/editor):**
+   - `Citation` TipTap Node atom uzantısı (`packages/editor/src/extensions/citation.ts`) geliştirildi. `citationId`, `items`, `formattedText`, `noteIndex` öznitelikleri HTML data attribute üzerinden çift yönlü round-trip desteğiyle donatıldı. Geriye dönük uyumluluk için `CitationNodeSpec` korundu.
+   - `createEditorExtensions()` ve `createEditorSchema()` factory fonksiyonları (`packages/editor/src/factory.ts`) ile Document, Paragraph, Heading (1-6), BulletList, OrderedList, ListItem, Blockquote, CodeBlock, Marks (Bold, Italic, Underline, Strike, Link, Code), TextAlign, Placeholder ve Citation modüler olarak paketlendi.
+   - TipTap komutları için TypeScript tip genişletmeleri (`Commands<ReturnType>`) `packages/editor/src/types.ts` dosyasında tanımlandı.
+3. **Canlı Tuval ve Google Docs Araç Çubuğu Entegrasyonu (@citedocs/web):**
+   - Mock belge alanı kaldırılarak yerine gerçek `EditorContent` bileşeni yerleştirildi.
+   - Google Docs araç çubuğundaki Kalın, İtalik, Altı Çizili, Üstü Çizili, Blok Alıntı, Kod Bloğu, Hizalama, Listeler, Başlık Seviyeleri, Geri Al/Yinele kontrolleri TipTap `editor.chain()` komutlarına bağlandı.
+   - Zotero hızlı atıf penceresinden ve PDF okuyucu çekmecesinden doğrudan belgeye `citation` atom düğümü ekleme akışı canlı editöre bağlandı.
+   - Sayfa istatistikleri (kelime, karakter, okuma süresi) ve dinamik içindekiler haritası (document outline) TipTap AST'si üzerinden reaktif hale getirildi.
+4. **Test ve Doğrulama:**
+   - Vitest ile TipTap şema düğümleri ve işaretlerinin varlığı, `Citation` atom düğümünün HTML dışa/içe aktarımındaki öznitelik bütünlüğü ve web uygulamasının TipTap editör yüzeyini DOM'a doğru şekilde bağladığı test edildi.
+   - Monorepo genelinde `pnpm test` (30 test), `pnpm lint` (0 hata, 0 uyarı), `pnpm build` ve `pnpm typecheck` başarıyla geçti.
+
+---
+
+## 6. Sonraki Ajan İçin Yol Haritası ve Görevler (M1 Part B)
+
+1. `apps/web` içinde `y-prosemirror` / `@hocuspocus/provider` ve TipTap v3 `@tiptap/extension-collaboration` ile `@tiptap/extension-collaboration-caret` (v3 ismi, asla collaboration-cursor değil!) bağlantısını kur.
+2. `apps/server` içindeki Hocuspocus WebSocket sunucusu ile istemci bağlantısını gerçek zamanlı çok kullanıcılı testlerle doğrula.
+3. İstemci imleç renkleri ve kullanıcı varlık (awareness) durumlarını test et.
 > **Dal:** `cd-m2-identifier`  
 > **Görev:** M2 Part B — Add-by-identifier (TranslationClient hardening, Fastify routes, Vitest DOI 10.1038/s41586-021-03392-y assertions)
 

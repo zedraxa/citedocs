@@ -526,4 +526,19 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 ### Açık Konular / Notlar:
 - Önceden var olan `packages/csl-engine` ve `apps/web` (outline/web) testlerindeki 5 saniyelik Vitest zaman aşımına bağlı timing-flakiness korundu (müdahale edilmedi, silinmedi).
 - `cd-wopi-host` dalı üzerindeki tüm WOPI host ve Collabora Online isterleri eksiksiz teslim edilmiştir.
+||||||| 4a8c8ef
+## M0.5 — Güvenilir Test Altyapısı ve CI/CD Doğrulaması (2026-10-16, cd-m0-testinfra)
+
+- **Vitest & Test Ortamı Sertleştirildi:**
+  - `vitest.shared.ts` üzerinde `pool: "forks"` yapılandırılarak her test dosyasının temiz alt süreçte (process fork) çalışması sağlandı; worker_threads bellek/RPC şişmesi (`onTaskUpdate` timeout) çözüldü.
+  - Test/hook limitleri 60 saniyeye (`testTimeout: 60_000`, `hookTimeout: 60_000`) çıkarıldı; kaynak kodlar prebuilt derleme gerekmeksizin TypeScript alias ile doğrudan çözümlendi.
+  - CSL citeproc motoru dosya başında tek seferlik ısıtılarak (`warmup`) başlangıç zaman aşımları engellendi.
+  - Fonksiyonel atıf ve kaynakça doğrulamaları eksiksiz korunurken, sıkı zamanlama kıyaslamaları (`< 300 ms` CSL, `< 450 ms` editör) ardışık çalışan `pnpm test:perf` komutuna ayrıldı; CI ortamı için esnek sınırlar tanımlandı.
+- **CI İş Akışı ve Dokümantasyon:**
+  - `.github/workflows/ci.yml` oluşturuldu (Node 22, Corepack pnpm, `--frozen-lockfile`, lint, typecheck, build, test; deploy ve secret içermez).
+  - `README.md` test komutları (`test`, `-r test`, `test:perf`) ve CI işleyişiyle güncellendi.
+- **Doğrulama Sonuçları:**
+  - Kökten `pnpm test` art arda 3 kez %100 yeşil (21 dosya, 179 geçerli, 1 atlandı).
+  - `pnpm -r test` %100 yeşil.
+  - `pnpm lint`, `pnpm typecheck` ve `pnpm build` sorunsuz geçti.
 

@@ -12,7 +12,8 @@
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md}\"",
+    "test:perf": "CITEDOCS_TEST_PERF=1 vitest run packages/csl-engine/test/csl-engine.test.ts --testNamePattern=\"50 items / 100 clusters\" && CITEDOCS_TEST_PERF=1 vitest run packages/editor/test/bibliography.test.ts --testNamePattern=\"50 items / 100 clusters\""
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",

@@ -263,3 +263,47 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 - `pnpm typecheck`: `tsc -b` hatasız.
 - `pnpm build`: Tüm monorepo hatasız derleniyor.
 
+---
+
+## 10. Milestone 6 Part A — Zotero.org Web API v3 Çift Yönlü Senkronizasyon Motoru (Kayıt #006)
+
+> **Kayıt No:** #006  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-m6-sync`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** M6 Part A (Zotero Web API v3 Two-Way Sync Engine, Typed Client, Pluggable SyncStore, Field-Wise Conflict Resolution)
+
+### Yapılan İşler:
+1. **Tip Güvenli Zotero Web API v3 İstemcisi (`ZoteroWebApiClient`):**
+   - `https://api.zotero.org` (API v3) için tam tip güvenli istemci yazıldı (`packages/zotero-core/src/api-client.ts`).
+   - `Zotero-API-Version: 3`, kullanıcı bazlı `Zotero-API-Key`, offline testler için enjekte edilebilir `fetchFn` ve `sleepFn` eklendi.
+   - Kullanıcı (`/users/{userId}`) ve grup (`/groups/{groupId}`) kütüphaneleri desteklendi.
+   - Uç noktalar: `GET /keys/current` (anahtar doğrulama, kullanıcı ID'si ve yetkileri alma; anahtar asla loglanmaz veya döndürülmez), `GET items/collections/searches` (`?since=<version>&format=json`), `GET /items?itemKey=...` (en fazla 50 anahtarlık parçalar halinde), `GET /deleted?since=`, `POST` yazma işlemleri (en fazla 50 öğelik parçalar halinde, `Zotero-Write-Token` ve `If-Unmodified-Since-Version` ile), `DELETE` işlemleri (en fazla 50 anahtarlık parçalar halinde).
+   - RFC 5988 `Link` başlıkları ve `Total-Results` üzerinden >100 öğeli kütüphaneler için otomatik sayfalama (pagination) uygulandı.
+   - `Backoff` ve `Retry-After` (HTTP 429/503) başlıkları enjekte edilen `sleepFn` ile gerçek zaman gecikmesi olmadan saygıyla ele alındı.
+   - 304 Not Modified ve 412 Precondition Failed (versiyon çakışması) durumları tip güvenli ele alındı.
+2. **Çift Yönlü Artımlı Senkronizasyon Motoru (`SyncEngine`):**
+   - Zotero'nun resmi artımlı senkronizasyon algoritması uygulandı (`packages/zotero-core/src/sync-engine.ts`):
+     - **Pull Aşaması:** `?format=versions&since=` ile değişen anahtarlar tespit edilir, değişen öğeler parça parça çekilir, `/deleted?since=` ile silinen kayıtlar yerel depodan temizlenir ve `Last-Modified-Version` güncellenir.
+     - **Push Aşaması:** Yerel oluşturulan, güncellenen ve silinen öğeler `If-Unmodified-Since-Version` ve 32 karakterlik `Zotero-Write-Token` ile en fazla 50'şerlik paketler halinde Zotero'ya iletilir.
+   - **412 Çakışma Politikası ve Alan Düzeyinde Birleştirme (Field-Wise Merge):**
+     - Push esnasında 412 Precondition Failed alındığında motor otomatik olarak uzak kütüphaneyi yeniden çeker (re-pull).
+     - Alan düzeyinde 3 yönlü birleştirme yapılır: Uzakta değişen alanlarda uzak kazanır (remote wins), yalnızca yerelde değişen alanlarda yerel kazanır (local wins), her iki tarafın farklı değerler atadığı çakışmalarda uzak kazanır ve çakışma detayları `result.conflicts` içinde raporlanır. Birleştirilen öğe yeni sürümle tekrar sunucuya iletilir.
+3. **Tak-Çıkar Depolama Katmanı (`SyncStore` & `InMemorySyncStore`):**
+   - Senkronizasyon motorunun depolama bağımlılığı `SyncStore` arayüzü ile soyutlandı (`packages/zotero-core/src/sync-store.ts`).
+   - Testler için izole `InMemorySyncStore` uygulandı; `apps/server` Drizzle ORM per-student PostgreSQL entegrasyonu için hazır zemin oluşturuldu.
+4. **Sıfır Sızıntı & API Anahtarı Maskeleme (Redaction):**
+   - API anahtarları hata mesajlarında, yanıtlarda veya loglarda asla ham halde yer almaz; `redactApiKey` yardımcısı ve `ZoteroApiError` sınıfları ile daima `[REDACTED]` olarak maskelenir.
+5. **Kapsamlı Çevrimdışı Kabul Testleri & Vitest:**
+   - >100 öğeli kütüphanelerde sayfalama doğrulaması.
+   - `since=<version>` ile artımlı senkronizasyon ve `/deleted` temizliği.
+   - <=50 öğelik parçalar halinde `Zotero-Write-Token` ile yazma ve silme.
+   - 412 Precondition Failed senaryosunda otomatik re-pull, alan düzeyinde merge ve conflict raporlama.
+   - `Backoff` / `Retry-After` / `429` başlıklarının sahte saat (`sleepFn`) ile gecikmesiz doğrulanması.
+   - İki farklı öğrenci (User A ve User B) arasında kesin veri ve anahtar izolasyonu testi.
+   - Fırlatılan hatalarda API anahtarının asla görünmediğinin teyidi.
+   - Monorepo genelinde `pnpm -r test` (95 test), `pnpm lint` (0 hata, 0 uyarı), `pnpm typecheck` ve `pnpm build` komutlarının %100 yeşil geçtiği doğrulandı.
+6. **Dokümantasyon:**
+   - `packages/zotero-core/README.md` eksiksiz oluşturuldu.
+
+

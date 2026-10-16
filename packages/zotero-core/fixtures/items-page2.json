@@ -1,0 +1,1562 @@
+[
+  {
+    "key": "ITEM061",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 061 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number061"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "061-71",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM062",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 062 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number062"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "062-72",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM063",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 063 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number063"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "063-73",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM064",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 064 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number064"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "064-74",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM065",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 065 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number065"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "065-75",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM066",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 066 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number066"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "066-76",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM067",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 067 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number067"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "067-77",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM068",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 068 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number068"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "068-78",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM069",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 069 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number069"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "069-79",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM070",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 070 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number070"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "070-80",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM071",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 071 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number071"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "071-81",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM072",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 072 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number072"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "072-82",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM073",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 073 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number073"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "073-83",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM074",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 074 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number074"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "074-84",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM075",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 075 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number075"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "075-85",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM076",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 076 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number076"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "076-86",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM077",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 077 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number077"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "077-87",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM078",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 078 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number078"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "078-88",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM079",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 079 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number079"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "079-89",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM080",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 080 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number080"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "080-90",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM081",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 081 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number081"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "081-91",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM082",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 082 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number082"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "082-92",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM083",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 083 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number083"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "083-93",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM084",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 084 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number084"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "084-94",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM085",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 085 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number085"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "085-95",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM086",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 086 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number086"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "086-96",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM087",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 087 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number087"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "087-97",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM088",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 088 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number088"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "088-98",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM089",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 089 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number089"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "089-99",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM090",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 090 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number090"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "090-100",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM091",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 091 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number091"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "091-101",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM092",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 092 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number092"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "092-102",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM093",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 093 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number093"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "093-103",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM094",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 094 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number094"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "094-104",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM095",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 095 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number095"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "095-105",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM096",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 096 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number096"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "096-106",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM097",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 097 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number097"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "097-107",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM098",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 098 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number098"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "098-108",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM099",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 099 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number099"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "099-109",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM100",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 100 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number100"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "100-110",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM101",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 101 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number101"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "101-111",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM102",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 102 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number102"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "102-112",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM103",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 103 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number103"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "103-113",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM104",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 104 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number104"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "104-114",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM105",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 105 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number105"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "105-115",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM106",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 106 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number106"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "106-116",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM107",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 107 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number107"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "107-117",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM108",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 108 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number108"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "108-118",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM109",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 109 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number109"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "109-119",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM110",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 110 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number110"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "110-120",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM111",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 111 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number111"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "111-121",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM112",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 112 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number112"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "112-122",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM113",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 113 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number113"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "113-123",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM114",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 114 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number114"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "114-124",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM115",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 115 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number115"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "115-125",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM116",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 116 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number116"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "116-126",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM117",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 117 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number117"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "117-127",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM118",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 118 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number118"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "118-128",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM119",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 119 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number119"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "119-129",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  },
+  {
+    "key": "ITEM120",
+    "version": 100,
+    "itemType": "journalArticle",
+    "title": "Item 120 Title",
+    "creators": [
+      {
+        "creatorType": "author",
+        "firstName": "Author",
+        "lastName": "Number120"
+      }
+    ],
+    "publicationTitle": "Journal of Academic Studies",
+    "volume": "1",
+    "issue": "1",
+    "pages": "120-130",
+    "date": "2024-01-01",
+    "tags": [
+      {
+        "tag": "academic"
+      }
+    ],
+    "collections": [
+      "COLL1"
+    ]
+  }
+]

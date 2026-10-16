@@ -6,6 +6,7 @@ import {
   Globe,
   LogIn,
   UserPlus,
+  FolderOpen,
 } from "lucide-react";
 import { useAuth } from "./AuthContext.js";
 
@@ -164,6 +165,16 @@ export function UserMenu({ currentUser }: UserMenuProps) {
 
           {/* Action Items */}
           <div className="py-1">
+            {/* My Documents Link */}
+            <a
+              href="/documents"
+              data-testid="dropdown-documents-link"
+              className="w-full flex items-center gap-2 px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              <FolderOpen className="w-4 h-4 text-blue-600" />
+              <span>{lang === "tr" ? "Belgelerim" : "My Documents"}</span>
+            </a>
+
             {/* Language Switch */}
             <button
               onClick={toggleLang}

@@ -111,8 +111,14 @@ pnpm dev
 ## 🧪 Testing, Linting & Build
 
 ```bash
-# Run the complete test suite across all packages with Vitest
+# Run all functional tests across packages and apps with Vitest
 pnpm test
+
+# Run the same tests through each package (also uses shared timeouts)
+pnpm -r test
+
+# Run strict timing checks sequentially on an otherwise idle machine
+pnpm test:perf
 
 # Run TypeScript typechecks across the monorepo
 pnpm typecheck
@@ -126,6 +132,18 @@ pnpm format
 # Build all packages and applications for production
 pnpm build
 ```
+
+Tests use 60-second test/hook limits and one Vitest worker per invocation to
+avoid CPU contention. CSL integration files warm citeproc once before tests;
+normal runs retain all citation, bibliography, and editor assertions. The optional
+`test:perf` command enables the original CSL <300 ms and editor <450 ms budgets
+with `CITEDOCS_TEST_PERF=1`, using the median of five warm APA→IEEE switches.
+It runs only the two timing cases, sequentially; hardware/load can still affect
+these strict budgets. CI runs the functional suite, without relaxing timing limits.
+The existing live translation-server test stays opt-in.
+
+GitHub Actions uses Node 22, Corepack's pinned pnpm, a frozen lockfile install,
+and lint → typecheck → build → test. No services or secrets are required.
 
 ---
 

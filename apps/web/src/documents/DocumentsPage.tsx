@@ -186,7 +186,7 @@ export function DocumentsPage({
     if (onOpenDocument) {
       onOpenDocument(doc);
     } else if (typeof window !== "undefined") {
-      window.location.href = `/?editor=collabora&doc=${doc.id}`;
+      window.location.href = `/editor?doc=${doc.id}&title=${encodeURIComponent(doc.title)}`;
     }
   };
 
@@ -223,7 +223,7 @@ export function DocumentsPage({
           <button
             onClick={() => {
               if (onNavigateToEditor) onNavigateToEditor();
-              else if (typeof window !== "undefined") window.location.href = "/";
+              else if (typeof window !== "undefined") window.location.href = "/documents";
             }}
             title={t.backToEditor}
             className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-1.5 text-xs font-medium cursor-pointer"

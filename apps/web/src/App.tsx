@@ -44,7 +44,9 @@ import {
   SignupPage,
   ForgotPasswordPage,
   ResetPasswordPage,
+  ProtectedRoute,
 } from "./auth/index.js";
+import { useAuth } from "./auth/AuthContext.js";
 import { PdfReaderPanel, type PdfAttachment } from "./pdf/index.js";
 
 const INITIAL_CONTENT = `
@@ -950,17 +952,70 @@ function AppEditor() {
   );
 }
 
+/** "/" : unauthenticated -> /login, authenticated -> /documents. Never renders the legacy demo. */
+function HomeRedirect() {
+  const { isAuthenticated, loading } = useAuth();
+  useEffect(() => {
+    if (loading) return;
+    window.location.replace(isAuthenticated ? "/documents" : "/login");
+  }, [isAuthenticated, loading]);
+  return (
+    <div data-testid="home-redirect" className="min-h-screen flex items-center justify-center">
+      <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+}
+
+function goNext() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  window.location.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/documents");
+}
+
+function LoginRedirect() {
+  useEffect(() => {
+    const next = window.location.pathname + window.location.search;
+    window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+  }, []);
+  return null;
+}
+
+function EditorRoute() {
+  const params = new URLSearchParams(window.location.search);
+  const doc = params.get("doc");
+  if (!doc) {
+    window.location.replace("/documents");
+    return null;
+  }
+  return (
+    <CollaboraEditorPage
+      documentId={doc}
+      documentTitle={params.get("title") || "Untitled Document"}
+      onBackToDocuments={() => {
+        window.location.href = "/documents";
+      }}
+    />
+  );
+}
+
+/** Legacy TipTap demo editor: only reachable by authenticated users at /legacy-editor. */
+export const LegacyAppEditor = AppEditor;
+
 export function App() {
   const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  const search = typeof window !== "undefined" ? window.location.search : "";
+  const isEditor = (path === "/" || path === "/editor") && /[?&]doc=/.test(search);
+  const gate = (node: React.ReactNode) => (
+    <ProtectedRoute fallback={<LoginRedirect />}>{node}</ProtectedRoute>
+  );
   return (
     <AuthProvider>
       {path === "/login" ? (
         <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
-          <LoginPage standalone />
+          <LoginPage standalone onSuccess={goNext} />
         </div>
       ) : path === "/signup" ? (
         <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
-          <SignupPage standalone />
+          <SignupPage standalone onSuccess={goNext} />
         </div>
       ) : path === "/forgot-password" ? (
         <div className="min-h-screen bg-[#f8f9fa] flex items-center justify-center p-4">
@@ -971,18 +1026,23 @@ export function App() {
           <ResetPasswordPage standalone />
         </div>
       ) : path === "/documents" || path === "/verify-email" ? (
-        <DocumentsPage
-          onOpenDocument={(doc) => {
-            window.location.href = `/?editor=collabora&doc=${doc.id}&title=${encodeURIComponent(doc.title)}`;
-          }}
-          onNavigateToEditor={() => {
-            window.location.href = "/";
-          }}
-        />
+        gate(
+          <DocumentsPage
+            onOpenDocument={(doc) => {
+              window.location.href = `/editor?doc=${doc.id}&title=${encodeURIComponent(doc.title)}`;
+            }}
+            onNavigateToEditor={() => {
+              window.location.href = "/documents";
+            }}
+          />,
+        )
+      ) : isEditor ? (
+        gate(<EditorRoute />)
+      ) : path === "/legacy-editor" ? (
+        gate(<AppEditor />)
       ) : (
-        <AppEditor />
+        <HomeRedirect />
       )}
     </AuthProvider>
   );
 }
-

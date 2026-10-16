@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { CollaboraFrame } from "./CollaboraFrame.js";
 import { sendActionSave, sendUnoCommand } from "./postMessage.js";
+import { useAuth } from "../auth/AuthContext.js";
 import {
   FileText,
   Save,
@@ -156,10 +157,9 @@ export function CollaboraEditorPage({
       (import.meta as unknown as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL) ||
     "http://localhost:3000";
 
-  const currentUserId =
-    (typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("userId")
-      : null) || "00000000-0000-0000-0000-000000000001";
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id || "00000000-0000-0000-0000-000000000001";
+  const currentUserName = authUser?.displayName || authUser?.email || "Anonymous";
 
   // Bridge factory
   const getBridge = useCallback(() => {
@@ -185,7 +185,7 @@ export function CollaboraEditorPage({
             "X-User-Id": currentUserId,
           },
           body: JSON.stringify({
-            userName: "Yusuf Kavak",
+            userName: currentUserName,
             action: "edit",
           }),
         });
@@ -220,7 +220,7 @@ export function CollaboraEditorPage({
     return () => {
       active = false;
     };
-  }, [documentId, apiBaseUrl, currentUserId]);
+  }, [documentId, apiBaseUrl, currentUserId, currentUserName]);
 
   const handleSave = () => {
     sendActionSave(frameRef.current);

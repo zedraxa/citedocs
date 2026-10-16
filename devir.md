@@ -404,3 +404,75 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 - Testing Library ile 6 yeni çevrimdışı kabul testi geçti. Web'in toplam 19 testi ayrı koşularda `--testTimeout=30000` ile doğrulandı; varsayılan 5 saniye sınırında zaman aşımı görülüyor.
 - `pnpm lint`, `pnpm typecheck`, `pnpm build` geçti. `pnpm -r test`, kapsam dışındaki CSL 300 ms performans sınırında iki kez başarısız oldu (~964–985 ms); ayrıca editor testlerinde 450 ms sınırı (~781 ms) ve 35 saniye zaman aşımı var. Paket kodlarına müdahale edilmedi.
 - Testing Library bağımlılığı apps/web/package.json'a eklendi. Kök lockfile değişikliği kapsam dışında olduğundan onay bekliyor; frozen-lockfile kurulumu öncesinde güncellenmeli. Push/deploy yapılmadı.
+
+---
+
+## 14. WOPI Host & Collabora Online CODE Entegrasyonu (Kayıt #010)
+
+> **Kayıt No:** #010  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-wopi-host`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** WOPI Host in Fastify (`apps/server`), Collabora Frame & PostMessage API (`apps/web`), Docker Compose & Kabul Testleri
+
+### Yapılan İşler:
+
+1. **Fastify WOPI Host Uygulaması (`apps/server/src/wopi/`):**
+   - **CheckFileInfo (`GET /wopi/files/:id`):** `BaseFileName`, `OwnerId`, `Size`, `UserId`, `UserFriendlyName`, `UserCanWrite`, `Version`, `SupportsLocks: true`, `SupportsGetLock: true`, `SupportsExtendedLockLength: true`, `SupportsUpdate: true`, `PostMessageOrigin`, `BreadcrumbBrandName: "CiteDocs"` alanları tam WOPI spesifikasyonuyla sunuldu.
+   - **GetFile (`GET /wopi/files/:id/contents`):** İkili dosya içeriği, `Content-Type` ve `X-WOPI-ItemVersion` başlığıyla döndürüldü.
+   - **PutFile (`POST /wopi/files/:id/contents`):** Fastify raw binary content-type parser (`application/octet-stream`) eklendi. `X-WOPI-Lock` başlığı zorunlu olarak denetlenir; kilit eşleşirse dosya ve sürüm güncellenir (`X-WOPI-ItemVersion`), kilit uyuşmazlığında veya kilit yokken kilit iletilmesinde HTTP 409 Conflict + `X-WOPI-Lock: <currentLock>` döndürülür.
+   - **Kilit Operasyonları (`POST /wopi/files/:id`):** `X-WOPI-Override` başlığı ile:
+     - `LOCK`: Kilit oluşturur veya aynı kilitse süresini yeniler; farklı kilit varsa 409 + `X-WOPI-Lock` döner. `X-WOPI-OldLock` ile yeniden kilitleme desteklenir.
+     - `UNLOCK`: Kilit eşleşirse kilidi kaldırır; kilitli değilse veya uyuşmazsa 409 döner.
+     - `REFRESH_LOCK`: Kilit eşleşirse 30 dakikalık süreyi yeniler.
+     - `GET_LOCK`: Mevcut kilit değerini 200 + `X-WOPI-Lock` ile döner.
+     - **30 Dakika Kilit Süresi:** `WopiLockManager` zaman aşımına uğrayan kilitleri otomatik temizler.
+   - **İmzalı Erişim Belirteçleri (`src/wopi/token.ts`):** `node:crypto` HMAC-SHA256 ile `fileId`, `userId`, `canWrite`, `exp` bağlamalı, zaman aşımı korumalı, kurcalamaya karşı korumalı ve constant-time karşılaştırmalı token mekanizması kuruldu. Geçersiz veya süresi dolan token istekleri HTTP 401 ile reddedilir.
+   - **Depolama Soyutlaması (`src/wopi/storage/`):**
+     - `WopiStorage` arayüzü tanımlandı.
+     - `InMemoryWopiStorage`: Hızlı çevrimdışı testler ve yerel çalışma için bellek içi depolama.
+     - `S3WopiStorage`: `@aws-sdk/client-s3` ile S3/MinIO depolama (`endpoint`, `forcePathStyle: true`, metadata yönetimi).
+   - **Collabora Keşif Servisi (`src/wopi/discovery.ts`):** Collabora `/hosting/discovery` XML çıktısını ayrıştırıp `actionUrl` (`WOPISrc` parametresiyle) üreten, 1 saat önbellekli ve `COLLABORA_ACTION_URL_OVERRIDE` destekli servis yazıldı.
+   - **Oturum Uç Noktası (`/api/documents/:id/collabora-session`):** İstemciye imzalı erişim token'ı, `accessTokenTtl` (epoch ms), `wopiSrc` ve Collabora `actionUrl` döndüren uç bağlandı.
+
+2. **Docker Compose Servisi (`docker-compose.yml`):**
+   - `collabora` servisi eklendi (`collabora/code:latest`, `aliasgroup1: http://server:3000,http://localhost:3000`, `extra_params: --o:ssl.enable=false --o:ssl.termination=false`, `ports: 9980:9980`, `depends_on: server`).
+   - Mevcut `minio` ve diğer servislerin sırası ve içeriği aynen korundu.
+
+3. **Web İstemcisi & PostMessage Entegrasyonu (`apps/web/src/collabora/`):**
+   - `postMessage.ts`: Collabora Online ile çift yönlü güvenli iletişim. `event.origin` doğrulaması, `App_LoadingStatus`, `Document_Loaded`, `Action_Save`, `Send_UNO_Command`, `Host_PostmessageReady` ve diğer çalışanların kullanabileceği `useCollaboraPostMessage` React kancası.
+   - `CollaboraFrame.tsx`: Standart WOPI akışında `access_token` ve `access_token_ttl` değerlerini hedef iframe'e POST eden gizli form, iframe `onLoad` anında `Host_PostmessageReady` tetiklemesi ve yükleme durumu görsel bildirim katmanı.
+   - `CollaboraEditorPage.tsx`: Belge başlığı, Collabora Online rozeti, kaydetme aksiyonu ve TipTap'e geri dönüş kontrollerini içeren tam sayfa düzeni.
+   - `App.tsx`: `?editor=collabora` URL parametresi veya üst bardaki "Collabora Online" butonu ile Collabora editörüne geçiş sağlayan minimal yönlendirme eklendi (mevcut testlerle %100 uyumlu).
+
+4. **Test ve Doğrulama Durumu:**
+   - `apps/server/test/wopi.test.ts`: 32 test (Token doğrulama/hata 401, CheckFileInfo 200/404, GetFile, PutFile lock kontrolü ve çakışma 409, LOCK/UNLOCK/REFRESH_LOCK/GET_LOCK, Collabora oturum keşfi).
+   - `apps/server/test/wopi.storage.test.ts`: 6 test (S3WopiStorage Head/Get/Put/Create işlemleri mock S3Client ile çevrimdışı doğrulandı).
+   - `apps/server`: 9 test dosyasında **98 test %100 yeşil**.
+   - `apps/web/test/collabora.test.tsx`: 9 test (PostMessage yardımcıları, origin check, `useCollaboraPostMessage`, form POST ve `CollaboraFrame` rendering) **%100 yeşil**.
+   - Monorepo genelinde `pnpm typecheck` (`tsc -b`), `pnpm lint` (0 hata, 0 uyarı) ve `pnpm build` tam başarıyla tamamlandı.
+
+### Nasıl Çalıştırılır:
+
+1. **Altyapı (MinIO ve Collabora Online):**
+   ```bash
+   docker compose up -d minio collabora
+   ```
+2. **Sunucu Testlerini Çalıştırma:**
+   ```bash
+   pnpm -C apps/server test
+   ```
+3. **Web Collabora Testlerini Çalıştırma:**
+   ```bash
+   pnpm -C apps/web test test/collabora.test.tsx
+   ```
+4. **Geliştirme Sunucusu:**
+   ```bash
+   pnpm dev
+   ```
+   Tarayıcıda `http://localhost:5173/?editor=collabora` adresine giderek veya üst menüdeki "Collabora Online" butonuna tıklayarak doğrudan Collabora editörüne erişilebilir.
+
+### Açık Konular / Notlar:
+- Önceden var olan `packages/csl-engine` ve `apps/web` (outline/web) testlerindeki 5 saniyelik Vitest zaman aşımına bağlı timing-flakiness korundu (müdahale edilmedi, silinmedi).
+- `cd-wopi-host` dalı üzerindeki tüm WOPI host ve Collabora Online isterleri eksiksiz teslim edilmiştir.
+

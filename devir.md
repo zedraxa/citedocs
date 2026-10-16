@@ -404,3 +404,57 @@ Tüm paketlerin ve uygulamaların birim/entegrasyon testleri Vitest ile yazıld�
 - Testing Library ile 6 yeni çevrimdışı kabul testi geçti. Web'in toplam 19 testi ayrı koşularda `--testTimeout=30000` ile doğrulandı; varsayılan 5 saniye sınırında zaman aşımı görülüyor.
 - `pnpm lint`, `pnpm typecheck`, `pnpm build` geçti. `pnpm -r test`, kapsam dışındaki CSL 300 ms performans sınırında iki kez başarısız oldu (~964–985 ms); ayrıca editor testlerinde 450 ms sınırı (~781 ms) ve 35 saniye zaman aşımı var. Paket kodlarına müdahale edilmedi.
 - Testing Library bağımlılığı apps/web/package.json'a eklendi. Kök lockfile değişikliği kapsam dışında olduğundan onay bekliyor; frozen-lockfile kurulumu öncesinde güncellenmeli. Push/deploy yapılmadı.
+
+---
+
+## 14. Entegrasyon Mimarisi ve Karar Belgesi (ADR-001) (Kayıt #010)
+
+> **Kayıt No:** #010  
+> **Tarih:** 2026-10-16  
+> **Dal:** `cd-adr-proto`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** ADR-001 (Entegrasyon Mimarisi: Collabora Online CODE + Açık Kaynak Zotero Ekosistemi)
+
+### Yapılan İşler:
+1. **`docs/ADR-001-integration.md` Yazıldı (İngilizce, standart ADR formatı: Status, Context, Decision, Consequences, Alternatives):**
+   - **Temel İlke (Bağlayıcı Karar):** Zotero veya bir kelime işlemci (word processor) sıfırdan yeniden yazılmaz. Olgun, savaş görmüş açık kaynak bileşenler entegre edilir.
+   - **Entegre Edilen Açık Kaynak Bileşenler:**
+     - **Belge Düzenleme:** Collabora Online (CODE) — WOPI iframe + PostMessage entegrasyonuyla tarayıcıda sıfır kurulumla (%100 web tabanlı) LibreOffice/Word seviyesinde tam A4/Letter sayfalama, dipnot yönetimi ve izleme modu.
+     - **Referans Yönetimi:** `zotero/web-library` (React/Redux kenar çubuğu), `zotero/translation-server` (DOI/ISBN/PMID/arXiv çevirici mikroservisi), `citeproc-js` + CSL 10.000+ stil deposu, `zotero/pdf-reader` (vurgu, not ve alıntı aktarma), yerel Zotero alan kodları (`ADDIN ZOTERO_ITEM CSL_CITATION` ve `ADDIN ZOTERO_BIBL`), opsiyonel `zotero/dataserver`.
+   - **CiteDocs'un Özgün Katmanı:** Kimlik doğrulama/oturum yönetimi, öğrenci başına izole bulut depolama (MinIO/S3), kullanıcı başına `zotero.org` hesap bağlama (API anahtarı/OAuth), WOPI Host servisi ve bileşenler arası köprü.
+   - **TipTap Editörün Durumu (`packages/editor`):** Resmi olarak **LEGACY** (eski/dondurulmuş) ilan edildi; genişletilmeyecek, silinmeyecek, aşamalı geçiş ve arşivleme planı tanımlandı.
+   - **Mermaid Diyagramları ve Veri Akışları:**
+     - Sistem bileşen topolojisi (Mermaid mimari şeması).
+     - 5 ayrı veri akış dizilim diyagramı (Sequence diagram):
+       1. WOPI üzerinden belge açma (`CheckFileInfo`, `GetFile`).
+       2. Collabora belgesine CSL atıfı ekleme ve canlı kaynakça güncelleme (PostMessage / UNO komutu).
+       3. DOI/ISBN ile sihirli kaynak ekleme (translation-server -> CSL JSON -> Postgres & S3).
+       4. PDF okuyucudan vurgu/alıntıyı belgeye aktarma.
+       5. `zotero.org` Web API v3 ile iki yönlü artımlı senkronizasyon ve çakışma çözümü.
+   - **Hukuki ve Lisans Analizi:**
+     - Zotero bileşenleri: AGPL-3.0.
+     - `citeproc-js`: CPAL 1.0 / AGPL-3.0 dual lisans.
+     - CSL Stilleri: CC BY-SA 3.0.
+     - Collabora Online (CODE): MPL-2.0 (WOPI ve PostMessage sınırında zayıf copyleft).
+     - CODE Kullanım Limitleri: Topluluk sürümündeki 20 bağlantı / 10 belge yumuşak uyarı bandı ve akademik/gönüllü kullanım şartları.
+     - **AGPL-3.0 Madde 13 (Ağ Kullanımı Şartı / Remote Network Interaction):** Web üzerinden sunulan ve AGPL kodları içeren sistemlerde kaynak kodun uzaktaki kullanıcılara sunulma zorunluluğu detaylandırıldı.
+     - **Lisans Önerisi:** CiteDocs'un resmi olarak **AGPL-3.0** lisansına geçirilmesi TAVSİYE EDİLDİ; kullanıcı onayı bekleyen somut adımlar (LICENSE dosyası, package.json lisans alanları, UI kaynak kodu sunum linki, DCO/CLA) listelendi. (Kural gereği LICENSE dosyası kullanıcı onayı olmadan eklenmedi).
+2. **`docs/ARCHITECTURE.md` Güncellendi:**
+   - Belge başına ve Editör Motoru (§2.3) bölümüne ADR-001 bağlayıcı mimari yönü ve TipTap'in legacy statüsüne dair referans ve uyarı blokları eklendi.
+3. **`README.md` Güncellendi:**
+   - Genel bakış, depo ağacı, dokümantasyon indeksi ve lisans bölümü ADR-001 doğrultusunda güncellendi.
+
+### Nasıl Çalıştırılır ve Doğrulanır:
+- Belgeleri incelemek için:
+  - `cat docs/ADR-001-integration.md`
+  - `git diff docs/ARCHITECTURE.md README.md`
+- Monorepo doğrulama komutları:
+  - `pnpm lint`
+  - `pnpm typecheck`
+  - `pnpm build`
+
+### Test Durumu ve Açık Konular (Open Issues):
+- **Birim & Paket Testleri:** `apps/server` (60 test), `@citedocs/shared` (5 test), `@citedocs/zotero-core` (38 test), `@citedocs/docx-exporter` (11 test), `@citedocs/pdf-reader` (18 test) olmak üzere 130'dan fazla çekirdek test %100 yeşildir.
+- **Zaman Aşımı / Kırılganlık Raporu:** Önceki adımlardan devralınan `apps/web` ve `packages/editor` testleri ağır yük altında varsayılan 5000ms Vitest zaman aşımına uğramaktadır (web outline/mount testleri 5 saniyeyi aşabilmekte, CSL/editor 300ms SLA testi sistem yükünde ~524ms-1147ms sürebilmektedir). Bu testler silinmedi veya değiştirilmedi, bilinen durum olarak korundu.
+- **Paralel Çalışmalar:** Diğer dallar (`cd-wopi-host`, `cd-zotero-weblib`, `cd-cite-insert`) ADR-001'de belirlenen sözleşmeye uygun şekilde kodlama süreçlerini sürdürmektedir.
+- **Onay Bekleyen Konu:** CiteDocs'un AGPL-3.0 olarak yeniden lisanslanması kullanıcı onayına bağlıdır; onay verildiğinde `LICENSE` dosyası eklenecek ve `package.json` alanları güncellenecektir.

@@ -1,1 +1,1 @@
-{"root":["./src/index.ts","./src/collab/server.ts","./src/routes/csl.ts","./src/routes/health.ts","./src/routes/zotero.ts"],"version":"5.9.3"}
+{"root":["./src/index.ts","./src/collab/access.ts","./src/collab/auth.ts","./src/collab/index.ts","./src/collab/persistence.ts","./src/collab/server.ts","./src/routes/csl.ts","./src/routes/health.ts","./src/routes/zotero.ts"],"version":"5.9.3"}

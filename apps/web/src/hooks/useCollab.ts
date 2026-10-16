@@ -60,10 +60,11 @@ export function useCollab(options: UseCollabOptions = {}): UseCollabReturn {
     return new URLSearchParams(window.location.search);
   }, []);
 
-  const serverUrl =
-    options.url ||
-    (typeof import.meta !== "undefined" && import.meta.env?.VITE_COLLAB_URL) ||
-    DEFAULT_COLLAB_URL;
+  const envCollabUrl =
+    typeof import.meta !== "undefined" &&
+    (import.meta as unknown as { env?: { VITE_COLLAB_URL?: string } }).env?.VITE_COLLAB_URL;
+
+  const serverUrl = options.url || envCollabUrl || DEFAULT_COLLAB_URL;
 
   const documentId =
     options.documentId ||
@@ -136,7 +137,8 @@ export function useCollab(options: UseCollabOptions = {}): UseCollabReturn {
         },
         onAuthenticated: () => {
           if (!isMounted) return;
-          if ((provider as any).authorizedScope === "readonly") {
+          const scope = (provider as unknown as { authorizedScope?: string }).authorizedScope;
+          if (scope === "readonly") {
             setIsReadOnly(true);
             setStatus("read-only");
           } else {
@@ -152,15 +154,20 @@ export function useCollab(options: UseCollabOptions = {}): UseCollabReturn {
       providerRef.current = provider;
 
       // Set current user awareness
-      provider.setAwarenessField("user", {
-        name: currentUser.name,
-        color: currentUser.color,
-      });
+      if (provider.awareness) {
+        provider.setAwarenessField("user", {
+          name: currentUser.name,
+          color: currentUser.color,
+        });
+      }
 
       // Update collaborator peer list whenever awareness changes
       const updateAwareness = () => {
         if (!isMounted) return;
-        const states = provider.awareness.getStates();
+        const awareness = provider.awareness;
+        if (!awareness) return;
+
+        const states = awareness.getStates();
         const peers: CollabPeer[] = [];
 
         states.forEach((state, clientId) => {
@@ -188,12 +195,17 @@ export function useCollab(options: UseCollabOptions = {}): UseCollabReturn {
         setCollaborators(peers);
       };
 
-      provider.awareness.on("change", updateAwareness);
+      const awareness = provider.awareness;
+      if (awareness) {
+        awareness.on("change", updateAwareness);
+      }
       updateAwareness();
 
       return () => {
         isMounted = false;
-        provider.awareness.off("change", updateAwareness);
+        if (awareness) {
+          awareness.off("change", updateAwareness);
+        }
         provider.destroy();
         provider.configuration.websocketProvider?.destroy();
         providerRef.current = null;
@@ -213,3 +225,4 @@ export function useCollab(options: UseCollabOptions = {}): UseCollabReturn {
     isReadOnly,
   };
 }
+

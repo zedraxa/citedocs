@@ -61,8 +61,9 @@ describe("@citedocs/web", () => {
   it("reads document ID and user parameters from URL and renders custom presence", async () => {
     // Simulate window.location.search with ?doc=assignment-quantum&user=Niels%20Bohr&color=%2316a34a
     const originalSearch = window.location.search;
-    delete (window as any).location;
-    (window as any).location = new URL(
+    const win = window as unknown as { location?: URL };
+    delete win.location;
+    win.location = new URL(
       "http://localhost:5173/?doc=assignment-quantum&user=Niels%20Bohr&color=%2316a34a",
     );
 
@@ -88,7 +89,7 @@ describe("@citedocs/web", () => {
     container.remove();
 
     // Restore location
-    (window as any).location = new URL(`http://localhost:5173/${originalSearch}`);
+    win.location = new URL(`http://localhost:5173/${originalSearch}`);
   });
 });
 

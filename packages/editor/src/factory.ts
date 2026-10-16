@@ -15,7 +15,7 @@ export interface CollabUser {
 }
 
 export interface CollabExtensionOptions {
-  provider?: any;
+  provider?: unknown;
   document?: Doc | null;
   field?: string;
   fragment?: XmlFragment | null;
@@ -27,7 +27,7 @@ export interface EditorExtensionOptions {
   enablePlaceholder?: boolean;
   enableHistory?: boolean;
   headingLevels?: (1 | 2 | 3 | 4 | 5 | 6)[];
-  provider?: any;
+  provider?: unknown;
   document?: Doc | null;
   fragment?: XmlFragment | null;
   field?: string;
@@ -47,8 +47,9 @@ export interface EditorExtensionOptions {
  * undo/redo history is disabled (StarterKit undoRedo: false) in favor of Yjs CRDT history.
  */
 export function createEditorExtensions(options: EditorExtensionOptions = {}): AnyExtension[] {
-  const provider = options.collab?.provider ?? options.provider;
-  const isCollab = Boolean(provider);
+  const rawProvider = options.collab?.provider ?? options.provider;
+  const isCollab = Boolean(rawProvider);
+  const providerWithDoc = rawProvider as { document?: Doc } | undefined;
 
   // When collaborating, built-in undo/redo history MUST be disabled in StarterKit.
   // TipTap v3 uses Yjs's collaborative undo manager via the Collaboration extension.
@@ -75,7 +76,8 @@ export function createEditorExtensions(options: EditorExtensionOptions = {}): An
   ];
 
   if (isCollab) {
-    const document = options.collab?.document ?? options.document ?? provider?.document ?? null;
+    const document =
+      options.collab?.document ?? options.document ?? providerWithDoc?.document ?? null;
     const fragment = options.collab?.fragment ?? options.fragment ?? null;
     const field = options.collab?.field ?? options.field ?? "default";
 
@@ -94,7 +96,7 @@ export function createEditorExtensions(options: EditorExtensionOptions = {}): An
 
     extensions.push(
       CollaborationCaret.configure({
-        provider,
+        provider: rawProvider as never,
         user,
       }),
     );

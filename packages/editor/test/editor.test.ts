@@ -251,8 +251,11 @@ describe("@citedocs/editor", () => {
     expect(collabStarterKit?.options.undoRedo).toBe(false);
 
     // Also verify sub-extensions in StarterKit do NOT contain 'undoRedo'
-    const subExtensions = (collabStarterKit as any).config.addExtensions.call(collabStarterKit);
-    const subNames = subExtensions.map((e: any) => e.name);
+    const starterKitExtension = collabStarterKit as unknown as {
+      config: { addExtensions: () => Array<{ name: string }> };
+    };
+    const subExtensions = starterKitExtension.config.addExtensions.call(collabStarterKit);
+    const subNames = subExtensions.map((e) => e.name);
     expect(subNames).not.toContain("undoRedo");
 
     // 3. Initialize real TipTap Editor instance in happy-dom with collab extensions

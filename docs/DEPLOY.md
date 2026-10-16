@@ -62,3 +62,34 @@ Built from source for amd64: `/opt/translation-server` (git clone --recurse-subm
 - The `minio/minio` image is no longer pullable, so the community build `pgsty/minio` is used instead.
 - Stock CODE has no Python UNO (no pyuno, no `share/Scripts`), so the `apps/collabora-scripts` `CallPythonScript` macro cannot run in it.
 - SMTP has not been integrated yet (only the console mailer exists).
+
+## Update 2026-10-17 (deployed main 99c938c)
+
+### Routing / auth / cache
+- `/` never renders the legacy TipTap demo: logged-out users are sent to `/login`, logged-in users to `/documents`.
+- The documents page and the editor (`/editor?doc=<uuid>`) both require a login. Logged-out users go to `/login?next=...`, and after login or signup they are sent back to `next` (default `/documents`).
+- The legacy TipTap demo is only at `/legacy-editor`, behind login.
+- `public/sw.js` and `public/service-worker.js` are self-unregistering service workers, and `main.tsx` unregisters any existing service worker and clears CacheStorage.
+- nginx sends `Cache-Control: no-cache, no-store, must-revalidate` for `index.html`, `sw.js` and SPA routes; `/assets/*` is cached as immutable.
+- Cloudflare reports `cf-cache-status: DYNAMIC/BYPASS` for HTML, so no purge is needed (no Cloudflare API token on this host anyway).
+
+### Signup
+- There is no email verification step. Signup creates an already-verified account and logs the user straight in.
+
+### Citations (real Zotero fields, no macros)
+- `apps/web/src/collabora/zoteroUno.ts` drives Collabora through `Send_UNO_Command`, using the same UNO commands as Collabora's built-in Zotero support in .docx "Field" mode:
+  - `.uno:TextFormField` inserts an `ADDIN ZOTERO_ITEM CSL_CITATION {json}` field.
+  - `.uno:TextFormFields` with the prefix `ADDIN ZOTERO_ITEM CSL_CITATION` rewrites every citation in document order (restyle, edit, delete).
+  - The `ADDIN ZOTERO_BIBL {...} CSL_BIBLIOGRAPHY` field is inserted at the end of the document and refreshed via `TextFormFields`.
+  - Document prefs are stored as custom properties `ZOTERO_PREF_1..n` via `.uno:SetDocumentProperties`.
+  - After every field insert or update, a `.uno:GoRight` moves the cursor out of the protected field result.
+- `GET /api/documents/:id/citations` parses the saved .docx (fields and `ZOTERO_PREF`), so a reload restores the citation list, the bibliography and the style.
+- Host messages:
+  - `Host_PostmessageReady` is sent when Collabora reports `Frame_Ready`.
+  - `Send_UNO_Command` arguments are passed unwrapped.
+  - `Action_Save` sets `DontSaveIfUnmodified:false` and `Notify:true`.
+
+### Collabora
+- CODE ignores `welcome.enable=false`. The "Explore the new" dialog is suppressed by pre-seeding `localStorage.WSDWelcomeVersion` (Collabora runs on the same origin) from `/hosting/capabilities`.
+- cool.html always gets an explicit `lang=` parameter. A browser with an unusable `navigator.language` used to make cool.html throw "Incorrect locale information provided" before it sent `load`. The document then only opened after Collabora's load timeout killed and retried the session; that was the ~128 s load. `per_document.limit_load_secs=20` is kept as a safety net.
+- The editor sends the logged-in user's display name to Collabora.

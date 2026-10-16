@@ -1,0 +1,27 @@
+{
+	auto_https disable_redirects
+	servers {
+		protocols h1 h2
+	}
+}
+http://docs.sifirdanbire.com.tr, https://docs.sifirdanbire.com.tr {
+	log
+	tls internal {
+		on_demand
+	}
+	route {
+		@cool path /browser/* /hosting/* /cool/* /lool/* /co/*
+		reverse_proxy @cool collabora:9980
+		respond /wopi/* 403
+		basic_auth {
+			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+		}
+		reverse_proxy /office* wopi:8080
+		reverse_proxy /api/* server:3000
+		reverse_proxy /health server:3000
+		handle_path /collab* {
+			reverse_proxy server:1234
+		}
+		reverse_proxy web:80
+	}
+}

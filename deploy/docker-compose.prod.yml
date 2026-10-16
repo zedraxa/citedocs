@@ -1,0 +1,82 @@
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports: !reset []
+  minio:
+    image: pgsty/minio:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports: !reset []
+  translation-server:
+    ports: !reset []
+  server:
+    build:
+      dockerfile: deploy/server.Dockerfile
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://citedocs:${POSTGRES_PASSWORD}@postgres:5432/citedocs
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_REGION: us-east-1
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+    ports: !reset []
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 15s
+      retries: 5
+  web:
+    build:
+      dockerfile: deploy/web.Dockerfile
+      args:
+        VITE_API_URL: https://${PUBLIC_HOST}
+        VITE_COLLAB_URL: wss://${PUBLIC_HOST}/collab
+    ports: !reset []
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 15s
+      retries: 5
+  caddy:
+    image: caddy:2-alpine
+    container_name: citedocs-caddy
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH}
+  collabora:
+    image: collabora/code:latest
+    container_name: citedocs-collabora
+    restart: unless-stopped
+    cap_add: [MKNOD, SYS_ADMIN]
+    ports: !reset []
+    security_opt: ["apparmor=unconfined"]
+    environment:
+      aliasgroup1: http://wopi:8080
+      aliasgroup2: https://docs.sifirdanbire.com.tr:443
+      server_name: docs.sifirdanbire.com.tr
+      username: admin
+      password: ${COLLABORA_ADMIN_PASSWORD}
+      extra_params: --o:ssl.enable=false --o:ssl.termination=true --o:num_prespawn_children=1 --o:welcome.enable=false --o:user_interface.mode=tabbed
+  wopi:
+    image: node:22-alpine
+    container_name: citedocs-wopi
+    restart: unless-stopped
+    working_dir: /app
+    command: ["node", "server.js"]
+    environment:
+      WOPI_SECRET: ${WOPI_SECRET}
+      PUBLIC_URL: https://docs.sifirdanbire.com.tr
+    volumes:
+      - /opt/citedocs-office:/app:ro
+      - office_files:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/office/api/files"]
+      interval: 15s
+volumes:
+  caddy_data:
+  office_files:

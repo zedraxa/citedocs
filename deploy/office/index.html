@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><title>CiteDocs Office</title><style>
+body{margin:0;font-family:system-ui;display:flex;height:100vh}#l{width:220px;border-right:1px solid #ddd;padding:8px;overflow:auto}#m{flex:1;display:flex}#m iframe{flex:1;border:0}
+#z{width:340px;border-left:1px solid #ddd;padding:8px;overflow:auto;font-size:13px}.f{cursor:pointer;padding:4px}.f:hover{background:#eef}.it{border-bottom:1px solid #eee;padding:6px 0}button{margin:2px}input{width:95%}</style></head><body>
+<div id="l"><b>Files</b><br><button onclick="newDoc()">New .docx</button><input type="file" id="up" onchange="upload(this.files[0])"><div id="files"></div></div>
+<div id="m"><form id="fm" target="cool" method="post"><input type="hidden" name="access_token" id="tok"></form><iframe name="cool" id="cool" allow="clipboard-read *; clipboard-write *" allowfullscreen></iframe></div>
+<div id="z"><b>Zotero</b><div style='font-size:11px;color:#555'>Full citation workflow (insert/edit citation, style, bibliography, refresh) is in the editor's <i>References</i> tab → Zotero (uses the API key saved here). This panel is for browsing.</div><div id="zcfg">User/Group ID: <input id="zu"><label><input type="checkbox" id="zg" style="width:auto">group library</label><br>API key: <input id="zk" type="password"><br>Style: <input id="zs" value="apa"><button onclick="saveZ()">Save</button></div>
+<input id="q" placeholder="Search library…" onkeydown="if(event.key=='Enter')search()"><button onclick="search()">Search</button><div id="res"></div></div>
+<script>
+const $=id=>document.getElementById(id);
+async function list(){const fs=await (await fetch('api/files')).json();$('files').innerHTML='';fs.forEach(f=>{const d=document.createElement('div');d.className='f';d.textContent=f.name;d.onclick=()=>open_(f.name);$('files').appendChild(d)})}
+async function newDoc(){const n=prompt('Name','Untitled');if(!n)return;const r=await fetch('api/new?name='+encodeURIComponent(n),{method:'POST'});if(!r.ok)return alert('Failed: '+r.status);list();open_((await r.json()).name)}
+async function upload(f){if(!f)return;const r=await fetch('api/upload?name='+encodeURIComponent(f.name),{method:'POST',body:f});if(!r.ok)return alert('Unsupported file');list()}
+async function open_(n){const o=await (await fetch('api/open?name='+encodeURIComponent(n))).json();$('cool').src=o.url+'&access_token='+encodeURIComponent(o.token)+'&access_token_ttl=0'}
+function cool(msg){$('cool').contentWindow.postMessage(JSON.stringify(msg),'*')}
+window.addEventListener('message',e=>{try{const m=JSON.parse(e.data);if(m.MessageId=='App_LoadingStatus'&&m.Values.Status=='Frame_Ready')cool({MessageId:'Host_PostmessageReady'})}catch{}});
+const Z=()=>JSON.parse(localStorage.z||'{}');function saveZ(){fetch('api/zotero-key',{method:'POST',body:JSON.stringify({key:$('zk').value})});localStorage.z=JSON.stringify({u:$('zu').value,k:$('zk').value,g:$('zg').checked,s:$('zs').value||'apa'});$('zcfg').style.display='none'}
+const zb=()=>{const z=Z();return 'https://api.zotero.org/'+(z.g?'groups/':'users/')+z.u};
+const zh=()=>({'Zotero-API-Key':Z().k,'Zotero-API-Version':'3'});
+async function search(){const z=Z();if(!z.u)return alert('Configure Zotero first');const r=await fetch(zb()+'/items/top?limit=25&include=data,citation,bib&style='+encodeURIComponent(z.s)+'&q='+encodeURIComponent($('q').value),{headers:zh()});if(!r.ok)return $('res').textContent='Zotero error '+r.status;const items=await r.json();$('res').innerHTML='';
+items.forEach(i=>{const d=document.createElement('div');d.className='it';const t=document.createElement('div');t.textContent=(i.data.title||'(untitled)')+' — '+(i.meta.creatorSummary||'')+' '+(i.meta.parsedDate||'');d.appendChild(t);
+const strip=h=>{const x=document.createElement('div');x.innerHTML=h||'';return x.textContent.trim()};
+const b1=document.createElement('button');b1.textContent='Insert citation';b1.onclick=()=>ins(strip(i.citation));const b2=document.createElement('button');b2.textContent='Insert bibliography entry';b2.onclick=()=>ins('\n'+strip(i.bib));d.append(b1,b2);$('res').appendChild(d)})}
+function ins(text){cool({MessageId:'Send_UNO_Command',Values:{Command:'.uno:InsertText',Args:{Text:{type:'string',value:text}}}})}
+if(Z().u){$('zcfg').style.display='none'}list();
+</script></body></html>

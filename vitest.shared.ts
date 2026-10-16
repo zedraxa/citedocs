@@ -15,6 +15,7 @@ export default defineConfig({
     ),
   },
   test: {
+    pool: "forks",
     testTimeout: 60_000,
     hookTimeout: 60_000,
     // Avoid CPU contention between citeproc, DOM rendering and collab latency tests.

@@ -2129,3 +2129,27 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
 
 - Canlı ONLYOFFICE Document Server ve Zotero eklentisi konteynerlerinin çalıştığı tam entegrasyon ortamında Requirement 3 e2e testindeki `test.fixme` kaldırılarak canlı re-render doğrulaması yapılabilir.
 - Paralel geliştirilen ZC-01 ve ZC-02 (ODT formatındaki Zotero referans işaretleri) konuları bağımsız olarak devam etmektedir.
+
+## Kayıt #039 — Web açılış yükünün azaltılması (17 Ekim 2026)
+
+- `App.tsx` rotaları ONLYOFFICE, Collabora, eski TipTap ve belgeler sayfasını `React.lazy` ile yükler; bekleme metni **Yükleniyor…**. Eski editör `LegacyEditorPage.tsx` içine taşındı; PDF paneli açılınca yüklenir. ONLYOFFICE sayfasının içeriği ve `deploy/` değiştirilmedi.
+- Belgeler araması 250 ms bekleyerek hızlı tuş girişlerini tek istekte birleştirir. StrictMode başlangıç tekrarı tek isteğe düşer; eski yanıtlar yeni aramayı ezmez, kaldırılan bileşenin bekleyen araması iptal edilir. Kullanıcılar arasında veri önbelleği tutulmaz.
+- Nginx gzip eklendi; mevcut `/assets/` için bir yıllık immutable ve HTML için no-cache/no-store başlıkları korundu. Vite'ın otomatik bölmesi yeterli olduğundan ölçülmemiş `manualChunks` ayarı eklenmedi.
+
+Ölçüm: üretim derlemesi, ondalık kB (1000 bayt), her dosya ayrı gzip (Node varsayılanı); kaynak haritaları toplam dışında. İlk `pnpm --filter ./apps/web build`, ortak paketlerin `dist` çıktıları eksik olduğundan başarısız oldu; `pnpm -r --filter './packages/*' build` sonrası başlangıç derlemesi alındı.
+
+| Ölçüm | Önce kB / gzip kB | Sonra kB / gzip kB |
+| --- | ---: | ---: |
+| Ana JS / giriş rotası | 2793,113 / 697,413 | 272,111 / 82,014 |
+| Tüm JS | 2793,113 / 697,413 | 2793,318 / 707,431 |
+| Tüm CSS | 43,931 / 8,117 | 43,931 / 8,117 |
+
+Giriş JS gzip yükü %88,2 azaldı. Belgeler rotası ortak bağımlılıklarıyla 320,259 kB / 96,896 kB gzip (editör kodu hariç).
+
+Başlangıç kaynak haritasında en büyük üçüncü taraf kaynakları PDF.js (1007 kB), citeproc (967 kB), React DOM (635 kB), ardından TipTap/ProseMirror/Yjs idi. Bunlar sıkıştırılmamış kaynak büyüklükleridir, minify edilmiş paket payları değildir. İlk yükleme kazancı kodun ihtiyaç anına ertelenmesidir; toplam JS gzip boyutu ayrı sıkıştırma nedeniyle yaklaşık 10 kB artar.
+
+Doğrulama: `pnpm build`, ardından `node apps/web/scripts/bundle-report.mjs` dosya/toplam/gzip ve girişin statik bağımlılıklarını raporlar. `pnpm lint`, `pnpm typecheck`, `pnpm --filter ./apps/web test`, `pnpm --filter ./apps/server test` çalıştırılır. Rota testi giriş/belgeler ekranlarında editör modüllerinin yüklenmediğini ve editör rotasında yalnız seçilen editörün yüklendiğini denetler. Belge yükleme testleri StrictMode, arama birleştirme, eski başarılı/hatalı yanıtlar ve kaldırma durumunu kapsar.
+
+Kontrol sonuçları: `pnpm lint`, `pnpm typecheck`, `pnpm build` başarılı. Tam web: **22 dosya / 180 başarılı test**. Sunucu: **32 dosya / 354 başarılı, 3 mevcut todo**. Testler yerel/sahte servislerle çalıştı; canlı servis testi, push, merge veya deploy yapılmadı.
+
+Açık konular: Bu ölçüm derleme çıktısı boyutu ve bağımlılık grafiği ölçümüdür; canlı LCP/INP veya API gecikmesi ölçülmedi. Büyük eski editör/PDF parçaları ihtiyaç anında hâlâ yüklenir ve Vite boyut uyarısı sürer. Nginx bu ortamda kurulu olmadığından `nginx -t` ve gerçek HTTP gzip/önbellek başlıkları çalıştırılarak doğrulanamadı; dağıtım yapılmadı. Sunucu performansı ayrı çalışmanın kapsamındadır.

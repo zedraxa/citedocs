@@ -62,12 +62,12 @@ export function syncZoteroPluginStorage(
  * 3. Syncs storage keys across host window, editor frame window, and plugin frame window.
  * 4. Triggers Zotero plugin refresh/re-render via direct hook, controller settings, refresh button, and postMessage.
  */
-export function applyStyleInOnlyoffice(
+export async function applyStyleInOnlyoffice(
   container: HTMLElement | null,
   editorInstance?: unknown,
   styleId = DEFAULT_STYLE_ID,
   locale = DEFAULT_LOCALE,
-): ApplyStyleResult {
+): Promise<ApplyStyleResult> {
   const cleanId = normalizeStyleId(styleId || DEFAULT_STYLE_ID);
   const format = getStyleCitationFormat(cleanId);
   const prefXml = buildZoteroPrefXml({
@@ -98,7 +98,33 @@ export function applyStyleInOnlyoffice(
     | null;
   const editorDoc = frame?.contentDocument || editorWindow?.document;
   const panelEl = editorDoc?.getElementById("panel-plugins-zotero") as HTMLElement | null;
-  const pluginFrame = panelEl?.querySelector("iframe") as HTMLIFrameElement | null;
+  let pluginFrame = panelEl?.querySelector("iframe") as HTMLIFrameElement | null;
+
+  // Resilient search: check other frames in editorDoc if not nested under #panel-plugins-zotero
+  if (!pluginFrame && editorDoc) {
+    try {
+      const iframes = editorDoc.querySelectorAll("iframe");
+      for (let i = 0; i < iframes.length; i++) {
+        const ifr = iframes[i];
+        if (ifr.src && ifr.src.includes("zotero")) {
+          pluginFrame = ifr;
+          break;
+        }
+        try {
+          const w = ifr.contentWindow as (Window & Record<string, unknown>) | null;
+          if (w && (w.__citedocsSyncStyle || w.__zoteroCitationService || w.__zoteroSettings)) {
+            pluginFrame = ifr;
+            break;
+          }
+        } catch {
+          /* cross-origin */
+        }
+      }
+    } catch {
+      /* ignore DOM query errors */
+    }
+  }
+
   const pluginWindow = pluginFrame?.contentWindow as (Window & Record<string, unknown>) | null;
   const pluginDoc = pluginFrame?.contentDocument || pluginWindow?.document;
 
@@ -168,12 +194,11 @@ export function applyStyleInOnlyoffice(
       }
     }
 
-    // 4. Trigger Zotero plugin refresh/re-render if plugin frame or window is accessible
+    // 4. Trigger Zotero plugin refresh/re-render cleanly without duplicate/premature button clicks
     if (pluginWindow || pluginDoc) {
       try {
-        // A. Direct hook if available on pluginWindow
         const pWin = pluginWindow as unknown as {
-          __citedocsSyncStyle?: (s: string, l: string, f?: string) => Promise<void> | void;
+          __citedocsSyncStyle?: (s: string, l: string, f?: string) => Promise<boolean | void> | boolean | void;
           __zoteroSettings?: {
             getStyleManager?: () => {
               getStyle?: (s: string, b: boolean) => Promise<unknown>;
@@ -192,34 +217,34 @@ export function applyStyleInOnlyoffice(
           };
         } | null;
 
+        // A. Direct hook if available on pluginWindow (primary & most reliable)
         if (typeof pWin?.__citedocsSyncStyle === "function") {
-          pWin.__citedocsSyncStyle(cleanId, locale, format);
+          await pWin.__citedocsSyncStyle(cleanId, locale, format);
           pluginRefreshed = true;
         } else if (pWin?.__zoteroSettings && pWin?.__zoteroCitationService) {
+          // B. Direct services invocation if hook wrapper not attached
           try {
             const styleMgr = pWin.__zoteroSettings.getStyleManager?.();
             const locMgr = pWin.__zoteroSettings.getLocalesManager?.();
             if (locMgr) {
-              locMgr.loadLocale?.(locale);
+              await locMgr.loadLocale?.(locale);
               locMgr.saveLastUsedLanguage?.(locale);
             }
             if (styleMgr) {
-              styleMgr.getStyle?.(cleanId, true);
+              await styleMgr.getStyle?.(cleanId, true);
             }
             const notesStyle = styleMgr?.getLastUsedNotesStyle?.() || "footnotes";
             if (format === "note") {
-              pWin.__zoteroCitationService.updateCslItemsInNotes?.(notesStyle);
+              await pWin.__zoteroCitationService.updateCslItemsInNotes?.(notesStyle);
             } else {
-              pWin.__zoteroCitationService.updateCslItems?.(true);
+              await pWin.__zoteroCitationService.updateCslItems?.(true);
             }
             pluginRefreshed = true;
           } catch {
             /* ignore */
           }
-        }
-
-        // B. DOM refresh button trigger in plugin document
-        if (pluginDoc) {
+        } else if (pluginDoc) {
+          // C. DOM refresh button trigger ONLY as a fallback if direct JS hooks are absent
           const refreshBtn = (pluginDoc.getElementById("refreshBtn") ||
             pluginDoc.querySelector(
               "button#refreshBtn, #refreshBtn, button#refresh, .btn-refresh, [data-action='refresh'], button[title*='Refresh'], button[title*='Yenile']",
@@ -231,8 +256,8 @@ export function applyStyleInOnlyoffice(
           }
         }
 
-        // C. PostMessage to plugin frame
-        if (pluginWindow && typeof pluginWindow.postMessage === "function") {
+        // D. PostMessage as cross-origin fallback only if direct invocation wasn't possible
+        if (!pluginRefreshed && pluginWindow && typeof pluginWindow.postMessage === "function") {
           pluginWindow.postMessage(
             { type: "zotero:refreshStyle", styleId: cleanId, locale, format },
             "*",

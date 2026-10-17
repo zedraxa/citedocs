@@ -16,10 +16,18 @@ describe("Deploy cache-control header configurations", () => {
     const content = fs.readFileSync(caddyfilePath, "utf8");
 
     expect(content).toContain("handle_path /oo/*");
+    expect(content).toContain("@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero*");
+    expect(content).toContain('header >Cache-Control "no-cache"');
+    expect(content).toContain('header_down Cache-Control "no-cache"');
     expect(content).toContain("@versioned path_regexp ^/[0-9]+");
     expect(content).toContain("handle @versioned");
-    expect(content).toContain("@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js");
-    expect(content).toContain('header_down Cache-Control "no-cache"');
+
+    // @no_cache must be listed before @versioned so versioned plugin files get no-cache
+    const noCacheIndex = content.indexOf("@no_cache");
+    const versionedIndex = content.indexOf("@versioned");
+    expect(noCacheIndex).toBeGreaterThan(-1);
+    expect(versionedIndex).toBeGreaterThan(-1);
+    expect(noCacheIndex).toBeLessThan(versionedIndex);
   });
 
   it("deploy/Caddyfile.onlyoffice contains the required /oo/* cache-control rules", () => {
@@ -27,13 +35,20 @@ describe("Deploy cache-control header configurations", () => {
     const content = fs.readFileSync(caddyfileOOPath, "utf8");
 
     expect(content).toContain("handle_path /oo/*");
+    expect(content).toContain("@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero*");
+    expect(content).toContain('header >Cache-Control "no-cache"');
+    expect(content).toContain('header_down Cache-Control "no-cache"');
     expect(content).toContain("@versioned path_regexp ^/[0-9]+");
     expect(content).toContain("handle @versioned");
-    expect(content).toContain("@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js");
-    expect(content).toContain('header_down Cache-Control "no-cache"');
+
+    const noCacheIndex = content.indexOf("@no_cache");
+    const versionedIndex = content.indexOf("@versioned");
+    expect(noCacheIndex).toBeGreaterThan(-1);
+    expect(versionedIndex).toBeGreaterThan(-1);
+    expect(noCacheIndex).toBeLessThan(versionedIndex);
   });
 
-  it("validates Caddy syntax of both Caddyfiles using caddy CLI (host or docker)", () => {
+  it("validates Caddy syntax and adapt output of both Caddyfiles using caddy CLI (host or docker)", () => {
     // Check if docker or caddy is available
     const hasDocker = spawnSync("docker", ["--version"]).status === 0;
     const hasCaddy = spawnSync("caddy", ["version"]).status === 0;
@@ -43,6 +58,10 @@ describe("Deploy cache-control header configurations", () => {
       expect(res1.status, res1.stderr).toBe(0);
       const res2 = spawnSync("caddy", ["validate", "--config", caddyfileOOPath], { encoding: "utf8" });
       expect(res2.status, res2.stderr).toBe(0);
+
+      const adaptRes = spawnSync("caddy", ["adapt", "--config", caddyfilePath], { encoding: "utf8" });
+      expect(adaptRes.status, adaptRes.stderr).toBe(0);
+      expect(adaptRes.stdout).toContain('"Cache-Control":["no-cache"]');
     } else if (hasDocker) {
       const res1 = spawnSync(
         "docker",
@@ -57,6 +76,14 @@ describe("Deploy cache-control header configurations", () => {
         { encoding: "utf8" },
       );
       expect(res2.status, res2.stderr).toBe(0);
+
+      const adaptRes = spawnSync(
+        "docker",
+        ["run", "--rm", "-v", `${caddyfilePath}:/etc/caddy/Caddyfile:ro`, "caddy:2-alpine", "caddy", "adapt", "--config", "/etc/caddy/Caddyfile"],
+        { encoding: "utf8" },
+      );
+      expect(adaptRes.status, adaptRes.stderr).toBe(0);
+      expect(adaptRes.stdout).toContain('"Cache-Control":["no-cache"]');
     }
   });
 
@@ -66,26 +93,38 @@ describe("Deploy cache-control header configurations", () => {
       // handle_path strips /oo
       const stripped = requestPath.replace(/^\/oo/, "");
 
-      // 1. @versioned path_regexp ^/[0-9]+
-      if (/^\/[0-9]+/.test(stripped)) {
-        return "versioned";
-      }
-
-      // 2. @no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js
+      // 1. @no_cache evaluated first
       if (
         stripped.endsWith(".html") ||
         stripped.endsWith(".json") ||
         stripped.includes("/translations/") ||
         stripped.endsWith("zotero-sync-hook.js") ||
-        stripped.endsWith("api.js")
+        stripped.endsWith("api.js") ||
+        stripped.includes("sdkjs-plugins/zotero")
       ) {
         return "no-cache";
+      }
+
+      // 2. @versioned path_regexp ^/[0-9]+
+      if (/^\/[0-9]+/.test(stripped)) {
+        return "versioned";
       }
 
       return "default";
     }
 
-    // Required no-cache paths under /oo/
+    // Required no-cache paths under versioned prefix (e.g. /oo/10.0.0-x/...)
+    expect(evaluateOoPath("/oo/10.0.0-x/sdkjs-plugins/zotero/index.html")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/10.0.0-x/sdkjs-plugins/zotero/zotero-sync-hook.js")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/10.0.0-x/sdkjs-plugins/zotero/scripts/code.js")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/10.0.0-x/sdkjs-plugins/zotero/resources/img/icon.png")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/10.0.0-x/sdkjs-plugins/zotero/config.json")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/10.0.0-x/sdkjs-plugins/zotero/translations/tr-TR.json")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/10.0.0-123/web-apps/apps/api/documents/api.js")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/8.2.0-143/web-apps/apps/api/documents/api.js")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/10.0.0-123/web-apps/apps/documenteditor/main/resources/translations/en.json")).toBe("no-cache");
+
+    // Required no-cache paths under unversioned prefix
     expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/index.html")).toBe("no-cache");
     expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/config.json")).toBe("no-cache");
     expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/zotero-sync-hook.js")).toBe("no-cache");
@@ -94,11 +133,10 @@ describe("Deploy cache-control header configurations", () => {
     expect(evaluateOoPath("/oo/api.js")).toBe("no-cache");
     expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/resources/csl/styles.json")).toBe("no-cache");
 
-    // Truly versioned paths stay long-lived immutable (versioned)
+    // Truly versioned ONLYOFFICE core assets stay long-lived immutable (versioned)
     expect(evaluateOoPath("/oo/10.0.0-123/web-apps/apps/documenteditor/main/app.js")).toBe("versioned");
     expect(evaluateOoPath("/oo/10.0.0-123/sdkjs/word/sdk-all.js")).toBe("versioned");
-    expect(evaluateOoPath("/oo/10.0.0-123/web-apps/apps/documenteditor/main/resources/translations/en.json")).toBe("versioned");
-    expect(evaluateOoPath("/oo/8.2.0-143/web-apps/apps/api/documents/api.js")).toBe("versioned");
+    expect(evaluateOoPath("/oo/10.0.0-123/fonts/font.woff2")).toBe("versioned");
   });
 
   it("apps/web/nginx.conf preserves immutable hashed assets and no-cache index.html", () => {

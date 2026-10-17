@@ -464,4 +464,97 @@ describe("pending Zotero identifier", () => {
     expect(localStorage.getItem("zoteroLang")).toBe("tr-TR");
     expect(localStorage.getItem("zoteroFormatId")).toBe("author-date");
   });
+
+  it("switches style APA -> IEEE -> APA in place without re-creating DocEditor or destroying session", async () => {
+    let savedStyle = "apa";
+    const fetchFn = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/documents/switch-doc/citations")) {
+        return new Response(JSON.stringify({ citations: [], bibliography: null, style: savedStyle }));
+      }
+      if (url.includes("/api/documents/switch-doc/style") && init?.method === "PUT") {
+        const body = JSON.parse(String(init.body));
+        savedStyle = body.styleId;
+        return new Response(JSON.stringify({ ok: true, styleId: savedStyle }));
+      }
+      if (url.includes("/api/documents/switch-doc/onlyoffice-config")) {
+        return new Response(
+          JSON.stringify({
+            documentServerUrl: "/oo",
+            config: {
+              token: "test-token",
+              document: { key: "switch-doc-key", permissions: { edit: true } },
+              editorConfig: { mode: "edit", user: { id: "u1", name: "User" } },
+            },
+          }),
+        );
+      }
+      if (url.includes("plugin-credentials")) {
+        return new Response(JSON.stringify({ linked: false }));
+      }
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal("fetch", fetchFn);
+
+    const destroyEditor = vi.fn();
+    const DocEditor = vi.fn().mockImplementation(() => ({ destroyEditor }));
+    window.DocsAPI = { DocEditor };
+
+    render(
+      <OnlyofficeEditorPage
+        documentId="switch-doc"
+        documentTitle="Style Switch Document"
+        onBackToDocuments={vi.fn()}
+      />,
+    );
+
+    // Initial load: DocEditor created once, style is APA 7th
+    await waitFor(() => expect(DocEditor).toHaveBeenCalledTimes(1));
+    expect(destroyEditor).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByTestId("oo-style-current-label").textContent).toBe("APA 7th");
+    });
+    expect(localStorage.getItem("zoteroStyleId")).toBe("apa");
+
+    // 1. Switch APA -> IEEE
+    fireEvent.click(screen.getByTestId("oo-style-picker-btn"));
+    const ieeeBtn = screen.getByTestId("oo-style-item-ieee");
+    fireEvent.click(ieeeBtn);
+
+    // Style updates to IEEE, persistence called, DocEditor is NOT re-created or destroyed
+    await waitFor(() => {
+      expect(screen.getByTestId("oo-style-current-label").textContent).toBe("IEEE");
+    });
+    expect(fetchFn).toHaveBeenCalledWith(
+      "/api/documents/switch-doc/style",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ styleId: "ieee", locale: "tr-TR" }),
+      }),
+    );
+    expect(localStorage.getItem("zoteroStyleId")).toBe("ieee");
+    expect(localStorage.getItem("zoteroFormatId")).toBe("numeric");
+    expect(DocEditor).toHaveBeenCalledTimes(1);
+    expect(destroyEditor).not.toHaveBeenCalled();
+
+    // 2. Switch IEEE -> APA
+    fireEvent.click(screen.getByTestId("oo-style-picker-btn"));
+    const apaBtn = screen.getByTestId("oo-style-item-apa");
+    fireEvent.click(apaBtn);
+
+    // Style updates back to APA 7th, persistence called, DocEditor is STILL NOT re-created or destroyed
+    await waitFor(() => {
+      expect(screen.getByTestId("oo-style-current-label").textContent).toBe("APA 7th");
+    });
+    expect(fetchFn).toHaveBeenCalledWith(
+      "/api/documents/switch-doc/style",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ styleId: "apa", locale: "tr-TR" }),
+      }),
+    );
+    expect(localStorage.getItem("zoteroStyleId")).toBe("apa");
+    expect(localStorage.getItem("zoteroFormatId")).toBe("author-date");
+    expect(DocEditor).toHaveBeenCalledTimes(1);
+    expect(destroyEditor).not.toHaveBeenCalled();
+  });
 });

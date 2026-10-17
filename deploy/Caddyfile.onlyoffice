@@ -13,19 +13,20 @@ http://{$PUBLIC_HOST:docs.sifirdanbire.com.tr}, https://{$PUBLIC_HOST:docs.sifir
 	route {
 		# ONLYOFFICE Docs (main editor); X-Forwarded-Host carries the /oo prefix.
 		handle_path /oo/* {
+			@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero*
+			handle @no_cache {
+				header >Cache-Control "no-cache"
+				reverse_proxy onlyoffice:80 {
+					header_up X-Forwarded-Host {host}/oo
+					header_up X-Forwarded-Proto https
+					header_down Cache-Control "no-cache"
+				}
+			}
 			@versioned path_regexp ^/[0-9]+
 			handle @versioned {
 				reverse_proxy onlyoffice:80 {
 					header_up X-Forwarded-Host {host}/oo
 					header_up X-Forwarded-Proto https
-				}
-			}
-			@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js
-			handle @no_cache {
-				reverse_proxy onlyoffice:80 {
-					header_up X-Forwarded-Host {host}/oo
-					header_up X-Forwarded-Proto https
-					header_down Cache-Control "no-cache"
 				}
 			}
 			handle {

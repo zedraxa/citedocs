@@ -2229,3 +2229,56 @@ Açık konular: Bu ölçüm derleme çıktısı boyutu ve bağımlılık grafiğ
 - **`pnpm test` (Tam Test Paketi):**
   - **74 test dosyası** çalıştırıldı.
   - **709 test başarılı**, 1 atlanan, 3 yapılabilir/todo. 0 başarısız!
+
+
+---
+
+## CSL Atıf Stili Seçicisi Liste Sanallaştırma (Virtualization) ve Klavye Navigasyonu — Kayıt #042
+
+> **Kayıt No:** #042  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-style-virt`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** ZC-05 çözümü — ONLYOFFICE CSL Atıf Stili Seçicisi (`apps/web/src/onlyoffice/StylePicker.tsx`) için liste sanallaştırma (virtualization / windowing), combobox desenine uygun tam klavye navigasyonu (ArrowDown, ArrowUp, Enter, Escape), 10.000+ stilde sıfır istemci jank/DOM tıkanıklığı garantisi, Türkçe arayüz metinleri ve postMessage / style-sync uyumluluğunun korunması, kapsamlı web birim testleri.
+
+### 1. Yapılan Çalışmalar ve Mimari Çözümler
+
+1. **Sıfır Bağımlılıklı (Zero-Dependency) Hafif Sanallaştırma Mimarisi (`apps/web/src/onlyoffice/StylePicker.tsx`):**
+   - Ağır üçüncü parti paketler (@tanstack/react-virtual vb.) eklenmeden, hafif CSS kaydırma ve pencereleme (windowing) mimarisi kuruldu. Bu sayede React 19 ile kusursuz uyum sağlandı, gereksiz bağımlılık ve paket büyümesi engellendi.
+   - Sabit satır yüksekliği (`STYLE_PICKER_ITEM_HEIGHT = 46px`), görünüm penceresi yüksekliği (`STYLE_PICKER_VIEWPORT_HEIGHT = 280px`) ve overscan (`STYLE_PICKER_OVERSCAN = 3 satır`) tanımlandı.
+   - 10.000 veya 10.865 stil içeren depolarda toplam yükseklik sanal ayırıcı (`data-testid="oo-style-virtual-spacer"`) ile (`totalHeight = results.length * 46px`) korundu ve tarayıcının yerel kaydırma çubuğu (native scrollbar) akıcılığı sağlandı.
+   - Ekranda her an yalnızca görünür satırlar ve overscan kadar (en fazla 15-20 satır) DOM düğümü bağlandı; 10k stil arandığında veya yüklendiğinde dahi DOM'da asla binlerce düğüm oluşmaz.
+
+2. **Tam Klavye Navigasyonu ve Otomatik Görünüm İçi Kaydırma:**
+   - WAI-ARIA combobox ve listbox erişilebilirlik desenine uygun olarak arama kutusuna (`role="combobox"`) ve menüye (`role="listbox"`, `role="option"`) klavye navigasyonu entegre edildi.
+   - `ArrowDown` ve `ArrowUp` ile stil listesinde gezinme, `Enter` ile vurgulanan stili anında seçme, `Escape` ile menüyü kapatıp tetikleyici butona odaklanma sağlandı.
+   - `scrollItemIntoView` fonksiyonu ile klavyeyle gezinirken seçili öğenin görünür pencerenin dışına çıkması durumunda `scrollContainer.scrollTop` otomatik olarak ayarlanır.
+   - Tuş olaylarının çift tetiklenmesini önlemek için olay yayılımı (`e.stopPropagation()`) güvenceye alındı.
+
+3. **Başlangıç Durumu, Arama Filtreleme ve Türkçe Arayüz:**
+   - Popüler sabit stiller (`PINNED_POPULAR_STYLES`: APA 7, IEEE, Chicago, MLA, Harvard, Vancouver, TÜBİTAK) açılışta gecikmesiz senkron olarak hazırlandı.
+   - Arama temizleme butonu (`data-testid="oo-style-search-clear"`, `aria-label="Aramayı temizle"`) ve kapatma butonu (`data-testid="oo-style-picker-close"`, `aria-label="Kapat"`) belirginleştirildi.
+   - "Sık Kullanılan Popüler Stiller", "Arama Sonuçları (en fazla 50)", "Eşleşen atıf stili bulunamadı." gibi tüm Türkçe metinler eksiksiz korundu.
+
+4. **`apps/server/test/zotero-compat.test.ts` ZC-05 it.todo Notu:**
+   - `apps/server/test/zotero-compat.test.ts` sunucu tarafı Node.js ortamında çalışan DOCX/ODT fixture ve durum çıkarma test paketidir; DOM ve React bileşenlerini barındırmaz.
+   - Kullanıcı talimatı doğrultusunda ZC-05 istemci tarafı DOM sanallaştırma doğrulaması `apps/web/test/style-picker.test.tsx` dosyasına taşınmış, 10.000 stillik sahte depoyla DOM düğüm sayısının `<= 25` kaldığı, kaydırmayla doğru satırların bağlanıp çözüldüğü ve klavye navigasyonu uçtan uca doğrulanmıştır; sunucu dosyasındaki `it.todo` not ile korunmuştur.
+
+### 2. Dokunulmayan Dosyalar ve İzolasyon Kurallarına Tam Uyum
+
+- `OnlyofficeEditorPage.tsx` — **KESİNLİKLE DOKUNULMADI.**
+- `App.tsx` — **KESİNLİKLE DOKUNULMADI.**
+- `deploy/` altındaki prod docker compose, Dockerfile, nginx veya AWS yapılandırmaları — **KESİNLİKLE DOKUNULMADI.**
+- `apps/server/test/zotero-compat.test.ts` — Sunucu offline test yapısı bozulmadan bırakıldı.
+- Dağıtım (deploy), push veya merge kesinlikle yapılmadı.
+- `tsconfig.tsbuildinfo` temizlendi.
+
+### 3. Doğrulama ve Test Sonuçları
+
+- **`pnpm lint`:** 0 hata, 0 uyarı (temiz).
+- **`pnpm typecheck`:** 0 hata (tüm monorepo TypeScript derlemesi başarılı).
+- **`pnpm build`:** Tüm paketler ve uygulamalar (`@citedocs/web`, `@citedocs/server`, `@citedocs/shared` vb.) başarıyla derlendi.
+- **`apps/web/test/style-picker.test.tsx`:** 10 testin tamamı başarılı (5 yeni test eklendi: 10k sanallaştırma [ZC-05], klavye navigasyonu, Escape ile kapatma, arama temizleme, Türkçe boş durum).
+- **`pnpm test` (Tam Test Paketi):**
+  - **74 test dosyası** çalıştırıldı.
+  - **714 test başarılı**, 1 atlanan, 3 todo (0 başarısız).

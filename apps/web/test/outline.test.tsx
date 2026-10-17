@@ -21,6 +21,10 @@ afterEach(cleanup);
 
 async function setup(content: string) {
   const { container } = render(<App />);
+  await act(async () => {
+    await vi.dynamicImportSettled();
+  });
+  await waitFor(() => expect(container.querySelector(".tiptap")).not.toBeNull());
   const surface = container.querySelector(".tiptap") as HTMLElement & { editor: Editor };
   const editor = surface.editor;
   await waitFor(() => expect(editor.isInitialized).toBe(true));
@@ -85,7 +89,9 @@ describe("App document outline", () => {
       editor.commands.clearContent();
     });
     expect(outline.queryAllByRole("button")).toHaveLength(0);
-    expect(outline.getByText("Henüz başlık eklenmedi. Taslak oluşturmak için başlıklar ekleyin.")).toBeTruthy();
+    expect(
+      outline.getByText("Henüz başlık eklenmedi. Taslak oluşturmak için başlıklar ekleyin."),
+    ).toBeTruthy();
   });
 
   it("tracks cursor movement into section body paragraphs", async () => {
@@ -114,7 +120,9 @@ describe("App document outline", () => {
 
   it("handles an empty document and unnamed headings", async () => {
     const { editor, outline } = await setup("<p></p>");
-    expect(outline.getByText("Henüz başlık eklenmedi. Taslak oluşturmak için başlıklar ekleyin.")).toBeTruthy();
+    expect(
+      outline.getByText("Henüz başlık eklenmedi. Taslak oluşturmak için başlıklar ekleyin."),
+    ).toBeTruthy();
     act(() => {
       editor.commands.setContent("<h1></h1>");
     });

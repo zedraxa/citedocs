@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createElement, act } from "react";
+import { waitFor } from "@testing-library/react";
 import { createRoot } from "react-dom/client";
 import { LegacyApp as App } from "../src/App.js";
 
@@ -22,6 +23,10 @@ describe("@citedocs/web", () => {
     await act(async () => {
       root.render(createElement(App));
     });
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    await waitFor(() => expect(container.querySelector(".tiptap")).not.toBeNull());
 
     // Verify Google Docs Header
     expect(container.querySelector("header")).not.toBeNull();
@@ -74,6 +79,10 @@ describe("@citedocs/web", () => {
     await act(async () => {
       root.render(createElement(App));
     });
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    await waitFor(() => expect(container.querySelector(".tiptap")).not.toBeNull());
 
     // Header presence contains Niels Bohr's initials "NB"
     const presenceContainer = container.querySelector("[data-testid='collab-presence']");
@@ -149,6 +158,10 @@ describe("@citedocs/web", () => {
       await act(async () => {
         root.render(createElement(App));
       });
+      await act(async () => {
+        await vi.dynamicImportSettled();
+      });
+      await waitFor(() => expect(container.querySelector(".tiptap")).not.toBeNull());
 
       // 1. Click "Add by Identifier" in toolbar
       const addByIdBtn = container.querySelector(
@@ -250,6 +263,10 @@ describe("@citedocs/web", () => {
       await act(async () => {
         root.render(createElement(App));
       });
+      await act(async () => {
+        await vi.dynamicImportSettled();
+      });
+      await waitFor(() => expect(container.querySelector(".tiptap")).not.toBeNull());
 
       // Open Add by Identifier
       const addByIdBtn = container.querySelector(
@@ -296,6 +313,10 @@ describe("@citedocs/web", () => {
       await act(async () => {
         root.render(createElement(App));
       });
+      await act(async () => {
+        await vi.dynamicImportSettled();
+      });
+      await waitFor(() => expect(container.querySelector(".tiptap")).not.toBeNull());
 
       const addByIdBtn = container.querySelector(
         "[data-testid='add-by-identifier-btn']",

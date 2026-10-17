@@ -114,9 +114,10 @@ cleanup() {
   if [ "$exit_code" -ne 0 ]; then
     log_error "Restore operation terminated with exit code ${exit_code}."
   fi
+  trap - EXIT INT TERM HUP QUIT
   exit "$exit_code"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT INT TERM HUP QUIT
 
 # ------------------------------------------------------------------------------
 # Help message

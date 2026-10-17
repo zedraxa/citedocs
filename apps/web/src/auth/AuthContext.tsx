@@ -9,6 +9,11 @@ import {
 import type { AuthUser, AuthProviders, AuthLanguage, AuthViewMode } from "./types.js";
 import { authApi } from "./api.js";
 import { getTranslation, type TranslationKey } from "./i18n.js";
+import {
+  migrateLanguagePreference,
+  persistLanguagePreference,
+  LANG_STORAGE_KEY,
+} from "./languageMigration.js";
 
 export interface AuthContextValue {
   user: AuthUser | null;
@@ -76,20 +81,16 @@ export function AuthProvider({
   const [lang, setLangState] = useState<AuthLanguage>(() => {
     if (initialLang) return initialLang;
     if (typeof localStorage !== "undefined") {
-      const saved = localStorage.getItem("citedocs_lang") as AuthLanguage | null;
+      migrateLanguagePreference(localStorage);
+      const saved = localStorage.getItem(LANG_STORAGE_KEY) as AuthLanguage | null;
       if (saved === "tr" || saved === "en") return saved;
-    }
-    if (typeof navigator !== "undefined" && navigator.language?.startsWith("tr")) {
-      return "tr";
     }
     return "tr";
   });
 
   const setLang = useCallback((newLang: AuthLanguage) => {
     setLangState(newLang);
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem("citedocs_lang", newLang);
-    }
+    persistLanguagePreference(newLang);
   }, []);
 
   const t = useCallback(

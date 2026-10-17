@@ -8,7 +8,7 @@ import {
   DEFAULT_LOCALE,
   type ZoteroPrefChunk,
 } from "@citedocs/shared";
-import { StyleIndexService, type StyleItem } from "../styles/styleService.js";
+import { StyleIndexService } from "../styles/styleService.js";
 import type { IDocumentRepository } from "../repositories/documentRepository.js";
 import type { WopiStorage } from "../wopi/types.js";
 import type { OnlyofficeSessionManager } from "../onlyoffice/session.js";

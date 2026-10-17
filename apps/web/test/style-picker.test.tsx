@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import { cleanup, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { StylePicker, type StyleItem } from "../src/onlyoffice/StylePicker.js";
 
 vi.mock("../src/auth/api.js", () => ({

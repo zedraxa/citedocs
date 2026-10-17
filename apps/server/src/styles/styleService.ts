@@ -2,7 +2,6 @@ import {
   PINNED_POPULAR_STYLES,
   PINNED_STYLE_IDS,
   normalizeStyleId,
-  type PinnedStyleDefinition,
 } from "@citedocs/shared";
 
 export interface StyleItem {
@@ -91,7 +90,7 @@ export class StyleIndexService {
         this.fetchPromise = null;
         return items;
       })
-      .catch((err) => {
+      .catch((_err) => {
         this.fetchPromise = null;
         if (this.cache && this.cache.length > 0) {
           return this.cache;

@@ -12,7 +12,6 @@ import {
   PINNED_POPULAR_STYLES,
   DEFAULT_STYLE_ID,
   normalizeStyleId,
-  type PinnedStyleDefinition,
 } from "@citedocs/shared";
 import { getApiBaseUrl, getCsrfToken } from "../auth/api.js";
 
@@ -172,7 +171,7 @@ export function StylePicker({
   const isSearchActive = searchQuery.trim().length >= 2;
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <div className="relative inline-block text-left" ref={dropdownRef} data-document-id={documentId}>
       {/* Top Bar Trigger Button */}
       <button
         type="button"
@@ -275,7 +274,9 @@ export function StylePicker({
                     <div className="flex items-center gap-1.5">
                       <span className="truncate font-medium">{style.title}</span>
                       {style.isPinned && !isSearchActive && (
-                        <Sparkles size={11} className="text-amber-500 shrink-0" title="Popüler Stil" />
+                        <span title="Popüler Stil" className="inline-flex shrink-0">
+                          <Sparkles size={11} className="text-amber-500" />
+                        </span>
                       )}
                     </div>
                     {style.shortTitle && style.shortTitle !== style.title && (

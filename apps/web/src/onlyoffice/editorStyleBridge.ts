@@ -110,9 +110,9 @@ export function applyStyleInOnlyoffice(
         editorWindow.Asc.editor.callCommand(
           () => {
             // @ts-expect-error ONLYOFFICE internal Api
-            var scope = Asc.scope;
+            const scope = Asc.scope;
             // @ts-expect-error ONLYOFFICE internal Api
-            var props = typeof Api.GetCustomProperties === "function"
+            const props = typeof Api.GetCustomProperties === "function"
               // @ts-expect-error ONLYOFFICE internal Api
               ? Api.GetCustomProperties()
               // @ts-expect-error ONLYOFFICE internal Api
@@ -122,7 +122,7 @@ export function applyStyleInOnlyoffice(
                 : null);
 
             if (props && typeof props.Add === "function") {
-              for (var i = 0; i < scope.chunks.length; i++) {
+              for (let i = 0; i < scope.chunks.length; i++) {
                 props.Add(scope.chunks[i].name, scope.chunks[i].value);
               }
             }

@@ -22,7 +22,9 @@ import { zoteroWeblibRoutes } from "./zotero/routes.js";
 import { ZoteroAccountService } from "./zotero/accountService.js";
 import { ZoteroProxyService } from "./zotero/proxyService.js";
 import { ZoteroOAuthService } from "./zotero/oauthService.js";
+import { ZoteroImportService } from "./zotero/importService.js";
 import { ZoteroCredentialRepository } from "./repositories/zoteroRepository.js";
+
 import {
   createPdfRoutes,
   AttachmentRepository,
@@ -73,7 +75,9 @@ export interface BuildAppOptions {
   zoteroAccountService?: ZoteroAccountService;
   zoteroProxyService?: ZoteroProxyService;
   zoteroOAuthService?: ZoteroOAuthService;
+  zoteroImportService?: ZoteroImportService;
   wopiStorage?: WopiStorage;
+
   lockManager?: WopiLockManager;
   discoveryService?: CollaboraDiscoveryService;
   attachmentRepo?: AttachmentRepository;
@@ -152,9 +156,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     accountService: options.zoteroAccountService,
     proxyService: options.zoteroProxyService,
     oauthService: options.zoteroOAuthService,
+    importService: options.zoteroImportService,
     credentialRepo,
     fetchFn: options.zoteroFetchFn,
   });
+
 
   const documentRepo =
     options.documentRepo ||

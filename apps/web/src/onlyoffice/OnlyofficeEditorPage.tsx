@@ -15,7 +15,8 @@ import { getDocumentLanguage } from "../documents/i18n.js";
 import { openZoteroPanel } from "./zoteroPanel.js";
 import { OdtNoticeBanner } from "./OdtNoticeBanner.js";
 import { StylePicker, type StyleItem } from "./StylePicker.js";
-import { applyStyleInOnlyoffice } from "./editorStyleBridge.js";
+import { applyStyleInOnlyoffice, syncZoteroPluginStorage } from "./editorStyleBridge.js";
+import { DEFAULT_STYLE_ID, DEFAULT_LOCALE, normalizeStyleId } from "@citedocs/shared";
 
 declare global {
   interface Window {
@@ -137,21 +138,29 @@ export function OnlyofficeEditorPage({
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [recentItems, setRecentItems] = useState<AddedCiteItem[]>([]);
   const [lastAdded, setLastAdded] = useState<AddedCiteItem | null>(null);
-  const [currentStyle, setCurrentStyle] = useState<string>("apa");
+  const [currentStyle, setCurrentStyle] = useState<string>(DEFAULT_STYLE_ID);
 
   // Fetch current document style from Zotero preferences
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api<{ style?: string | null }>(
+        const res = await api<{ style?: string | null; prefs?: { locale?: string } | null }>(
           `/api/documents/${encodeURIComponent(documentId)}/citations`,
         );
-        if (!cancelled && res.ok && res.data.style) {
-          setCurrentStyle(res.data.style);
+        if (!cancelled && res.ok && res.data) {
+          const resolvedStyle = normalizeStyleId(res.data.style || DEFAULT_STYLE_ID);
+          const resolvedLocale = res.data.prefs?.locale || DEFAULT_LOCALE;
+          setCurrentStyle(resolvedStyle);
+          syncZoteroPluginStorage(resolvedStyle, resolvedLocale);
+        } else if (!cancelled) {
+          syncZoteroPluginStorage(DEFAULT_STYLE_ID, DEFAULT_LOCALE);
         }
       } catch {
         /* fallback to default apa */
+        if (!cancelled) {
+          syncZoteroPluginStorage(DEFAULT_STYLE_ID, DEFAULT_LOCALE);
+        }
       }
     })();
     return () => {
@@ -162,12 +171,14 @@ export function OnlyofficeEditorPage({
   const handleStyleChange = useCallback(
     async (style: StyleItem) => {
       try {
+        const targetStyleId = normalizeStyleId(style.id);
+
         // 1. In-editor ONLYOFFICE bridge (custom properties, plugin storage, plugin refresh)
         applyStyleInOnlyoffice(
           editorContainerRef.current,
           editorRef.current,
-          style.id,
-          "tr-TR",
+          targetStyleId,
+          DEFAULT_LOCALE,
         );
 
         // 2. Server-side update for docProps/custom.xml
@@ -175,12 +186,12 @@ export function OnlyofficeEditorPage({
           `/api/documents/${encodeURIComponent(documentId)}/style`,
           {
             method: "PUT",
-            body: JSON.stringify({ styleId: style.id, locale: "tr-TR" }),
+            body: JSON.stringify({ styleId: targetStyleId, locale: DEFAULT_LOCALE }),
           },
         );
 
         if (r.ok) {
-          setCurrentStyle(style.id);
+          setCurrentStyle(targetStyleId);
           setNotice({
             ok: true,
             text: `Atıf stili güncellendi: “${style.title}”.`,
@@ -244,12 +255,14 @@ export function OnlyofficeEditorPage({
         localStorage.removeItem(ZK_USER);
         localStorage.removeItem(ZK_KEY);
       }
+      // Ensure plugin storage defaults (APA 7, tr-TR or active document style) are in place before editor starts
+      syncZoteroPluginStorage(currentStyle || DEFAULT_STYLE_ID, DEFAULT_LOCALE);
     } catch {
       /* storage blocked */
     }
     setCreds({ linked: c.linked, zoteroUserId: c.zoteroUserId, oauthAvailable: c.oauthAvailable });
     return c;
-  }, []);
+  }, [currentStyle]);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,7 +292,19 @@ export function OnlyofficeEditorPage({
               (window as unknown as { __ooReady?: boolean }).__ooReady = true;
             },
             onDocumentReady: () => {
-              if (!cancelled) setDocumentReady(true);
+              if (!cancelled) {
+                setDocumentReady(true);
+                try {
+                  applyStyleInOnlyoffice(
+                    editorContainerRef.current,
+                    editorRef.current,
+                    currentStyle || DEFAULT_STYLE_ID,
+                    DEFAULT_LOCALE,
+                  );
+                } catch {
+                  /* ignore */
+                }
+              }
             },
             onError: (e: { data?: { errorDescription?: string } }) => {
               setDocumentReady(false);

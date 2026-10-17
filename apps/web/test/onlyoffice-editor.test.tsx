@@ -303,6 +303,8 @@ describe("pending Zotero identifier", () => {
       const label = screen.getByTestId("oo-style-current-label");
       expect(label.textContent).toBe("IEEE");
     });
+    expect(localStorage.getItem("zoteroStyleId")).toBe("ieee");
+    expect(localStorage.getItem("zoteroLang")).toBe("tr-TR");
 
     // Open style picker
     fireEvent.click(screen.getByTestId("oo-style-picker-btn"));
@@ -328,9 +330,61 @@ describe("pending Zotero identifier", () => {
       );
     });
 
+    // Zotero plugin localStorage keys should immediately reflect newly selected style
+    expect(localStorage.getItem("zoteroStyleId")).toBe(
+      "turkiye-bilimsel-ve-teknolojik-arastirma-kurumu",
+    );
+    expect(localStorage.getItem("zoteroFormatId")).toBe("numeric");
+
     // Notice should appear in Turkish
     await waitFor(() => {
       expect(screen.getByTestId("oo-notice").textContent).toContain("Atıf stili güncellendi");
     });
+  });
+
+  it("defaults to APA 7th edition and tr-TR when document has no custom citation style", async () => {
+    const fetchFn = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("/api/documents/new-doc/citations")) {
+        return new Response(JSON.stringify({ citations: [], bibliography: null, style: null }));
+      }
+      if (url.includes("/api/documents/new-doc/onlyoffice-config")) {
+        return new Response(
+          JSON.stringify({
+            documentServerUrl: "/oo",
+            config: {
+              token: "test-token",
+              document: { key: "doc-key", permissions: { edit: true } },
+              editorConfig: { mode: "edit", user: { id: "u1", name: "User" } },
+            },
+          }),
+        );
+      }
+      if (url.includes("plugin-credentials")) {
+        return new Response(JSON.stringify({ linked: false }));
+      }
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal("fetch", fetchFn);
+
+    window.DocsAPI = { DocEditor: vi.fn().mockImplementation(() => ({ destroyEditor: vi.fn() })) };
+
+    render(
+      <OnlyofficeEditorPage
+        documentId="new-doc"
+        documentTitle="New Document"
+        onBackToDocuments={vi.fn()}
+      />,
+    );
+
+    // Default label should be APA 7th
+    await waitFor(() => {
+      const label = screen.getByTestId("oo-style-current-label");
+      expect(label.textContent).toBe("APA 7th");
+    });
+
+    // Zotero plugin storage keys must be seeded with apa and tr-TR
+    expect(localStorage.getItem("zoteroStyleId")).toBe("apa");
+    expect(localStorage.getItem("zoteroLang")).toBe("tr-TR");
+    expect(localStorage.getItem("zoteroFormatId")).toBe("author-date");
   });
 });

@@ -1365,4 +1365,61 @@ pnpm build
 - **Production Compose S3 Bucket Değişkenleri:** Sunucu tarafında `S3_DOCUMENTS_BUCKET` ve `S3_ATTACHMENTS_BUCKET` ayrımı desteklendi. `deploy/docker-compose.prod.yml` içinde tek kova yerine ayrı kova kullanılmak istenirse `deploy` dosyasını yöneten ajan tarafından bu ortam değişkenleri compose servisine aktarılmalıdır.
 - **Translation Server Çoklu Mimari (arm64/amd64) Dockerfile:** `cd-infra-hardening` dalında `docker/translation-server/Dockerfile` içinde multi-arch Node 20 tabanlı bir imaj tanımlanmıştı. Prod compose'un bunu kullanabilmesi için deploy sorumlusu ajan tarafından `deploy/` altında incelenmesi ve prod compose'a entegrasyonu değerlendirilmelidir.
 
+---
+
+## 20. Canlı Sistem QA, Öğrenci Kabul Kriterleri & Hata Raporu (Kayıt #022)
+
+> **Kayıt No:** #022  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-oo-qa` (Taban: `72fd910` / `main`)  
+> **Ajan Modu:** Korkusuz Uzman Ajan (QA & Doğrulama Modu)  
+> **Aşama:** Canlı Sistem (`https://docs.sifirdanbire.com.tr`) Uçtan Uca Öğrenci Kabul Testleri ve Kalite Güvence Raporlaması
+
+### 20.1 Yapılan İşler ve Otomasyon Paketleri
+
+Uygulama ve dağıtım kodlarına dokunulmaksızın (`apps/`, `packages/`, `deploy/` değiştirilmeden), ürün gereksinimlerini denetleyen ve canlı ortamı simüle eden 4 yeni Playwright E2E test paketi geliştirildi:
+
+1. **`e2e/oo-qa-autosave.spec.ts` (Gereksinim 1 - Autosave & Kalıcılık):**
+   - Taze öğrenci kaydı (`qa+autosave_<timestamp>@example.com`), boş `.docx` belgesi oluşturulması.
+   - ONLYOFFICE içi AST metin ekleme (`callCommand`) ve tuval klavye girişi simülasyonu.
+   - `Control+s` force-save tetikleme ve `POST /api/onlyoffice/callback/:id` üzerinden `status: 6` callback kaydı.
+   - Belgelerim sayfasına dönüşte dosya boyutu (1.956 B -> 25.384 B) ve `updatedAt` zaman damgası doğrulaması.
+   - `/api/documents/:id/download` üzerinden `.docx` indirilip `JSZip` ile `word/document.xml` içinde benzersiz persistence belirtecinin doğrulanması.
+   - Belgenin yeniden açılıp editörün hazır olduğunun doğrulanması ve UI silme diyaloğu ile tam temizlik.
+
+2. **`e2e/oo-qa-language.spec.ts` (Gereksinim 2 - Türkçe Arayüz Tutarlılığı):**
+   - İzin verilen özel adlar listesi (`allowlist`: Zotero, DOI, ISBN, URL, CiteDocs, ONLYOFFICE, vb.) ile İngilizce kelime sızıntı denetim motoru kuruldu.
+   - `/signup`, `/login`, `/documents`, `ShareDialog`, `RenameDialog`, editör üst barı ve bildirimlerin %100 Türkçe olduğu doğrulandı.
+   - ONLYOFFICE API config (`lang: "tr"`, `region: "tr-TR"`), iframe `src` parametresi (`lang=tr`), şerit sekmeleri ve Zotero eklentisi yerelleştirmesi teyit edildi.
+   - Sızan İngilizce dizgeler (`Untitled Document`, `Cloud`, `Invalid email or password`) testlerle tespit edilip belgelendi.
+
+3. **`e2e/oo-qa-workflow.spec.ts` (Gereksinim 3 - Tek Ekran İş Akışı):**
+   - Editör üst barındaki kırmızı 1-tık Zotero butonunun (`oo-zotero-open`) sayfadan ayrılmadan ONLYOFFICE içi resmi Zotero eklentisini (`pluginFrameEditor`) açtığı doğrulandı.
+   - "Kaynak Paneli"nin (`oo-cite-panel`) sorunsuz açılıp kapandığı teyit edildi.
+   - Zotero hesabı bağlı olmayan öğrenci için uyarı bildirimleri ve bağlantı modalı denetlendi.
+   - Harici Zotero hesabı gerektiren adımlar `test.fixme` ile işaretlendi.
+
+4. **`e2e/oo-qa-robustness.spec.ts` (Gereksinim 4 - Temel Sağlamlık):**
+   - Öğrencinin kayıt, pano, editör, isim değiştirme, paylaşım, silme, çıkış ve tekrar giriş döngüsünde:
+     - 0 JS Runtime hatası (`pageerror`)
+     - 0 Fatal konsol hatası
+     - 0 Başarısız 4xx/5xx ağ isteği (kendi origin'imiz `docs.sifirdanbire.com.tr` üzerinden).
+
+### 20.2 Tespit Edilen Öncelikli Hatalar
+
+Detaylı rapor `docs/qa-report-2026-10-17.md` dosyasına kaydedilmiş olup, en kritik maddeler şunlardır:
+1. **BUG-01 (Kritik - P1):** Force-save sonrası belge kapatılıp tekrar açıldığında ONLYOFFICE Document Server oturum anahtarının yenilenmemesi nedeniyle "Versiyon değiştirildi" modalının açılması ve editörün kilitlenmesi (`apps/server/src/onlyoffice/session.ts`).
+2. **BUG-02 (Yüksek - P2):** Zotero hesabı bağlanmadan DOI/ISBN/URL ile kaynak eklenememesi (istemci engeli ve sunucu HTTP 409 Conflict: `Zotero account not linked`).
+3. **BUG-03 (Orta - P3):** Yeni oluşturulan belgelerin varsayılan adının İngilizce `"Untitled Document"` olması (`apps/server/src/documents/routes.ts`).
+4. **BUG-04 (Orta - P3):** Hatalı girişte sunucudan dönen İngilizce `"Invalid email or password"` mesajının arayüzde doğrudan gösterilmesi.
+5. **BUG-05 (Düşük - P4):** `/documents` sayfasındaki depolama rozetinin sabit `"Cloud"` yazılması.
+
+### 20.3 Sonraki Geliştirici / Ajan İçin Notlar
+
+- Uygulama kodunu (`apps/`, `packages/`) devralacak ajan:
+  - `apps/server/src/onlyoffice/session.ts` içinde `closeSession(fileId)` mantığını veya MD5 tabanlı oturum anahtarı yenilemesini düzelttiğinde `e2e/oo-qa-autosave.spec.ts` ek bir modal tıklamasına ihtiyaç kalmadan pürüzsüz çalışacaktır.
+  - `apps/server/src/documents/routes.ts` içinde `docTitle` varsayılanını `"Adsız Belge"` yaparak BUG-03'ü kolayca çözebilir.
+  - `apps/web/src/documents/DocumentsPage.tsx` içindeki `<span ...>Cloud</span>` etiketini `t.cloud` ("Bulut") yaparak BUG-05'i çözebilir.
+- Tüm testler `BASE_URL=https://docs.sifirdanbire.com.tr pnpm test:e2e` ile 3.5 dakika içinde uçtan uca doğrulanabilir.
+
 

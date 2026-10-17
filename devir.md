@@ -1764,3 +1764,48 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - `ZC-01`, `ZC-03`, `ZC-05` maddelerine dokunulmadı.
 - `tsconfig.tsbuildinfo` gürültüsü temizlendi.
 - Doğrudan main'e birleştirme yapılmadı; commit'ler `cd-zotero-server` dalında tutuldu.
+---
+
+## ODT Zotero Atıf Uyarısı ve DOCX Kopyası Dönüştürme (ZC-01) — Kayıt #032
+
+> **Kayıt No:** #032  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-odt-notice`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** ZC-01 kısa vadeli çözüm: Öğrenci bir `.odt` belgesi yüklediğinde veya açtığında, Zotero masaüstü eklentileriyle (LibreOffice/Word) tam çift yönlü atıf uyumluluğu için `.docx` kullanması gerektiğini, aksi halde ONLYOFFICE'ın ODT dosyalarını kaydederken Zotero atıflarını düz metne dönüştürdüğünü açıklayan net bir Türkçe uyarı (`OdtNoticeBanner`) gösterilmesi. Tek tıkla "DOCX olarak kopya oluştur" butonu ile belgenin sunucu tarafında ONLYOFFICE Document Server Conversion API (`ConvertService.ashx`) üzerinden dönüştürülmesi, aynı kullanıcıya ait yeni bir `.docx` belgesi olarak depolanması ve editörde açılması; tüm hataların Türkçe hata mesajlarıyla karşılanması.
+
+### 1. Yapılan Çalışmalar ve Mimari Kararlar
+
+1. **Sunucu Taraflı ONLYOFFICE Dönüştürme Uç Noktası (`apps/server/src/onlyoffice/routes.ts`):**
+   - `POST /api/documents/:id/convert-to-docx` rotası oluşturuldu (`requireAuth` korumalı).
+   - Kullanıcı yetkilendirmesi ve belge varlık doğrulaması (`documentRepo.getById`) yapıldı.
+   - Belgenin ODT formatında olduğu (`application/vnd.oasis.opendocument.text` veya `.odt` uzantısı) doğrulandı; farklı formattaki belgeler 400 ve Türkçe açıklamayla reddedildi.
+   - Depolamadaki ikili dosyanın varlığı denetlendi (`storage.getFileInfo`).
+   - ONLYOFFICE Document Server'ın kaynak dosyayı güvenle çekebilmesi için imzalı URL (`signLink`) ve JWT belirteci (`signJwt`) hazırlandı; `/api/onlyoffice/files/:id` uç noktası sorgu parametresindeki belirteçleri (`req.query.token`) doğrulayacak şekilde genişletildi.
+   - ONLYOFFICE Document Server `ConvertService.ashx` servisine JSON RPC formatında dönüştürme isteği (`outputtype: "docx"`, `filetype: "odt"`, `async: false`) JWT başlığı ve gövdesi ile iletildi.
+   - Dönüştürme sonucu üretilen `fileUrl` güvenli URL ayrıştırıcısından geçirildi; yalnızca dahili Document Server adreslerine izin verildi, yönlendirmeler (`redirect: "error"`) engellendi.
+   - Dönüştürülen DOCX ikilisi indirildi, kullanıcı kota kontrolü yapıldı (`assertUserQuota`), depolama katmanına (`storage.createFile` / `putFile`) yazıldı ve aynı kullanıcıya ait yeni bir belge kaydı (`title: <doc>.docx`, `mimeType: docx`) oluşturularak HTTP 201 ile döndürüldü.
+   - Tüm hata senaryoları (kota aşımı -> 413, dönüştürme hatası -> 502, yetkisiz erişim -> 403, bulunamayan belge -> 404) açıklayıcı Türkçe mesajlarla ele alındı.
+
+2. **İstemci Web API ve Bileşen Katmanı (`apps/web`):**
+   - `apps/web/src/documents/api.ts` içine `convertOdtToDocx` ve `fetchDocument` yardımcı fonksiyonları eklendi.
+   - `apps/web/src/onlyoffice/OdtNoticeBanner.tsx` bileşeni geliştirildi:
+     - Türkçe bilgilendirme: *"Zotero masaüstü eklentileriyle (Word ve LibreOffice) tam iki yönlü uyumluluk için .docx formatını kullanmanız önerilir. ONLYOFFICE, ODT dosyaları kaydedildiğinde Zotero atıflarını düz metne dönüştürmektedir."*
+     - Tek tıkla "DOCX olarak kopya oluştur" eylem butonu (`data-testid="convert-to-docx-btn"`), dönüştürme sırasında dönen animasyon (`Dönüştürülüyor…`), hata durumunda Türkçe bildirim (`data-testid="odt-convert-error"`), kapatma/gizleme butonu (`data-testid="odt-notice-dismiss"`).
+     - Belge türünü dosya uzantısından (`.odt`), `mimeType` bilgisinden veya asenkron `fetchDocument` çağrısından dinamik tespit edebilme yeteneği.
+     - Başarılı dönüştürmede yeni oluşturulan DOCX belgesini doğrudan ONLYOFFICE editöründe açma veya `onConverted` geri çağrımını tetikleme.
+   - `apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx` içerisine eşzamanlı üst bar geliştirmeleriyle çakışmayı önlemek için tek satırlık montaj (`<OdtNoticeBanner documentId={documentId} documentTitle={documentTitle} />`) uygulandı.
+   - `apps/web/src/documents/DocumentsPage.tsx` dosyasında bir `.odt` belgesi yüklendiğinde (`handleFileUpload`) liste üzerinde `OdtNoticeBanner` gösterilmesi, butona tıklandığında belgenin dönüştürülüp otomatik olarak editörde açılması sağlandı.
+
+3. **Otomasyon Testleri:**
+   - `apps/server/test/onlyoffice-convert.test.ts`: 9 birim ve rota testi (başarılı dönüştürme ve yeni belge kaydı, uzantısız başlık dönüşümü, ODT olmayan dosya reddi, 404 bulunamayan belge, 403 yetkisiz erişim, 502 ONLYOFFICE hata kodları, ağ hataları, güvensiz ana bilgisayar reddi, 413 kota aşımı).
+   - `apps/web/test/odt-notice-banner.test.tsx`: 9 bileşen ve entegrasyon testi (Türkçe uyarı renderı, DOCX belgelerinde gizlenme, mimeType tespiti, asenkron metaveri sorgusu, dönüştürme butonu ve `onConverted` / yönlendirme akışı, hata mesajları, kapatma butonu ve `OnlyofficeEditorPage` montaj doğrulaması).
+   - `apps/web/test/documents.test.tsx`: ODT yükleme durumunda `OdtNoticeBanner`'ın tetiklenmesi testi.
+
+### 2. Kural ve Kısıtlamalara Uyum
+
+- Eşzamanlı çalışan işçinin düzenlediği dosyalar (`apps/server/src/documents/zoteroFields.ts`, `apps/server/src/documents/templates.ts`, `deploy/office/blank.docx`, `apps/server/test/zotero-compat.test.ts`) **kesinlikle değiştirilmemiştir**.
+- `deploy/` compose dosyaları, Caddyfile ve ONLYOFFICE konteyner yapılandırmalarına **dokunulmamıştır**.
+- Dağıtım (deploy), push veya merge yapılmamıştır.
+- `OnlyofficeEditorPage.tsx` üzerindeki değişiklik tek bir montaj satırıyla sınırlandırılmıştır.
+- Tüm `pnpm lint`, `pnpm typecheck`, `pnpm build` ve `pnpm test` adımları tam yeşildir.

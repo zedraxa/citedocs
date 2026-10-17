@@ -35,6 +35,14 @@ import { AddByIdentifier, type AddByIdentifierItem } from "./components/AddByIde
 import { OutlineSidebar } from "./components/OutlineSidebar.js";
 import { ZoteroSidebar } from "./zotero/index.js";
 import { CollaboraEditorPage } from "./collabora/index.js";
+import { OnlyofficeEditorPage } from "./onlyoffice/index.js";
+
+/** Editor backend flag: ONLYOFFICE by default; Collabora kept behind VITE_EDITOR_BACKEND=collabora or ?editor=collabora. */
+function isCollaboraBackend(): boolean {
+  const env = (import.meta as unknown as { env?: { VITE_EDITOR_BACKEND?: string } }).env?.VITE_EDITOR_BACKEND;
+  const q = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("editor") : null;
+  return (q || env || "onlyoffice") === "collabora";
+}
 import { DocumentsPage } from "./documents/index.js";
 import {
   AuthProvider,
@@ -985,6 +993,17 @@ function EditorRoute() {
   if (!doc) {
     window.location.replace("/documents");
     return null;
+  }
+  if (!isCollaboraBackend()) {
+    return (
+      <OnlyofficeEditorPage
+        documentId={doc}
+        documentTitle={params.get("title") || "Untitled Document"}
+        onBackToDocuments={() => {
+          window.location.href = "/documents";
+        }}
+      />
+    );
   }
   return (
     <CollaboraEditorPage

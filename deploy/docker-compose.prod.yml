@@ -30,6 +30,13 @@ services:
       COLLABORA_PUBLIC_URL: https://${PUBLIC_HOST}
       COLLABORA_ORIGIN: https://${PUBLIC_HOST}
       WOPI_SERVER_URL: http://server:3000
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
+      ONLYOFFICE_INTERNAL_URL: http://onlyoffice
+      ONLYOFFICE_STORAGE_URL: http://server:3000
+      ONLYOFFICE_PUBLIC_URL: /oo
+      PUBLIC_URL: https://${PUBLIC_HOST}
+      ZOTERO_OAUTH_CLIENT_KEY: ${ZOTERO_OAUTH_CLIENT_KEY:-}
+      ZOTERO_OAUTH_CLIENT_SECRET: ${ZOTERO_OAUTH_CLIENT_SECRET:-}
     ports: !reset []
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
@@ -57,7 +64,24 @@ services:
     environment:
       BASIC_AUTH_USER: ${BASIC_AUTH_USER}
       BASIC_AUTH_HASH: ${BASIC_AUTH_HASH}
+  # Main editor: ONLYOFFICE Docs Community Edition (AGPL, 20 concurrent connections).
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: citedocs-onlyoffice
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
+      JWT_HEADER: Authorization
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+      WOPI_ENABLED: "false"
+    volumes:
+      - oo_data:/var/www/onlyoffice/Data
+      - oo_logs:/var/log/onlyoffice
+  # Collabora is kept behind a flag: `docker compose --profile collabora up -d collabora wopi`
+  # and build web with VITE_EDITOR_BACKEND=collabora (or open /editor?...&editor=collabora).
   collabora:
+    profiles: ["collabora"]
     image: collabora/code:latest
     container_name: citedocs-collabora
     restart: unless-stopped
@@ -73,6 +97,7 @@ services:
       password: ${COLLABORA_ADMIN_PASSWORD}
       extra_params: --o:ssl.enable=false --o:ssl.termination=true --o:num_prespawn_children=1 --o:per_document.limit_load_secs=20 --o:welcome.enable=false --o:user_interface.mode=tabbed --o:net.frame_ancestors=https://docs.sifirdanbire.com.tr
   wopi:
+    profiles: ["collabora"]
     image: node:22-alpine
     container_name: citedocs-wopi
     restart: unless-stopped
@@ -90,3 +115,5 @@ services:
 volumes:
   caddy_data:
   office_files:
+  oo_data:
+  oo_logs:

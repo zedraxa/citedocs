@@ -52,6 +52,7 @@ import {
   type IDocumentRepository,
 } from "./repositories/index.js";
 import { createDocumentRoutes } from "./documents/index.js";
+import { createOnlyofficeRoutes } from "./onlyoffice/index.js";
 
 export * from "./db/index.js";
 export * from "./repositories/index.js";
@@ -60,6 +61,7 @@ export * from "./wopi/index.js";
 export * from "./auth/index.js";
 export * from "./pdf/index.js";
 export * from "./documents/index.js";
+export * from "./onlyoffice/index.js";
 export { createItemRoutes, itemRoutes };
 
 export interface BuildAppOptions {
@@ -177,6 +179,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       documentRepo,
     }),
   );
+
+  await fastify.register(createOnlyofficeRoutes({ storage: wopiStorage, documentRepo }));
 
   const attachmentRepo =
     options.attachmentRepo ||

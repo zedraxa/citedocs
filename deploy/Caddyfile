@@ -19,6 +19,13 @@ http://docs.sifirdanbire.com.tr, https://docs.sifirdanbire.com.tr {
 			{$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
 		}
 		reverse_proxy @office wopi:8080
+		# ONLYOFFICE Docs (main editor); X-Forwarded-Host carries the /oo prefix.
+		handle_path /oo/* {
+			reverse_proxy onlyoffice:80 {
+				header_up X-Forwarded-Host {host}/oo
+				header_up X-Forwarded-Proto https
+			}
+		}
 		reverse_proxy /api/* server:3000
 		reverse_proxy /health server:3000
 		handle_path /collab* {

@@ -125,10 +125,54 @@ describe("Zotero ONLYOFFICE Cite Panel & OAuth Endpoints (apps/server)", () => {
       const res = await app.inject({
         method: "GET",
         url: "/api/zotero/oauth/start",
-        headers: { "x-user-id": userId },
+        headers: { "x-user-id": userId, accept: "application/json" },
       });
       expect(res.statusCode).toBe(501);
       expect(JSON.parse(res.body).error).toMatch(/not configured/i);
+    });
+
+    it("GET /api/zotero/oauth/start redirects to returnTo with Turkish error query param when OAuth is not configured during browser navigation", async () => {
+      delete process.env.ZOTERO_OAUTH_CLIENT_KEY;
+      delete process.env.ZOTERO_OAUTH_CLIENT_SECRET;
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/zotero/oauth/start?returnTo=/editor?doc=doc-abc",
+        headers: { "x-user-id": userId, accept: "text/html" },
+      });
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.location).toContain("/editor?doc=doc-abc");
+      expect(res.headers.location).toContain("zotero=not_configured");
+      expect(res.headers.location).toContain("zotero_error=");
+      expect(decodeURIComponent(res.headers.location!)).toContain("Zotero OAuth bağlantısı sunucuda yapılandırılmamış.");
+    });
+
+    it("GET /api/zotero/oauth/start redirects to returnTo with Turkish error query param when upstream fails during browser navigation", async () => {
+      process.env.ZOTERO_OAUTH_CLIENT_KEY = "test-key";
+      process.env.ZOTERO_OAUTH_CLIENT_SECRET = "test-secret";
+
+      mockFetch.mockRejectedValueOnce(new Error("Zotero upstream network timeout"));
+
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/zotero/oauth/start?returnTo=/editor?doc=doc-fail",
+        headers: { "x-user-id": userId, accept: "text/html" },
+      });
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.location).toContain("/editor?doc=doc-fail");
+      expect(res.headers.location).toContain("zotero=error");
+      expect(res.headers.location).toContain("zotero_error=");
+      expect(decodeURIComponent(res.headers.location!)).toContain("Zotero sunucusu ile bağlantı kurulamadı.");
+    });
+
+    it("GET /api/zotero/oauth/start redirects to /login when unauthenticated during browser navigation", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/api/zotero/oauth/start?returnTo=/editor?doc=doc-anon",
+        headers: { accept: "text/html" },
+      });
+      expect(res.statusCode).toBe(302);
+      expect(res.headers.location).toBe(`/login?returnTo=${encodeURIComponent("/editor?doc=doc-anon")}`);
     });
 
     it("GET /api/zotero/oauth/start redirects to zotero.org/oauth/authorize on success", async () => {

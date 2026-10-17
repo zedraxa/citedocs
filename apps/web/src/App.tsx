@@ -971,7 +971,8 @@ function HomeRedirect() {
 }
 
 function goNext() {
-  const next = new URLSearchParams(window.location.search).get("next");
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get("returnTo") || params.get("next");
   window.location.replace(
     next && next.startsWith("/") && !next.startsWith("//") ? next : "/documents",
   );

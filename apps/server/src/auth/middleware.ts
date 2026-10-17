@@ -59,7 +59,16 @@ export async function requireAuth(
     return;
   }
 
-  // 3. Unauthenticated: send 401
+  // 3. Unauthenticated: send 401 (or redirect if browser navigation to oauth/start)
+  if (request.url.startsWith("/api/zotero/oauth/start")) {
+    const q = (request.query || {}) as { returnTo?: string };
+    const returnTo = q.returnTo && q.returnTo.startsWith("/") && !q.returnTo.startsWith("//") ? q.returnTo : "/documents";
+    const accept = request.headers.accept || "";
+    if (accept.includes("text/html") || (q.returnTo && !accept.includes("application/json"))) {
+      return reply.redirect(`/login?returnTo=${encodeURIComponent(returnTo)}`);
+    }
+  }
+
   reply.status(401).send({
     error: "Unauthorized",
     message: "Missing or invalid session",

@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { ShieldCheck, Key, AlertCircle, CheckCircle2, Loader2, X, ExternalLink } from "lucide-react";
+import { ShieldCheck, Key, AlertCircle, CheckCircle2, X, Link2 } from "lucide-react";
 import type { ZoteroAccountInfo } from "./types.js";
-import { linkZoteroApiKey, unlinkZoteroAccount } from "./api.js";
+import { unlinkZoteroAccount } from "./api.js";
 
 export interface ZoteroAccountModalProps {
   userId: string;
@@ -18,32 +18,11 @@ export function ZoteroAccountModal({
   onClose,
   onAccountUpdated,
 }: ZoteroAccountModalProps) {
-  const [apiKeyInput, setApiKeyInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
-
-  const handleLink = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!apiKeyInput.trim()) return;
-
-    setLoading(true);
-    setErrorMsg(null);
-    setSuccessMsg(null);
-
-    const result = await linkZoteroApiKey(userId, apiKeyInput.trim());
-    setLoading(false);
-
-    if (result.success && result.data) {
-      setApiKeyInput("");
-      setSuccessMsg("Zotero hesabı başarıyla bağlandı ve doğrulandı!");
-      onAccountUpdated(result.data);
-    } else {
-      setErrorMsg(result.error || "Zotero hesabı bağlanamadı");
-    }
-  };
 
   const handleUnlink = async () => {
     if (!confirm("Zotero hesabınızın bağlantısını kesmek istediğinizden emin misiniz?")) return;
@@ -160,61 +139,31 @@ export function ZoteroAccountModal({
               </button>
             </div>
           ) : (
-            <form onSubmit={handleLink} className="flex flex-col gap-3.5">
+            <div className="flex flex-col gap-3.5">
               <p className="text-gray-600 leading-relaxed">
                 Kişisel kitaplıklarınıza ve koleksiyonlarınıza göz atmak ve belgelerinize kaynak eklemek için <strong>zotero.org</strong> hesabınızı bağlayın.
               </p>
 
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="apiKey" className="font-semibold text-gray-700">
-                  Zotero API Anahtarı
-                </label>
-                <input
-                  id="apiKey"
-                  type="password"
-                  value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="zotero.org API anahtarınızı yapıştırın..."
-                  className="p-2 border border-gray-300 rounded-lg focus:border-red-600 focus:outline-none font-mono text-xs"
-                  data-testid="input-zotero-api-key"
-                  disabled={loading}
-                  required
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] text-gray-500">
-                <a
-                  href="https://www.zotero.org/settings/keys/new"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline flex items-center gap-1"
-                >
-                  <span>zotero.org üzerinde bir API anahtarı oluşturun</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-gray-600 text-[11px] flex items-start gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                <span>AES-256-GCM ile şifrelenerek saklanır. Asla üçüncü taraflarla paylaşılmaz veya tarayıcıya iletilmez.</span>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-900 flex items-start gap-2 text-[11px]">
+                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <span>
+                  Zotero bağlantısı güvenli OAuth protokolüyle gerçekleştirilir. Parolanız veya özel bilgileriniz CiteDocs sunucularında asla depolanmaz.
+                </span>
               </div>
 
               <button
-                type="submit"
-                disabled={loading || !apiKeyInput.trim()}
-                className="w-full py-2 bg-[#c92c2c] hover:bg-[#b02424] text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 disabled:opacity-50 transition-colors shadow-sm cursor-pointer mt-1"
-                data-testid="btn-save-zotero-key"
+                type="button"
+                onClick={() => {
+                  const back = window.location.pathname + window.location.search;
+                  window.location.href = `/api/zotero/oauth/start?returnTo=${encodeURIComponent(back)}`;
+                }}
+                className="w-full py-2 bg-[#c92c2c] hover:bg-[#b02424] text-white rounded-lg font-semibold flex items-center justify-center gap-1.5 transition-colors shadow-sm cursor-pointer mt-1"
+                data-testid="btn-connect-zotero-oauth"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>zotero.org ile doğrulanıyor...</span>
-                  </>
-                ) : (
-                  <span>Doğrula ve Bağla</span>
-                )}
+                <Link2 className="w-4 h-4" />
+                <span>Zotero ile Bağlan</span>
               </button>
-            </form>
+            </div>
           )}
         </div>
       </div>

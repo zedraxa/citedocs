@@ -107,7 +107,14 @@ export function ZoteroSidebar({
           {/* Account linking status pill */}
           <button
             type="button"
-            onClick={() => setModalOpen(true)}
+            onClick={() => {
+              if (!account?.linked) {
+                const back = window.location.pathname + window.location.search;
+                window.location.href = `/api/zotero/oauth/start?returnTo=${encodeURIComponent(back)}`;
+                return;
+              }
+              setModalOpen(true);
+            }}
             className={`text-[11px] font-medium px-2 py-0.5 rounded-full border flex items-center gap-1 transition-colors cursor-pointer ${
               account?.linked
                 ? "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100"

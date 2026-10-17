@@ -198,9 +198,20 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
 
   // Real OAuth 1.0a "Connect Zotero" (needs ZOTERO_OAUTH_CLIENT_KEY/SECRET from zotero.org/oauth/apps).
   fastify.get("/api/zotero/oauth/start", async (request: FastifyRequest, reply: FastifyReply) => {
-    if (!zoteroOAuthConfigured()) return reply.status(501).send({ error: "Zotero OAuth is not configured" });
     const q = (request.query || {}) as { returnTo?: string };
     const returnTo = q.returnTo && q.returnTo.startsWith("/") && !q.returnTo.startsWith("//") ? q.returnTo : "/documents";
+    const sep = returnTo.includes("?") ? "&" : "?";
+    const accept = request.headers.accept || "";
+    const isBrowser = accept.includes("text/html") || Boolean(q.returnTo && !accept.includes("application/json"));
+
+    if (!zoteroOAuthConfigured()) {
+      if (isBrowser) {
+        const errorText = encodeURIComponent("Zotero OAuth bağlantısı sunucuda yapılandırılmamış.");
+        return reply.redirect(`${returnTo}${sep}zotero=not_configured&zotero_error=${errorText}`);
+      }
+      return reply.status(501).send({ error: "Zotero OAuth is not configured" });
+    }
+
     const host = request.headers["x-forwarded-host"] || request.headers.host;
     const proto = request.headers["x-forwarded-proto"] || "https";
     const base = process.env.PUBLIC_URL || `${proto}://${host}`;
@@ -208,6 +219,10 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
       const url = await startZoteroOAuth(request.userId, `${base}/api/zotero/oauth/return`, returnTo, fetchFn);
       return reply.redirect(url);
     } catch (err: unknown) {
+      if (isBrowser) {
+        const errorText = encodeURIComponent("Zotero sunucusu ile bağlantı kurulamadı. Lütfen tekrar deneyin.");
+        return reply.redirect(`${returnTo}${sep}zotero=error&zotero_error=${errorText}`);
+      }
       return reply.status(502).send({ error: err instanceof Error ? err.message : String(err) });
     }
   });

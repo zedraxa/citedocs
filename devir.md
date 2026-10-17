@@ -2052,3 +2052,76 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
 - **`pnpm test` (Tam Test Paketi):**
   - **70 test dosyası** çalıştırıldı (2 yeni test dosyası eklendi).
   - **658 test başarılı**, 1 atlanan, 3 yapılacak (todo). 0 başarısız!
+
+## Zotero OAuth Bağlantı Düzeltmesi ve Manuel API Anahtarı Girişinin UI'dan Kaldırılması — Kayıt #038
+
+> **Kayıt No:** #038  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-oauth-fix`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** ONLYOFFICE editöründe (`apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx`) "Zotero'yu bağla" butonuna tıklandığında sunucuda OAuth yapılandırılmış olmasına rağmen hatalı olarak API anahtarı modalının açılması hatasının kök sebebinin çözülmesi, ürün kuralı gereğince kullanıcı arayüzündeki tüm manuel API anahtarı giriş pencerelerinin kaldırılması, Zotero bağlantısının yalnızca zotero.org OAuth ile yapılmasının sağlanması, `/api/zotero/plugin-credentials` 401 döndüğünde returnTo ile login sayfasına yönlendirilmesi, sunucu tarafında `/api/zotero/oauth/start` uç noktasının tarayıcı navigasyonlarında JSON hata yerine returnTo parametresine Türkçe hata bildirimiyle yönlendirmesi ve kapsamlı birim/entegrasyon testlerinin tamamlanması.
+
+### 1. Kök Neden ve Yapılan Çalışmalar
+
+1. **Kök Neden Tespiti (`connectZotero` & `syncPluginCredentials`):**
+   - Eski kodda `connectZotero` fonksiyonu `if (!creds?.oauthAvailable)` kontrolü yapıyordu.
+   - Sayfa ilk açıldığında `creds` henüz yüklenmemişken (veya oturum sona erip `/api/zotero/plugin-credentials` 401/ağ hatası döndüğünde), `creds` değeri `null` kaldığı için `!creds?.oauthAvailable` ifadesi `true` olarak değerlendiriliyor; kullanıcıya yanıltıcı şekilde "Zotero bağlantısı şu anda yapılandırılmamış... API anahtarıyla bağlanın" bildirimi gösteriliyor ve API anahtarı modalı açılıyordu.
+   - Sunucuda gerçekte `ZOTERO_OAUTH_CLIENT_KEY` ve `ZOTERO_OAUTH_CLIENT_SECRET` tanımlı ve `zoteroOAuthConfigured() === true` idi.
+
+2. **`connectZotero` Mantığının Düzeltilmesi:**
+   - `connectZotero` (ve `ImportReferences` bağlantı fonksiyonu) artık asla API anahtarı modalı açmaz.
+   - OAuth durumu yalnızca ve yalnızca `creds !== null && creds.oauthAvailable === false` olduğu açıkça bilindiğinde kullanılamaz kabul edilir ve bu durumda kullanıcıya Türkçe uyarı bildirimi (`"Zotero OAuth bağlantısı yapılandırılmamış. Lütfen sistem yöneticisiyle iletişime geçin."`) gösterilip çıkılır.
+   - `creds` `null` veya `undefined` olduğunda (ilk yükleme, geç yüklenme veya ağ hatası), akış doğrudan `sessionStorage` üzerine `PENDING_ADD` bilgisini yazarak `/api/zotero/oauth/start?returnTo=...` adresine yönlenir.
+
+3. **Oturum Bittiğinde (401) returnTo ile Login Yönlendirmesi:**
+   - `OnlyofficeEditorPage.tsx` içinde `syncPluginCredentials`, `/api/zotero/plugin-credentials` çağrısından HTTP 401 aldığında sessizce `creds: null` bırakmak yerine, mevcut belge URL'sini `returnTo` parametresi olarak ekleyerek `/login?returnTo=${encodeURIComponent(back)}` sayfasına yönlendirir.
+   - Sonsuz döngüyü önlemek için halihazırda `/login` yolunda olunup olunmadığı kontrol edilir.
+   - `apps/web/src/App.tsx` içindeki `goNext()` yönlendirme fonksiyonu `returnTo` parametresini destekleyecek şekilde güncellendi (`params.get("returnTo") || params.get("next")`); böylece oturum açıldıktan sonra öğrenci doğrudan üzerinde çalıştığı belgeye döner.
+
+4. **Kullanıcı Arayüzünden Manuel API Anahtarı Girişlerinin Kaldırılması:**
+   - **ONLYOFFICE Editörü (`OnlyofficeEditorPage.tsx`):**
+     - `showKeyModal`, `keyInput`, `keyError` durumları ve `saveKey` fonksiyonu kaldırıldı.
+     - `data-testid="oo-key-modal"`, `data-testid="oo-key-input"` ve `data-testid="oo-key-save"` DOM'dan tamamen temizlendi.
+   - **Kenar Çubuğu ve Modal (`ZoteroSidebar.tsx` & `ZoteroAccountModal.tsx`):**
+     - Kenar çubuğundaki hesap durumu rozeti (`zotero-account-pill`), hesap bağlı olmadığında tıklandığında doğrudan OAuth akışını başlatır.
+     - `ZoteroAccountModal` bileşeninden manuel API anahtarı giriş formu (`data-testid="input-zotero-api-key"`, `data-testid="btn-save-zotero-key"`), `apiKeyInput` durumu ve `handleLink` fonksiyonu kaldırıldı.
+     - Bağlı olmayan durumda modal artık yalnızca güvenli zotero.org OAuth bağlantı butonu (`data-testid="btn-connect-zotero-oauth"`) sunmaktadır.
+     - Sunucu API uç noktalarına (`/api/zotero/account` POST vb.) geriye dönük uyumluluk için kesinlikle dokunulmamıştır.
+
+5. **Sunucu `/api/zotero/oauth/start` ve Kimlik Doğrulama Güçlendirmesi:**
+   - `apps/server/src/zotero/routes.ts`: Tarayıcı navigasyonu yapıldığında (veya `returnTo` mevcut olduğunda), OAuth yapılandırılmamışsa veya Zotero upstream hatası (502) oluşursa doğrudan ekrana ham JSON basmak yerine `returnTo` adresine Türkçe hata sorgu parametresiyle (`zotero_error` ve `zotero=not_configured` / `zotero=error`) yönlendirme (302 redirect) yapar.
+   - `apps/server/src/auth/middleware.ts`: Oturum açmamış bir tarayıcı doğrudan `/api/zotero/oauth/start?returnTo=...` adresine gittiğinde ham 401 JSON basmak yerine `/login?returnTo=...` sayfasına yönlendirir.
+   - `OnlyofficeEditorPage.tsx`: URL üzerindeki `zotero_error` parametresini okuyarak Türkçe hata uyarısı olarak görüntüler ve tarayıcı geçmişinden temizler.
+
+6. **Kapsamlı Test Paketi:**
+   - `apps/web/test/onlyoffice-editor.test.tsx`:
+     - `creds null -> navigates to oauth/start`: `plugin-credentials` hata verse/yüklenmese dahi OAuth'a yönlendiği doğrulandı.
+     - `oauthAvailable false -> notice, no modal`: Açıkça false olduğunda Türkçe uyarı gösterildiği, modal açılmadığı doğrulandı.
+     - `never renders manual API key modal or inputs anywhere in the editor UI`: DOM'da hiçbir API key UI'ı bulunmadığı doğrulandı.
+     - `redirects to login with returnTo when plugin-credentials returns 401`: 401 durumunda login sayfasına returnTo ile yönlenildiği doğrulandı.
+     - `shows Turkish notice when returning with zotero_error query param and cleans up URL`: Hata parametresinin bildirim olarak gösterildiği doğrulandı.
+   - `apps/web/test/zotero-sidebar.test.tsx`:
+     - `ZoteroAccountModal` bileşeninin unlinked durumda API anahtarı inputu içermediği ve OAuth bağlantı butonu sunduğu doğrulandı.
+   - `apps/server/test/zotero-cite-panel.test.ts`:
+     - Tarayıcı navigasyonunda unconfigured durumunda returnTo'ya Türkçe hata parametresiyle yönlendiği doğrulandı.
+     - Upstream hatasında returnTo'ya yönlendiği doğrulandı.
+     - Unauthenticated tarayıcı navigasyonunda `/login?returnTo=...` sayfasına yönlendiği doğrulandı.
+
+### 2. Kural ve Kısıtlamalara Uyum
+
+- `deploy/` altındaki hiçbir dosya değiştirilmemiştir. `docker-compose.prod.yml` dosyasına dokunulmamıştır.
+- Dağıtım (deploy), push veya merge kesinlikle yapılmamıştır.
+- Sunucu API uç noktaları korunmuş, arayüzden manuel girişler izole edilmiştir.
+- Bütün kullanıcı bildirimleri Türkçe hazırlanmıştır.
+- `tsconfig.tsbuildinfo` temizlenmiştir.
+- `pnpm lint`, `pnpm typecheck`, `pnpm build` ve tüm test paketleri eksiksiz yeşildir.
+
+### 3. Doğrulama ve Test Sonuçları
+
+- **`pnpm lint`:** 0 hata, 0 uyarı (temiz).
+- **`pnpm typecheck`:** 0 hata (tüm monorepo TypeScript derlemesi başarılı).
+- **`pnpm build`:** Tüm paketler ve uygulamalar (`@citedocs/web`, `@citedocs/server`, `@citedocs/shared` vb.) başarıyla derlendi.
+- **`pnpm test` (Tam Test Paketi):**
+  - **72 test dosyası** çalıştırıldı.
+  - **692 test başarılı**, 1 atlanan, 3 yapılacak (todo). 0 başarısız!
+

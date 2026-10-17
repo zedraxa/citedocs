@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   X,
   Sparkles,
-  ExternalLink,
   BookOpen,
 } from "lucide-react";
 import { getApiBaseUrl, getCsrfToken } from "../auth/api.js";
@@ -129,12 +128,10 @@ export function OnlyofficeEditorPage({
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [creds, setCreds] = useState<PluginCreds | null>(null);
-  const [showKeyModal, setShowKeyModal] = useState(false);
   const [identifier, setIdentifier] = useState("");
   const [panelIdentifier, setPanelIdentifier] = useState("");
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [recentItems, setRecentItems] = useState<AddedCiteItem[]>([]);
   const [lastAdded, setLastAdded] = useState<AddedCiteItem | null>(null);
@@ -202,40 +199,19 @@ export function OnlyofficeEditorPage({
     [documentId],
   );
 
-  // Check URL query parameters for OAuth returns (e.g. ?zotero=connected / denied / error)
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const zoteroStatus = params.get("zotero");
-    if (zoteroStatus === "connected") {
-      setNotice({
-        ok: true,
-        text: "Zotero hesabı başarıyla bağlandı! Artık kütüphanene kaynak ekleyebilir ve ONLYOFFICE eklentisiyle atıf yapabilirsin.",
-      });
-    } else if (zoteroStatus === "denied") {
-      setNotice({
-        ok: false,
-        text: "Zotero bağlantı isteği iptal edildi veya izin verilmedi.",
-      });
-    } else if (zoteroStatus === "error") {
-      setNotice({
-        ok: false,
-        text: "Zotero bağlantısı kurulamadı. Lütfen tekrar deneyin.",
-      });
-    }
-    if (zoteroStatus) {
-      params.delete("zotero");
-      const rest = params.toString();
-      const newUrl = `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`;
-      window.history.replaceState({}, "", newUrl);
-    }
-  }, []);
-
   const syncPluginCredentials = useCallback(async () => {
     const r = await api<PluginCreds>("/api/zotero/plugin-credentials").catch(() => ({
       ok: false,
+      status: 0,
       data: { linked: false } as PluginCreds,
     }));
+    if (r.status === 401) {
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        const back = window.location.pathname + window.location.search;
+        window.location.href = `/login?returnTo=${encodeURIComponent(back)}`;
+      }
+      return { linked: false };
+    }
     const c = r.ok ? r.data : { linked: false };
     try {
       if (c.linked && c.apiKey && c.zoteroUserId) {
@@ -251,6 +227,53 @@ export function OnlyofficeEditorPage({
     setCreds({ linked: c.linked, zoteroUserId: c.zoteroUserId, oauthAvailable: c.oauthAvailable });
     return c;
   }, []);
+
+  // Check URL query parameters for OAuth returns (e.g. ?zotero=connected / denied / error / not_configured or zotero_error)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const zoteroStatus = params.get("zotero");
+    const zoteroError = params.get("zotero_error");
+
+    if (zoteroError) {
+      setNotice({
+        ok: false,
+        text: decodeURIComponent(zoteroError),
+      });
+      if (zoteroStatus === "connected") {
+        void syncPluginCredentials();
+      }
+    } else if (zoteroStatus === "connected") {
+      setNotice({
+        ok: true,
+        text: "Zotero hesabı başarıyla bağlandı! Artık kütüphanene kaynak ekleyebilir ve ONLYOFFICE eklentisiyle atıf yapabilirsin.",
+      });
+      void syncPluginCredentials();
+    } else if (zoteroStatus === "denied") {
+      setNotice({
+        ok: false,
+        text: "Zotero bağlantı isteği iptal edildi veya izin verilmedi.",
+      });
+    } else if (zoteroStatus === "not_configured") {
+      setNotice({
+        ok: false,
+        text: "Zotero OAuth bağlantısı sunucuda yapılandırılmamış. Lütfen daha sonra tekrar deneyin.",
+      });
+    } else if (zoteroStatus === "error") {
+      setNotice({
+        ok: false,
+        text: "Zotero bağlantısı kurulamadı. Lütfen tekrar deneyin.",
+      });
+    }
+
+    if (zoteroStatus || zoteroError) {
+      params.delete("zotero");
+      params.delete("zotero_error");
+      const rest = params.toString();
+      const newUrl = `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`;
+      window.history.replaceState({}, "", newUrl);
+    }
+  }, [syncPluginCredentials]);
 
   useEffect(() => {
     let cancelled = false;
@@ -301,34 +324,19 @@ export function OnlyofficeEditorPage({
       editorRef.current?.destroyEditor?.();
       editorRef.current = null;
     };
-  }, [documentId, reloadKey, syncPluginCredentials]);
+  }, [documentId, syncPluginCredentials]);
 
   useEffect(() => {
     document.title = `${documentTitle} – CiteDocs`;
   }, [documentTitle]);
 
-  const [keyInput, setKeyInput] = useState("");
-  const [keyError, setKeyError] = useState<string | null>(null);
-  const saveKey = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setKeyError(null);
-    const r = await api<{ message?: string; error?: string }>("/api/zotero/account", {
-      method: "POST",
-      body: JSON.stringify({ apiKey: keyInput.trim() }),
-    });
-    if (!r.ok) return setKeyError(r.data.message || r.data.error || "Anahtar doğrulanamadı");
-    setKeyInput("");
-    setShowKeyModal(false);
-    setReloadKey((k) => k + 1);
-  };
-
   const connectZotero = (pendingIdentifier = identifier) => {
-    if (!creds?.oauthAvailable) {
+    // Only treat OAuth as unavailable when creds is loaded AND oauthAvailable === false explicitly
+    if (creds !== null && creds.oauthAvailable === false) {
       setNotice({
         ok: false,
-        text: "Zotero bağlantısı şu anda yapılandırılmamış. Lütfen daha sonra tekrar deneyin veya API anahtarıyla bağlanın.",
+        text: "Zotero OAuth bağlantısı yapılandırılmamış. Lütfen sistem yöneticisiyle iletişime geçin.",
       });
-      setShowKeyModal(true);
       return;
     }
     try {
@@ -779,54 +787,6 @@ export function OnlyofficeEditorPage({
           </aside>
         )}
       </div>
-
-      {showKeyModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          data-testid="oo-key-modal"
-        >
-          <form onSubmit={saveKey} className="w-[420px] rounded-lg bg-white p-5 text-sm shadow-xl">
-            <h2 className="mb-2 text-base font-semibold">Zotero hesabını bağla</h2>
-            <p className="mb-3 text-slate-600">
-              Bir kez yapman yeterli.{" "}
-              <a
-                className="text-blue-600 underline inline-flex items-center gap-0.5"
-                href="https://www.zotero.org/settings/keys/new"
-                target="_blank"
-                rel="noreferrer"
-              >
-                zotero.org’da yeni anahtar oluştur <ExternalLink size={12} />
-              </a>{" "}
-              (kütüphane okuma + yazma izni), buraya yapıştır. Anahtar CiteDocs hesabına şifreli
-              kaydedilir; Zotero masaüstü gerekmez.
-            </p>
-            <input
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="Zotero API anahtarı"
-              className="mb-2 w-full rounded border px-2 py-1"
-              data-testid="oo-key-input"
-            />
-            {keyError && <p className="mb-2 text-red-600">{keyError}</p>}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowKeyModal(false)}
-                className="rounded px-3 py-1 hover:bg-slate-100"
-              >
-                Vazgeç
-              </button>
-              <button
-                type="submit"
-                className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700"
-                data-testid="oo-key-save"
-              >
-                Bağla
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }

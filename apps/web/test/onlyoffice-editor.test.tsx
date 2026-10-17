@@ -201,13 +201,90 @@ describe("pending Zotero identifier", () => {
     expect(new URLSearchParams(window.location.search).get("returnTo")).toBe("/editor?doc=doc");
   });
 
-  it("explains unavailable OAuth without redirecting", async () => {
+  it("creds null -> navigates to oauth/start", async () => {
+    window.history.replaceState({}, "", "/editor?doc=doc-creds-null");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("plugin-credentials")) {
+          return new Response(JSON.stringify({ error: "Server error" }), { status: 500 });
+        }
+        return new Response(JSON.stringify({ documentServerUrl: "/oo", config: {} }));
+      }),
+    );
+    window.DocsAPI = { DocEditor: vi.fn().mockImplementation(() => ({ destroyEditor: vi.fn() })) };
+    render(
+      <StrictMode>
+        <OnlyofficeEditorPage documentId="doc-creds-null" documentTitle="Paper" onBackToDocuments={vi.fn()} />
+      </StrictMode>,
+    );
+    const connect = await screen.findByRole("button", { name: "Zotero'yu bağla" });
+    await waitFor(() => expect(window.DocsAPI!.DocEditor).toHaveBeenCalled());
+    fireEvent.click(connect);
+
+    expect(window.location.pathname).toBe("/api/zotero/oauth/start");
+    expect(new URLSearchParams(window.location.search).get("returnTo")).toBe("/editor?doc=doc-creds-null");
+    expect(screen.queryByTestId("oo-key-modal")).toBeNull();
+  });
+
+  it("oauthAvailable false -> notice, no modal", async () => {
     setup(false, "success", false);
     await waitFor(() => expect(window.DocsAPI!.DocEditor).toHaveBeenCalled());
     fireEvent.click(screen.getByTestId("oo-zotero-connect"));
     expect(screen.getByTestId("oo-notice").textContent).toContain("yapılandırılmamış");
+    expect(screen.queryByTestId("oo-key-modal")).toBeNull();
     expect(window.location.pathname).toBe("/");
     expect(sessionStorage.getItem(pendingKey)).toBeNull();
+  });
+
+  it("never renders manual API key modal or inputs anywhere in the editor UI", async () => {
+    setup(false, "success", true);
+    await waitFor(() => expect(window.DocsAPI!.DocEditor).toHaveBeenCalled());
+
+    // Open side panel
+    fireEvent.click(screen.getByTestId("oo-panel-toggle"));
+    expect(screen.getByTestId("oo-cite-panel")).toBeDefined();
+
+    expect(screen.queryByTestId("oo-key-modal")).toBeNull();
+    expect(screen.queryByTestId("oo-key-input")).toBeNull();
+    expect(screen.queryByTestId("oo-key-save")).toBeNull();
+    expect(screen.queryByText(/yeni anahtar oluştur/i)).toBeNull();
+    expect(screen.queryByPlaceholderText(/Zotero API anahtarı/i)).toBeNull();
+  });
+
+  it("redirects to login with returnTo when plugin-credentials returns 401", async () => {
+    window.history.replaceState({}, "", "/editor?doc=doc-401");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("plugin-credentials")) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+        }
+        return new Response(JSON.stringify({ documentServerUrl: "/oo", config: {} }));
+      }),
+    );
+    window.DocsAPI = { DocEditor: vi.fn().mockImplementation(() => ({ destroyEditor: vi.fn() })) };
+    render(
+      <StrictMode>
+        <OnlyofficeEditorPage documentId="doc-401" documentTitle="Paper" onBackToDocuments={vi.fn()} />
+      </StrictMode>,
+    );
+
+    await waitFor(() => {
+      const loc = window.location.href || window.location.pathname;
+      expect(loc).toContain("/login");
+      expect(decodeURIComponent(loc)).toContain("returnTo=/editor?doc=doc-401");
+    });
+  });
+
+  it("shows Turkish notice when returning with zotero_error query param and cleans up URL", async () => {
+    window.history.replaceState({}, "", "/editor?doc=doc-err&zotero_error=" + encodeURIComponent("Özel Türkçe Hata Mesajı"));
+    setup(false);
+    await waitFor(() => expect(window.DocsAPI!.DocEditor).toHaveBeenCalled());
+
+    const notice = await screen.findByTestId("oo-notice");
+    expect(notice.textContent).toBe("Özel Türkçe Hata Mesajı");
+    expect(new URLSearchParams(window.location.search).get("zotero_error")).toBeNull();
   });
 
   it.each(["success", "http", "network"] as const)(

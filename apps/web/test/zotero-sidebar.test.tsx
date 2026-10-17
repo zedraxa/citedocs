@@ -129,23 +129,9 @@ describe("Zotero Web Library Sidebar & Account Linking UI (apps/web)", () => {
     expect(handleItemAdded).toHaveBeenCalledWith(mockItem);
   });
 
-  it("renders ZoteroAccountModal and connects a valid API key", async () => {
-    const handleUpdate = vi.fn();
+  it("renders ZoteroAccountModal in unlinked state with OAuth button and NO manual API key input", async () => {
     const handleClose = vi.fn();
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        success: true,
-        linked: true,
-        userId: "user-123",
-        zoteroUserId: "7654321",
-        maskedKey: "key_••••••••1234",
-        syncEnabled: true,
-      }),
-    });
-    globalThis.fetch = fetchMock;
+    const handleUpdate = vi.fn();
 
     render(
       <ZoteroAccountModal
@@ -157,32 +143,14 @@ describe("Zotero Web Library Sidebar & Account Linking UI (apps/web)", () => {
       />
     );
 
-    const input = screen.getByTestId("input-zotero-api-key");
-    fireEvent.change(input, { target: { value: "my_secret_zotero_key_1234" } });
+    // Manual API key inputs MUST NOT exist
+    expect(screen.queryByTestId("input-zotero-api-key")).toBeNull();
+    expect(screen.queryByTestId("btn-save-zotero-key")).toBeNull();
 
-    const submitBtn = screen.getByTestId("btn-save-zotero-key");
-    fireEvent.click(submitBtn);
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-
-    const fetchCall = fetchMock.mock.calls[0];
-    expect(fetchCall[0]).toContain("/api/zotero/account");
-    expect(fetchCall[1].method).toBe("POST");
-    expect(JSON.parse(fetchCall[1].body)).toEqual({
-      apiKey: "my_secret_zotero_key_1234",
-    });
-
-    await waitFor(() => {
-      expect(handleUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          linked: true,
-          zoteroUserId: "7654321",
-          maskedKey: "key_••••••••1234",
-        })
-      );
-    });
-
-    expect(screen.getByTestId("account-modal-success").textContent).toContain("başarıyla bağlandı");
+    // Secure OAuth connect button is rendered
+    const oauthBtn = screen.getByTestId("btn-connect-zotero-oauth");
+    expect(oauthBtn).toBeDefined();
+    expect(oauthBtn.textContent).toContain("Zotero ile Bağlan");
   });
 
   it("displays connected state and disconnect button when already linked", async () => {

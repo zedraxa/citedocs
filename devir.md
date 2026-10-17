@@ -1882,3 +1882,57 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
   - **66 test dosyası** çalıştırıldı.
   - **617 test başarılı**, 1 atlanan, 5 yapılacak (todo - ZC-01, ZC-02, ZC-04 paralel işler). 0 başarısız!
 - `tsconfig.tsbuildinfo` gürültüleri temizlendi, çalışma ağacı tertemiz bırakıldı.
+
+---
+
+## Web Üst Bar Dil Değiştirici Butonunun Kaldırılması, Kullanıcı Menüsü Dil Senkronizasyonu ve Tek Seferlik Geçiş — Kayıt #034
+
+> **Kayıt No:** #034  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-lang-toggle`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Web üst barındaki başlıksız/etiketsiz "TR" dil değiştirici butonunun tamamen kaldırılması, varsayılan dilin Türkçe korunması, kullanıcı menüsü içinde gerçek UI diliyle tam senkronize tek bir dil seçeneğinin ("Dil: Türkçe / English") bırakılması, daha önceki oturumlardan kalan "en" dil anahtarını tek seferlik "tr"ye sıfırlayan ve bilinçli seçimleri koruyan geçiş (migration) mekanizmasının kurulması ve testlerin güncellenmesi.
+
+### 1. Yapılan Çalışmalar ve Mimari Çözümler
+
+1. **Tek Seferlik Dil Tercihi Geçiş Mekanizması (`apps/web/src/auth/languageMigration.ts`):**
+   - Uygulama başlatıldığında (`main.tsx` ve `AuthContext`), eğer tarayıcı belleğindeki (`localStorage`) `citedocs_lang` anahtarı `"en"` değerine sahipse ve geçiş belirteci (`citedocs_lang_migrated`) yoksa, varsayılan Türkçe dil politikası gereğince anahtar `"tr"` olarak sıfırlanır ve `citedocs_lang_migrated = "true"` olarak işaretlenir.
+   - Kullanıcı daha sonra kullanıcı menüsünden bilinçli olarak İngilizceyi seçtiğinde (`persistLanguagePreference`), belirteç zaten mevcut olduğu için gelecekteki açılışlarda kullanıcının bilinçli seçimi korunur ve sıfırlanmaz.
+   - Özel gezinti (private browsing) ve kotalı depolama istisnaları sessiz ve güvenli şekilde yakalanır.
+   - 9 birim ve entegrasyon testi ile doğrulandı (`apps/web/test/language-migration.test.ts`).
+
+2. **Üst Bar Dil Değiştirici Butonunun Tamamen Kaldırılması (`apps/web/src/documents/DocumentsPage.tsx`):**
+   - Belge listesi üst barındaki etiketsiz `{/* TR / EN Toggle */}` (`doc-lang-toggle`) butonu ve bileşen içi yerel `handleLanguageToggle` fonksiyonu tamamen kaldırıldı.
+   - ONLYOFFICE editör üst barı (`OnlyofficeEditorPage.tsx`), atıf stili seçici (`StylePicker`) ve ODT uyarı başlığı (`OdtNoticeBanner`) gibi bileşenlere dokunulmadı; editör arayüzü korundu.
+   - `UserMenu` bileşeninin oturum açılmamış (unauthenticated) durumunda üst barda render edilen etiketsiz `lang-toggle-btn` butonu kaldırıldı; oturum açmamış kullanıcılar için yalnızca Giriş Yap ve Kayıt Ol butonları bırakıldı.
+
+3. **Kullanıcı Menüsü Dil Seçimi ve Tek Doğruluk Kaynağı Senkronizasyonu (`apps/web/src/auth/UserMenu.tsx` & `DocumentsPage.tsx`):**
+   - `DocumentsPage`, dil durumunu kopuk yerel bir `useState` yerine `useOptionalAuth()` üzerinden merkezi `AuthContext`'ten türetecek şekilde güncellendi.
+   - Kullanıcı menüsü dropdown panelindeki `dropdown-lang-toggle-btn` bileşeni tek dil değiştirici olarak korundu.
+   - Buton etiketi ve aktif dil göstergesi doğrudan merkezi i18n durumundan türetildi:
+     - Türkçe modunda: `t("language")` ("Dil"), aktif rozet `t("languageTurkish")` ("Türkçe"), erişilebilirlik etiketi `aria-label="Dil: Türkçe"`.
+     - İngilizce modunda: `t("language")` ("Language"), aktif rozet `t("languageEnglish")` ("English"), erişilebilirlik etiketi `aria-label="Language: English"`.
+   - Kullanıcı menüsünden dil değiştirildiğinde hem `UserMenu` hem `DocumentsPage` hem de tüm alt diyaloglar (Yeniden Adlandır, Paylaş vb.) tek bir kaynaktan anında eşzamanlı olarak güncellenmektedir.
+
+4. **Kapsamlı Test Paketi ve Eski Testlerin Güncellenmesi:**
+   - `apps/web/test/language-migration.test.ts`: Geçiş mantığı, belirteç varlığı/yokluğu, bilinçli İngilizce seçimlerinin korunması, hata dayanıklılığı ve AuthProvider entegrasyonu (9 test).
+   - `apps/web/test/user-menu-lang.test.tsx`: Üst bar butonunun bulunmadığının (`toBeNull()`), üst barda etiketsiz "TR"/"EN" bulunmadığının, unauthenticated görünümde butonun olmadığının ve kullanıcı menüsü üzerinden dil değişiminin hem menü etiketlerini hem de belge listesi arayüzünü anında eşitlediğinin bileşen testleri (3 test).
+   - `apps/web/test/documents.test.tsx`: Eski `doc-lang-toggle` testi, üst bar butonunun yokluğunu ve kullanıcı menüsü üzerinden dil geçişini test edecek şekilde güncellendi.
+   - `apps/web/test/auth.test.tsx`: Eski `lang-toggle-btn` testi, üst bar butonunun yokluğunu ve kullanıcı menüsü dropdown'ındaki etiket senkronizasyonunu test edecek şekilde güncellendi.
+
+### 2. Kural ve Kısıtlamalara Uyum
+
+- `deploy/` altındaki hiçbir dosya değiştirilmemiştir.
+- Dağıtım (deploy), push veya merge kesinlikle yapılmamıştır.
+- Paralel geliştirilen ONLYOFFICE atıf stili seçici (`StylePicker`) ve ODT uyarı bandı (`OdtNoticeBanner`) bileşenleri aynen korunmuştur.
+- TypeScript derleme gürültüsü (`tsconfig.tsbuildinfo`) temizlenmiştir.
+- `pnpm lint`, `pnpm typecheck`, `pnpm build` ve `pnpm test` adımlarının tamamı sıfır hata ile yeşildir.
+
+### 3. Doğrulama ve Test Sonuçları
+
+- **`pnpm lint`:** 0 hata, 0 uyarı (temiz).
+- **`pnpm typecheck`:** 0 hata (tüm monorepo TypeScript derlemesi başarılı).
+- **`pnpm build`:** Tüm paketler (`@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/server`, `@citedocs/web`) başarıyla derlendi.
+- **`pnpm test` (Tam Test Paketi):**
+  - **70 test dosyası** çalıştırıldı (2 yeni test dosyası eklendi).
+  - **658 test başarılı**, 1 atlanan, 3 yapılacak (todo). 0 başarısız!

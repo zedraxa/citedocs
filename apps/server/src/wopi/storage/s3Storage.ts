@@ -12,6 +12,8 @@ import {
   type S3StorageOptions,
 } from "../../storage/s3Client.js";
 
+import { encodeS3MetaValue, decodeS3MetaValue } from "../../storage/s3Metadata.js";
+
 export type S3WopiStorageOptions = S3StorageOptions;
 
 export class S3WopiStorage implements WopiStorage {
@@ -58,8 +60,8 @@ export class S3WopiStorage implements WopiStorage {
       );
 
       const metadata = head.Metadata || {};
-      const baseFileName = metadata["filename"] || `${fileId}.docx`;
-      const ownerId = metadata["owner-id"] || "system";
+      const baseFileName = decodeS3MetaValue(metadata["filename"] || `${fileId}.docx`);
+      const ownerId = decodeS3MetaValue(metadata["owner-id"] || "system");
       const version = metadata["version"] || head.ETag?.replace(/"/g, "") || `v_${Date.now()}`;
       const size = head.ContentLength ?? 0;
       const updatedAt = head.LastModified || new Date();
@@ -101,8 +103,8 @@ export class S3WopiStorage implements WopiStorage {
       const buffer = Buffer.from(byteArray);
 
       const metadata = response.Metadata || {};
-      const baseFileName = metadata["filename"] || `${fileId}.docx`;
-      const ownerId = metadata["owner-id"] || "system";
+      const baseFileName = decodeS3MetaValue(metadata["filename"] || `${fileId}.docx`);
+      const ownerId = decodeS3MetaValue(metadata["owner-id"] || "system");
       const version = metadata["version"] || response.ETag?.replace(/"/g, "") || `v_${Date.now()}`;
       const size = buffer.length;
       const updatedAt = response.LastModified || new Date();
@@ -152,8 +154,8 @@ export class S3WopiStorage implements WopiStorage {
         Body: content,
         ContentType: contentType,
         Metadata: {
-          filename: baseFileName,
-          "owner-id": ownerId,
+          filename: encodeS3MetaValue(baseFileName),
+          "owner-id": encodeS3MetaValue(ownerId),
           version: newVersion,
         },
       }),
@@ -190,8 +192,8 @@ export class S3WopiStorage implements WopiStorage {
         Body: content,
         ContentType: contentType,
         Metadata: {
-          filename: baseFileName,
-          "owner-id": ownerId,
+          filename: encodeS3MetaValue(baseFileName),
+          "owner-id": encodeS3MetaValue(ownerId),
           version,
         },
       }),

@@ -163,11 +163,15 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
       },
     );
 
-    // Document Server -> storage: download the file (JWT from DS in Authorization + our link signature).
-    fastify.get<{ Params: { id: string }; Querystring: { s?: string; expires?: string } }>(
+    // Document Server -> storage: download the file (JWT from DS in Authorization or query token + our link signature).
+    fastify.get<{ Params: { id: string }; Querystring: { s?: string; expires?: string; token?: string } }>(
       "/api/onlyoffice/files/:id",
       async (req, reply) => {
-        const auth = (req.headers.authorization || "").replace(/^Bearer /, "");
+        const auth = (
+          req.headers.authorization ||
+          (req.query as { token?: string }).token ||
+          ""
+        ).replace(/^Bearer /i, "");
         if (
           !req.query.expires ||
           !/^\d+$/.test(req.query.expires) ||
@@ -326,5 +330,232 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
         return reply.send({ error: 1 });
       }
     });
+
+    // Student -> convert ODT document to DOCX copy via ONLYOFFICE ConvertService
+    fastify.post<{ Params: { id: string } }>(
+      "/api/documents/:id/convert-to-docx",
+      { preHandler: requireAuth },
+      async (req: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+        const fileId = req.params.id;
+        const userId = req.userId;
+        const userEmail = req.user?.email;
+
+        // 1. Verify existence and user access
+        let doc;
+        try {
+          doc = await documentRepo.getById(userId, fileId, userEmail);
+          if (!doc) {
+            return reply.status(404).send({ error: "Belge bulunamadı" });
+          }
+        } catch (err) {
+          if (err instanceof OwnershipError) {
+            return reply.status(403).send({ error: err.message });
+          }
+          if (err instanceof NotFoundError) {
+            return reply.status(404).send({ error: "Belge bulunamadı" });
+          }
+          throw err;
+        }
+
+        // 2. Only allow converting ODT files
+        const isOdt =
+          doc.mimeType?.includes("opendocument") ||
+          doc.title.toLowerCase().endsWith(".odt");
+        if (!isOdt) {
+          return reply.status(400).send({
+            error: "Yalnızca ODT formatındaki belgeler DOCX kopyasına dönüştürülebilir",
+          });
+        }
+
+        // 3. Ensure source file exists in storage
+        try {
+          await storage.getFileInfo(fileId);
+        } catch (err) {
+          if (err instanceof WopiFileNotFoundError) {
+            return reply.status(404).send({ error: "Belge bulunamadı" });
+          }
+          throw err;
+        }
+
+        // 4. Create signed link and token for ONLYOFFICE ConvertService to download the source file
+        const expires = String(Math.floor(Date.now() / 1000) + 3600);
+        const fileSig = signLink(["file", fileId, expires]);
+        const downloadToken = signJwt({
+          fileId,
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        });
+        const fileUrl = `${internalApi}/api/onlyoffice/files/${encodeURIComponent(fileId)}?s=${fileSig}&expires=${expires}&token=${downloadToken}`;
+
+        // 5. Send conversion request to ONLYOFFICE ConvertService
+        const conversionKey = crypto.randomUUID();
+        const sourceTitle = doc.title.toLowerCase().endsWith(".odt")
+          ? doc.title
+          : `${doc.title}.odt`;
+
+        const conversionPayload = {
+          async: false,
+          filetype: "odt",
+          key: conversionKey,
+          outputtype: "docx",
+          title: sourceTitle,
+          url: fileUrl,
+        };
+        const token = signJwt({
+          ...conversionPayload,
+          payload: conversionPayload,
+          exp: Math.floor(Date.now() / 1000) + 3600,
+        });
+
+        const convertUrl = `${dsInternal}/ConvertService.ashx`;
+        let convertRes: Response;
+        try {
+          convertRes = await fetchFn(convertUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              ...conversionPayload,
+              token,
+            }),
+            signal: AbortSignal.timeout(60_000),
+          });
+        } catch (err) {
+          req.log.error({ fileId, err }, "onlyoffice: conversion network request failed");
+          return reply.status(502).send({
+            error: "Dönüştürme servisine bağlanılamadı. Lütfen tekrar deneyin.",
+          });
+        }
+
+        if (!convertRes.ok) {
+          req.log.error(
+            { fileId, status: convertRes.status },
+            "onlyoffice: conversion service returned HTTP error",
+          );
+          return reply.status(502).send({
+            error: "Dönüştürme servisi hata yanıtı döndürdü",
+          });
+        }
+
+        let convertData: { endConvert?: boolean; fileUrl?: string; error?: number };
+        try {
+          convertData = (await convertRes.json()) as {
+            endConvert?: boolean;
+            fileUrl?: string;
+            error?: number;
+          };
+        } catch (err) {
+          req.log.error({ fileId, err }, "onlyoffice: failed to parse conversion response");
+          return reply.status(502).send({
+            error: "Dönüştürme servisinin yanıtı ayrıştırılamadı",
+          });
+        }
+
+        if (convertData.error !== undefined && convertData.error !== 0) {
+          req.log.error(
+            { fileId, errorCode: convertData.error },
+            "onlyoffice: conversion service returned error code",
+          );
+          return reply.status(502).send({
+            error: "Belge dönüştürülürken ONLYOFFICE hatası oluştu",
+          });
+        }
+
+        if (!convertData.fileUrl || typeof convertData.fileUrl !== "string") {
+          req.log.error({ fileId, convertData }, "onlyoffice: missing fileUrl in conversion result");
+          return reply.status(502).send({
+            error: "Dönüştürülen belge adresi alınamadı",
+          });
+        }
+
+        // 6. Download the converted DOCX from Document Server
+        let downloadUrl = new URL(convertData.fileUrl);
+        const internal = new URL(dsInternal);
+        if (downloadUrl.username || downloadUrl.password) {
+          return reply.status(502).send({ error: "Geçersiz dönüştürme indirme adresi" });
+        }
+        const publicPath = publicServer.pathname.replace(/\/$/, "");
+        if (
+          downloadUrl.origin === publicServer.origin &&
+          downloadUrl.pathname.startsWith(`${publicPath}/`)
+        ) {
+          downloadUrl = new URL(
+            `${downloadUrl.pathname.slice(publicPath.length)}${downloadUrl.search}`,
+            internal,
+          );
+        }
+        if (downloadUrl.origin !== internal.origin || downloadUrl.username || downloadUrl.password) {
+          req.log.error({ origin: downloadUrl.origin }, "onlyoffice: untrusted download host");
+          return reply.status(502).send({
+            error: "Güvenlik kısıtlaması nedeniyle dönüştürülen dosya indirilemedi",
+          });
+        }
+
+        let downloadRes: Response;
+        try {
+          downloadRes = await fetchFn(downloadUrl.href, {
+            redirect: "error",
+            signal: AbortSignal.timeout(30_000),
+          });
+        } catch (err) {
+          req.log.error({ fileId, err }, "onlyoffice: failed to download converted file");
+          return reply.status(502).send({
+            error: "Dönüştürülen belge indirilemedi",
+          });
+        }
+
+        if (!downloadRes.ok) {
+          return reply.status(502).send({
+            error: "Dönüştürülen belge dosyası sunucudan alınamadı",
+          });
+        }
+
+        const docxBuf = Buffer.from(await downloadRes.arrayBuffer());
+        if (!docxBuf.length) {
+          return reply.status(502).send({
+            error: "Dönüştürülen dosya içeriği boş",
+          });
+        }
+
+        // 7. Check user quota for new document
+        try {
+          await assertUserQuota(documentRepo, userId, docxBuf.length);
+        } catch (err: unknown) {
+          if (err instanceof StorageQuotaExceededError) {
+            return reply.status(413).send({
+              error: "Depolama alanınız yetersiz, kopya oluşturulamadı",
+              used: err.used,
+              quota: err.quota,
+            });
+          }
+          throw err;
+        }
+
+        // 8. Store the new DOCX document
+        const newDocId = crypto.randomUUID();
+        const baseTitle = doc.title.replace(/\.odt$/i, "");
+        const newTitle = `${baseTitle}.docx`;
+        const docxMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        const s3Key = `users/${userId}/documents/${newDocId}.docx`;
+
+        if (storage.createFile) {
+          await storage.createFile(newDocId, newTitle, userId, docxBuf, docxMime);
+        } else {
+          await storage.putFile(newDocId, docxBuf);
+        }
+
+        const newDoc = await documentRepo.create(userId, {
+          id: newDocId,
+          title: newTitle,
+          s3ObjectKey: s3Key,
+          fileSize: docxBuf.length,
+          mimeType: docxMime,
+        });
+
+        return reply.status(201).send({ document: newDoc });
+      },
+    );
   };
 };

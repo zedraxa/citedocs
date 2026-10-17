@@ -88,9 +88,6 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
 
         {
           try {
-            const raw = await documentRepo.findRawById(fileId);
-            if (!raw || raw.deletedAt)
-              return reply.status(404).send({ error: "Document not found" });
             const doc = await documentRepo.getById(userId, fileId, req.user?.email);
             if (!doc) return reply.status(404).send({ error: "Document not found" });
             role = doc.userRole;

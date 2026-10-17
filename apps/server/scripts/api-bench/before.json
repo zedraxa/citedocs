@@ -1,0 +1,137 @@
+{
+  "node": "v22.22.3",
+  "samples": 30,
+  "fakeRepositoryDelayMs": 5,
+  "fakeZoteroDelayMs": 25,
+  "cslBodyBytes": 91340,
+  "cslConditionalBytes": 91340,
+  "documents": 100,
+  "styles": 10800,
+  "results": [
+    {
+      "name": "login",
+      "coldMs": 338.8,
+      "p50Ms": 285.23,
+      "p95Ms": 353.773,
+      "calls": {
+        "findUserByEmail": 30,
+        "createSession": 30
+      }
+    },
+    {
+      "name": "session",
+      "coldMs": 12.745,
+      "p50Ms": 11.656,
+      "p95Ms": 12.01,
+      "calls": {
+        "findSessionById": 30,
+        "findUserById": 30
+      }
+    },
+    {
+      "name": "documents",
+      "coldMs": 25.218,
+      "p50Ms": 23.727,
+      "p95Ms": 25.029,
+      "calls": {
+        "findSessionById": 30,
+        "findUserById": 30,
+        "listOwned": 30,
+        "getStorageUsage": 30
+      }
+    },
+    {
+      "name": "documents-search",
+      "coldMs": 24.14,
+      "p50Ms": 22.74,
+      "p95Ms": 23.354,
+      "calls": {
+        "findSessionById": 30,
+        "findUserById": 30,
+        "listOwned": 30,
+        "getStorageUsage": 30
+      }
+    },
+    {
+      "name": "document-open",
+      "coldMs": 18.102,
+      "p50Ms": 17.109,
+      "p95Ms": 17.319,
+      "calls": {
+        "findSessionById": 30,
+        "findUserById": 30,
+        "getById": 30
+      }
+    },
+    {
+      "name": "onlyoffice-config",
+      "coldMs": 30.826,
+      "p50Ms": 28.167,
+      "p95Ms": 28.759,
+      "calls": {
+        "findSessionById": 30,
+        "findUserById": 30,
+        "findRawById": 30,
+        "getById": 30,
+        "getFileInfo": 30
+      }
+    },
+    {
+      "name": "zotero-library",
+      "coldMs": 49.01,
+      "p50Ms": 37.934,
+      "p95Ms": 39.653,
+      "calls": {
+        "findSessionById": 30,
+        "findUserById": 30,
+        "upstream": 30
+      }
+    },
+    {
+      "name": "zotero-search",
+      "coldMs": 37.031,
+      "p50Ms": 37.938,
+      "p95Ms": 38.29,
+      "calls": {
+        "findSessionById": 30,
+        "findUserById": 30,
+        "upstream": 30
+      }
+    },
+    {
+      "name": "styles-list",
+      "coldMs": 69.6,
+      "p50Ms": 1.251,
+      "p95Ms": 2.411,
+      "calls": {}
+    },
+    {
+      "name": "styles-search",
+      "coldMs": 261.403,
+      "p50Ms": 214.643,
+      "p95Ms": 290.496,
+      "calls": {}
+    },
+    {
+      "name": "csl-lookup",
+      "coldMs": 2.951,
+      "p50Ms": 2.302,
+      "p95Ms": 3.403,
+      "calls": {}
+    },
+    {
+      "name": "csl-conditional",
+      "coldMs": 2.208,
+      "p50Ms": 2.091,
+      "p95Ms": 2.871,
+      "calls": {}
+    },
+    {
+      "name": "citation-engine-local-NOT-API",
+      "coldMs": 2371.723,
+      "p50Ms": 1946.342,
+      "p95Ms": 2280.194,
+      "calls": {}
+    }
+  ]
+}

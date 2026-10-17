@@ -2229,3 +2229,40 @@ Açık konular: Bu ölçüm derleme çıktısı boyutu ve bağımlılık grafiğ
 - **`pnpm test` (Tam Test Paketi):**
   - **74 test dosyası** çalıştırıldı.
   - **709 test başarılı**, 1 atlanan, 3 yapılabilir/todo. 0 başarısız!
+
+---
+
+## Kayıt #041 — Sunucu API gecikme optimizasyonları ve çevrimdışı ölçüm (17 Ekim 2026)
+
+- `StyleService` (`apps/server/src/styles/styleService.ts`) içinde 10.800 CSL stilinin arama indeksi bellekte önbelleğe alındı (`searchIndexCache`). Her `/api/styles?q=...` arama isteğinde binlerce stili sıfırdan yinelemek yerine normalize edilmiş indeks üzerinden arama yapılarak stil arama gecikmesi dramatik biçimde düşürüldü.
+- CSL rota katmanına (`apps/server/src/routes/csl.ts`) HTTP ETag ve koşullu istek (`If-None-Match` -> 304 Not Modified) desteği ile `Cache-Control: public, max-age=3600` başlıkları eklendi. Tarayıcı veya istemci aynı CSL stilini tekrar istediğinde 91 kB'lık XML gövdesi yerine 0 baytlık 304 yanıtı dönülerek ağ ve CPU yükü azaltıldı.
+- Belge açılışı ve ONLYOFFICE yapılandırma yollarındaki yinelenen veri tabanı okumaları temizlendi (`apps/server/src/documents/routes.ts`, `apps/server/src/onlyoffice/routes.ts`). `onlyoffice-config` rotasında belge için hem `findRawById` hem `getById` çağrılması engellendi, tek bir `getById` çağrısı üzerinden ihtiyaç duyulan alanlar alındı; böylece istek başına veri tabanı sorgu sayısı 5'ten 4'e düşürüldü.
+- Sıcak API yollarını izole ve tekrarlanabilir şekilde ölçmek için çevrimdışı başarım betiği (`apps/server/scripts/api-bench/run.mjs`) ve dokümantasyonu (`apps/server/scripts/api-bench/README.md`) eklendi. Fastify `inject` ile bellek depoları üzerinde 5 ms depo gecikmesi ve 25 ms sahte Zotero gecikmesiyle 30'ar örnek toplanarak p50 ve p95 gecikmeleri kaydedildi.
+
+Ölçüm: Node 22 (v22.22.3), Fastify `app.inject`, 100 belge, 10.800 stil, her rota için 1 soğuk + 3 ısınma + 30 ölçüm örneği. Başlangıç (`before.json`) ve optimizasyon sonrası (`after.json`):
+
+| Rota / İşlem | Önce p50 (ms) | Sonra p50 (ms) | Önce p95 (ms) | Sonra p95 (ms) | Açıklama / Çağrılar |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `styles-search` (`q=journal`) | 214,64 | 5,40 | 290,50 | 9,67 | Arama indeksi önbelleği (~40 kat hızlanma, -%97,5) |
+| `csl-conditional` (ETag) | 2,09 | 0,55 | 2,87 | 0,65 | 304 Not Modified; gövde 91.340 B → 0 B |
+| `csl-lookup` (`/styles/apa`) | 2,30 | 2,49 | 3,40 | 3,67 | Doğrudan Map/önbellek erişimi (sabit) |
+| `styles-list` (`/api/styles`) | 1,25 | 1,44 | 2,41 | 2,05 | Önceden önbelleklenen liste (sabit) |
+| `onlyoffice-config` | 28,17 | 22,89 | 28,76 | 23,60 | Yinelenen `findRawById` kaldırıldı (5 DB çağrısı → 4) |
+| `documents` (liste) | 23,73 | 18,62 | 25,03 | 19,67 | Hafif kazanç (oturum + sahiplik sorguları) |
+| `documents-search` (`q=Science 9`) | 22,74 | 17,48 | 23,35 | 18,81 | Hafif kazanç |
+| `document-open` (`/api/documents/:id`) | 17,11 | 17,27 | 17,32 | 18,57 | Doğrudan tek `getById` (sabit) |
+| `session` (`/api/auth/session`) | 11,66 | 11,85 | 12,01 | 12,21 | Oturum + kullanıcı sorgusu (sabit) |
+| `login` (`/api/auth/login`) | 285,23 | 291,05 | 353,77 | 365,76 | Beklenen bcrypt CPU maliyeti (sabit / flat) |
+| `zotero-library` | 37,93 | 37,98 | 39,65 | 39,28 | 25 ms sahte upstream + oturum (sabit / flat) |
+| `zotero-search` (`q=science`) | 37,94 | 38,21 | 38,29 | 39,51 | 25 ms sahte upstream + oturum (sabit / flat) |
+| `citation-engine-local-NOT-API` | 1946,34 | 1940,96 | 2280,19 | 2230,55 | Paylaşılan CSL motoru yerel ölçümü (API değil, yavaş) |
+
+Doğrulama: `pnpm build`, `pnpm --filter @citedocs/server test` (yeni eklenen `server-perf.test.ts` ve güncellenen `onlyoffice.test.ts` dahil), `pnpm lint`, `pnpm typecheck` ve monorepo düzeyinde tam `pnpm test` çalıştırıldı.
+
+Kontrol sonuçları: `pnpm lint`, `pnpm typecheck`, `pnpm build` başarılı. Tam test paketi: **75 test dosyası**, **707 başarılı**, 1 atlanan, 3 todo, 0 başarısız.
+
+Açık konular:
+1. **Zotero Upstream Önbelleği:** Zotero proxy rotaları (`/api/zotero/proxy/*`) upstream Zotero API'sine yapılan çağrıları henüz sunucu tarafında önbelleğe almamaktadır; ağ gecikmesi doğrudan yansımaktadır.
+2. **Yerel CSL Motor Başarımı:** Paylaşılan CSL motorunun (`packages/csl-engine`) ilk başlatma ve biçimlendirme süresi yerel ölçümde hâlâ yüksektir (~1,9 sn p50); bu motor sunucu içi bir API rotası olmamakla birlikte istemci/iframe tarafında optimizasyona ihtiyaç duymaktadır.
+3. **Canlı LCP ve Ağ Gecikmesi:** Ölçümler Fastify `inject` üzerinden yapay depo/ağ gecikmeleriyle gerçekleştirilmiştir; gerçek PostgreSQL sorgu planları, SSL/TLS el sıkışması, canlı internet gecikmesi ve son kullanıcı LCP (Largest Contentful Paint) değerleri bu mikrokıyaslamanın dışındadır.
+

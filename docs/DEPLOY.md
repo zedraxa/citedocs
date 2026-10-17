@@ -115,3 +115,18 @@ The student flow (signup, My Documents, create/open document in ONLYOFFICE, Zote
 ```bash
 BASE_URL=https://docs.sifirdanbire.com.tr pnpm test:e2e
 ```
+
+### Verifying Periodic Force-Save (autoAssembly):
+To confirm that Document Server has loaded the periodic force-save autoAssembly configuration in a running container:
+```bash
+docker exec citedocs-onlyoffice cat /etc/onlyoffice/documentserver/local.json | jq .services.CoAuthoring.autoAssembly
+```
+It should return:
+```json
+{
+  "enable": true,
+  "interval": "1m",
+  "step": "1m"
+}
+```
+

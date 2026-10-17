@@ -24,12 +24,41 @@ Only the configured Document Server origin is fetched; redirects are refused.
 Public `/oo` URLs are mapped to `ONLYOFFICE_INTERNAL_URL` using `PUBLIC_URL` and
 `ONLYOFFICE_PUBLIC_URL`, never an arbitrary callback host.
 
-Automatic force-save is disabled in the editor config: a force-save changes the
-storage version while the editing session is still active, which would give new
-joiners a different document key. Normal editor autosave remains enabled and
-status 2 persists the finished session. Status 6 is supported for explicit server
-callbacks, but server-side periodic force-save should remain disabled until shared,
-durable active-session key tracking is implemented.
+Automatic force-save and periodic assembly are enabled in the editor and Document Server:
+- `editorConfig.customization.autosave: true` continuously syncs in-memory changes.
+- `editorConfig.customization.forcesave: true` exposes the Save button/Ctrl+S trigger
+  and instructs Document Server to emit status 6 force-save callbacks periodically and on demand.
+  This is appropriate and expected for CiteDocs' Google Docs-grade cloud persistence: users do not
+  risk losing work if a browser crashes or network drops before the editing session closes.
+- Session key stability is maintained by `OnlyofficeSessionManager`: status 6 force-saves update
+  the file in MinIO/S3 without altering the active session key. Concurrent collaborators and page
+  reloads continue to share the exact same key during a live session, preventing "document changed"
+  errors. Only after status 2 (session closed) or status 4 is the session key rotated for the next session.
+- Document Server periodic force-save is enabled via `services.CoAuthoring.autoAssembly`
+  (`enable: true`, `interval: "1m"`, `step: "1m"`). This is baked into `deploy/onlyoffice.Dockerfile`
+  via `deploy/docker-entrypoint-onlyoffice.sh`, updating `/etc/onlyoffice/documentserver/local.json`
+  and `/etc/onlyoffice/documentserver/local-production-linux.json` at container boot while preserving
+  all JWT settings. The interval is configurable via `OO_AUTOASSEMBLY_INTERVAL` (default `1m`).
+- Status 6 deduplication: repeated callbacks with identical content (e.g. autoAssembly with no new edits)
+  are SHA-256 hash-checked and acknowledged without writing redundant storage versions.
+- Quota accounting: document saves check user storage quota using replacement semantics
+  (`replacedDocBytes: doc.fileSize`), preventing double-counting while strictly enforcing user limits.
+
+To verify `autoAssembly` in a running container:
+```bash
+docker exec citedocs-onlyoffice cat /etc/onlyoffice/documentserver/local.json | jq .services.CoAuthoring.autoAssembly
+# or
+docker exec citedocs-onlyoffice cat /etc/onlyoffice/documentserver/local-production-linux.json | jq .services.CoAuthoring.autoAssembly
+```
+Expected output:
+```json
+{
+  "enable": true,
+  "interval": "1m",
+  "step": "1m"
+}
+```
+
 
 The compose build installs the official Zotero plugin from a pinned source commit
 on the same origin as `/oo`. `pluginsData` loads that copy and `autostart` opens its

@@ -1184,3 +1184,58 @@ pnpm build
 - **`pnpm test`:** Monorepo genelinde **49 test dosyası, 474 test %100 yeşil** (1 test atlandı).
 - **`pnpm build`:** Tüm 10 paket ve Vite web uygulaması 0 hata ile başarıyla derlendi.
 - **`BASE_URL=https://docs.sifirdanbire.com.tr pnpm test:e2e`:** Güncellenen UI ve testid'lerle canlı ortamda **2/2 E2E testi %100 yeşil** geçti (11.9s).
+
+---
+
+## 19. ONLYOFFICE Docs CE Periyodik Otomatik Kaydetme ve Canlı Oturum Kalıcılığı (cd-autosave) — Kayıt #019
+
+> **Kayıt No:** #019  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-autosave`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** CiteDocs üzerinde ONLYOFFICE Docs CE editöründe düzenleme esnasında değişikliklerin periyodik olarak ve canlı oturumu bozmadan MinIO/S3 nesne deposuna kalıcı kaydedilmesi (auto-save / force-save), Document Server autoAssembly periyodik montajının konteyner başlatmasında yapılandırılması, çok kullanıcılı canlı oturum anahtarı tutarlılığının korunması, mükerrer sürüm engelleme ve depolama kotası entegrasyonu.
+
+### 19.1 Yapılan Çalışmalar ve Mimari Yenilikler
+
+1. **Editör Konfigürasyonu (Autosave & Forcesave):**
+   - `apps/server/src/onlyoffice/routes.ts` içinde `editorConfig.customization.forcesave: true` ve `autosave: true` aktif edildi.
+   - Bu sayede editörde "Kaydet" butonu ve `Ctrl+S` tetikleyicisi etkinleşirken, Document Server'ın periyodik olarak arka planda kaydetme çağrıları (status 6) yapması sağlandı. Kullanıcının tarayıcı çökmesi veya oturumu kapatmadan sayfadan ayrılması durumunda veri kaybı riski ortadan kaldırıldı.
+
+2. **Document Server Periyodik Force-Save (autoAssembly) Konteyner Mimarisi:**
+   - Document Server'ın `services.CoAuthoring.autoAssembly` (`enable: true`, `interval: "1m"`, `step: "1m"`) yeteneğini başlatma anında güvenle yükleyen `deploy/docker-entrypoint-onlyoffice.sh` wrapper betiği geliştirildi.
+   - Entrypoint betiği hem Node.js `node-config` üretim override dosyası olan `/etc/onlyoffice/documentserver/local-production-linux.json` dosyasını oluşturur hem de mevcut `/etc/onlyoffice/documentserver/local.json` içine `autoAssembly` ayarlarını `jq` (veya `node`/`python3`) ile birleştirir; JWT ayarlarını ve gizli anahtarları bozmadan korur.
+   - `OO_AUTOASSEMBLY_INTERVAL` ortam değişkeniyle (varsayılan `1m`) yapılandırılabilir kılındı; `deploy/docker-compose.prod.yml` ve `deploy/docker-compose.prod.onlyoffice.yml` dosyalarına yansıtıldı.
+   - `deploy/onlyoffice.Dockerfile` içerisine paralel dal (`cd-turkish-ui`) ile çakışmayacak şekilde bağımsız bir adım olarak `jq` kurulumu ve entrypoint bağlantısı eklendi.
+
+3. **Canlı Oturum Anahtarı Takibi ve Oturum Yaşam Döngüsü (`OnlyofficeSessionManager`):**
+   - `apps/server/src/onlyoffice/session.ts` modülü oluşturuldu.
+   - **Kritik Mimari Çözüm:** ONLYOFFICE'te status 6 force-save sırasında depolama versiyonu güncellense bile canlı oturum anahtarı (`key`) korunur. Böylece oturum esnasında belgeye katılan yeni işbirlikçiler veya sayfayı yenileyen kullanıcılar Document Server'dan "belge başka kullanıcı tarafından değiştirildi" hatası almaz, aynı canlı oturuma bağlanır.
+   - Oturum ancak Document Server'dan status 2 (tüm kullanıcılar ayrıldı / kaydetmeye hazır) veya status 4 (değişiklik yapılmadan kapatıldı) callback'i geldiğinde sonlandırılır. Bir sonraki oturum açılışında yeni ve benzersiz bir anahtar üretilir.
+
+4. **Gelişmiş Callback İşleyicisi, Mükerrer Kayıt Engelleme ve Kota Yönetimi:**
+   - **Status 1:** Düzenleme devam ediyor bildirimi, no-op `{ error: 0 }`.
+   - **Status 4:** Değişikliksiz kapanış bildirimi, oturumu kapatır, no-op `{ error: 0 }`.
+   - **Status 3 ve 7:** Document Server hata bildirimleri uyarı olarak loglanır ve `{ error: 0 }` ile onaylanır.
+   - **Status 6 ve 2 Kayıtları:** İndirilen belgenin SHA-256 içerik özeti (`contentHash`) hesaplanır. Düzenleme yapılmadan tetiklenen ardışık status 6 çağrılarında (ör. periyodik autoAssembly) aynı içerik tespit edilerek MinIO/S3'e mükerrer sürüm yazılması engellenir.
+   - **Depolama Kotası Entegrasyonu:** `assertUserQuota` ile nesne değişim mantığı (`replacedDocBytes: doc.fileSize`) uygulanarak kotanın çift sayılması engellenir; kullanıcı kotasını aşan kaydetmeler güvenle reddedilir (`{ error: 1 }`).
+
+5. **Testler ve Doğrulama:**
+   - `apps/server/test/onlyoffice.test.ts`: Status 2, Status 6, ardışık status 6 mükerrer sürüm engelleme, kota hesaplama ve aşım reddi, canlı oturum anahtarı tutarlılığı & rotasyonu, status 1/4 no-op, geçersiz JWT reddi ve `autosave: true` / `forcesave: true` olmak üzere 36 test %100 yeşil.
+   - `apps/server/test/onlyoffice-docker-entrypoint.test.ts`: Entrypoint betiğinin JSON override ve birleştirme mantığı için 2 test %100 yeşil.
+   - `apps/server/test/onlyoffice-session.test.ts`: Oturum yöneticisi birim testleri (3 test) %100 yeşil.
+
+### 19.2 Nasıl Doğrulanır?
+
+1. **Birim ve Entegrasyon Testleri:**
+   ```bash
+   pnpm --filter @citedocs/server test test/onlyoffice
+   ```
+2. **Çalışan Konteynerde autoAssembly Doğrulaması:**
+   ```bash
+   docker exec citedocs-onlyoffice cat /etc/onlyoffice/documentserver/local.json | jq .services.CoAuthoring.autoAssembly
+   # Çıktı: { "enable": true, "interval": "1m", "step": "1m" }
+   ```
+
+### 19.3 Açık Kalan Konular (Open Issues)
+- Canlı sunucuya deploy henüz yapılmamıştır (talimat gereği sadece yerel daldadır). Dağıtım sırasında `deploy/onlyoffice.Dockerfile` imajının yeniden derlenmesi (`--build`) gereklidir.
+

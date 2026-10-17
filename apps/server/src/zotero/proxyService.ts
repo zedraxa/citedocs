@@ -1,4 +1,5 @@
 import { ZoteroAccountService } from "./accountService.js";
+import { ZoteroCache, type ZoteroCacheOptions } from "./cache.js";
 
 export interface ProxyResponse {
   status: number;
@@ -11,6 +12,8 @@ export interface ZoteroProxyOptions {
   fetchFn?: typeof fetch;
   zoteroApiBaseUrl?: string;
   translationServerUrl?: string;
+  cache?: ZoteroCache;
+  cacheOptions?: ZoteroCacheOptions;
 }
 
 export class ZoteroProxyService {
@@ -18,6 +21,7 @@ export class ZoteroProxyService {
   private readonly fetchFn: typeof fetch;
   private readonly zoteroApiBaseUrl: string;
   private readonly translationServerUrl: string;
+  private readonly cache: ZoteroCache;
 
   constructor(options: ZoteroProxyOptions) {
     this.accountService = options.accountService;
@@ -28,42 +32,29 @@ export class ZoteroProxyService {
       process.env.TRANSLATION_SERVER_URL ||
       "http://localhost:1969"
     ).replace(/\/+$/, "");
+    this.cache = options.cache || new ZoteroCache(options.cacheOptions);
+  }
+
+  getCache(): ZoteroCache {
+    return this.cache;
   }
 
   /**
-   * Proxies an authenticated HTTP request from the web-library client to api.zotero.org.
-   * Retrieves the user's encrypted API key, decrypts in-memory, injects headers,
-   * and streams the upstream response back to the caller.
+   * Invalidates cached GET responses for a given library.
+   * If userId is provided, invalidates only that user's cached queries for the library.
    */
-  async proxyToZotero(
-    userId: string,
-    subPath: string,
-    method = "GET",
-    queryParams: Record<string, string | string[] | undefined> = {},
-    body?: unknown,
-    incomingHeaders: Record<string, string | undefined> = {}
+  invalidateLibrary(userId: string | undefined, libraryId: string): number {
+    return this.cache.invalidateLibrary(userId, libraryId);
+  }
+
+  private async executeUpstream(
+    cleanSubPath: string,
+    method: string,
+    queryParams: Record<string, string | string[] | undefined>,
+    body: unknown,
+    incomingHeaders: Record<string, string | undefined>,
+    apiKey: string
   ): Promise<ProxyResponse> {
-    if (!userId) {
-      return {
-        status: 401,
-        headers: { "content-type": "application/json" },
-        data: { error: "Unauthorized: Missing user authentication" },
-      };
-    }
-
-    const creds = await this.accountService.getInternalDecryptedKey(userId);
-    if (!creds || !creds.apiKey) {
-      return {
-        status: 403,
-        headers: { "content-type": "application/json" },
-        data: {
-          error: "Zotero account not linked",
-          message: "Please link your zotero.org account in CiteDocs settings before accessing the web library.",
-        },
-      };
-    }
-
-    // Build query string
     const searchParams = new URLSearchParams();
     for (const [key, value] of Object.entries(queryParams)) {
       if (value !== undefined) {
@@ -75,12 +66,11 @@ export class ZoteroProxyService {
       }
     }
     const queryString = searchParams.toString();
-    const cleanSubPath = subPath.replace(/^\/+/, "");
     const targetUrl = `${this.zoteroApiBaseUrl}/${cleanSubPath}${queryString ? `?${queryString}` : ""}`;
 
     const headers: Record<string, string> = {
       "Zotero-API-Version": "3",
-      "Zotero-API-Key": creds.apiKey,
+      "Zotero-API-Key": apiKey,
       Accept: incomingHeaders.accept || "application/json",
     };
 
@@ -123,12 +113,22 @@ export class ZoteroProxyService {
       }
 
       const contentType = response.headers.get("content-type") || "";
-      let data: unknown;
-      if (contentType.includes("application/json")) {
-        data = await response.json();
-      } else {
-        data = await response.text();
+      let data: unknown = null;
+      if (response.status !== 304 && response.status !== 204) {
+        if (contentType.includes("application/json")) {
+          if (typeof response.json === "function") {
+            data = await response.json().catch(() => null);
+          } else if (typeof response.text === "function") {
+            const text = await response.text();
+            data = text ? JSON.parse(text) : null;
+          }
+        } else if (typeof response.text === "function") {
+          data = await response.text();
+        } else if (typeof response.json === "function") {
+          data = await response.json().catch(() => null);
+        }
       }
+
 
       return {
         status: response.status,
@@ -145,6 +145,232 @@ export class ZoteroProxyService {
         },
       };
     }
+  }
+
+  private checkAndRecordBackoff(
+    userId: string,
+    libraryId: string,
+    headers: Record<string, string>
+  ): void {
+    const backoffVal = headers["backoff"] || headers["retry-after"];
+    if (backoffVal) {
+      const sec = parseInt(backoffVal, 10);
+      if (Number.isFinite(sec) && sec > 0) {
+        this.cache.setBackoff(userId, libraryId, sec);
+      }
+    }
+  }
+
+  /**
+   * Proxies an authenticated HTTP request from the web-library client to api.zotero.org.
+   * Retrieves the user's encrypted API key, decrypts in-memory, injects headers,
+   * caches successful GET reads per-user/library, respects 304 revalidation and Backoff,
+   * and invalidates library cache after writes.
+   */
+  async proxyToZotero(
+    userId: string,
+    subPath: string,
+    method = "GET",
+    queryParams: Record<string, string | string[] | undefined> = {},
+    body?: unknown,
+    incomingHeaders: Record<string, string | undefined> = {}
+  ): Promise<ProxyResponse> {
+    if (!userId) {
+      return {
+        status: 401,
+        headers: { "content-type": "application/json" },
+        data: { error: "Unauthorized: Missing user authentication" },
+      };
+    }
+
+    const creds = await this.accountService.getInternalDecryptedKey(userId);
+    if (!creds || !creds.apiKey) {
+      return {
+        status: 403,
+        headers: { "content-type": "application/json" },
+        data: {
+          error: "Zotero account not linked",
+          message: "Please link your zotero.org account in CiteDocs settings before accessing the web library.",
+        },
+      };
+    }
+
+    const cleanSubPath = subPath.replace(/^\/+/, "");
+    const libraryId = ZoteroCache.extractLibraryId(cleanSubPath);
+    const upperMethod = (method || "GET").toUpperCase();
+    const isGet = upperMethod === "GET";
+
+    // 1. Write operations (POST, PUT, PATCH, DELETE)
+    // Writes are never cached. On completion, the library's cache is invalidated so changes show up immediately.
+    if (!isGet) {
+      const response = await this.executeUpstream(
+        cleanSubPath,
+        upperMethod,
+        queryParams,
+        body,
+        incomingHeaders,
+        creds.apiKey
+      );
+      this.cache.invalidateLibrary(userId, libraryId);
+      this.checkAndRecordBackoff(userId, libraryId, response.headers);
+      return response;
+    }
+
+    // 2. GET Request handling: check upstream Backoff first
+    const backoffRemaining = this.cache.getBackoffRemaining(userId, libraryId);
+    const cacheKey = ZoteroCache.buildKey(userId, libraryId, cleanSubPath, queryParams);
+    const cached = this.cache.get(cacheKey);
+
+    if (backoffRemaining > 0) {
+      // If we have a fresh cached entry, serve it to avoid touching upstream during backoff
+      if (cached && !cached.isStale) {
+        return {
+          status: 200,
+          headers: {
+            ...cached.entry.headers,
+            "x-cache": "HIT",
+            backoff: String(backoffRemaining),
+            "retry-after": String(backoffRemaining),
+          },
+          data: cached.entry.data,
+        };
+      }
+
+      // No fresh cache: block request to protect upstream Zotero API and honor Backoff
+      return {
+        status: 429,
+        headers: {
+          "content-type": "application/json",
+          backoff: String(backoffRemaining),
+          "retry-after": String(backoffRemaining),
+        },
+        data: {
+          error: "Zotero API backoff active",
+          message: `Upstream Zotero requested backoff. Please retry after ${backoffRemaining} seconds.`,
+          retryAfter: backoffRemaining,
+        },
+      };
+    }
+
+    const clientIfModifiedSince = incomingHeaders["if-modified-since-version"];
+
+    // 3. Cache HIT (Fresh)
+    if (cached && !cached.isStale) {
+      const cachedVersion = cached.entry.lastModifiedVersion;
+
+      // If client sent If-Modified-Since-Version and cached data is at or below that version, return 304!
+      if (
+        clientIfModifiedSince !== undefined &&
+        cachedVersion !== undefined &&
+        Number(clientIfModifiedSince) >= Number(cachedVersion)
+      ) {
+        return {
+          status: 304,
+          headers: {
+            ...cached.entry.headers,
+            "last-modified-version": cachedVersion,
+            "x-cache": "HIT",
+          },
+          data: null,
+        };
+      }
+
+      return {
+        status: 200,
+        headers: {
+          ...cached.entry.headers,
+          "x-cache": "HIT",
+        },
+        data: cached.entry.data,
+      };
+    }
+
+    // 4. Cache MISS or STALE: fetch from upstream
+    const upstreamHeaders = { ...incomingHeaders };
+    // If cached entry is stale, pass If-Modified-Since-Version for upstream 304 revalidation
+    if (
+      cached &&
+      cached.isStale &&
+      cached.entry.lastModifiedVersion &&
+      !upstreamHeaders["if-modified-since-version"]
+    ) {
+      upstreamHeaders["if-modified-since-version"] = cached.entry.lastModifiedVersion;
+    }
+
+    const response = await this.executeUpstream(
+      cleanSubPath,
+      upperMethod,
+      queryParams,
+      body,
+      upstreamHeaders,
+      creds.apiKey
+    );
+
+    this.checkAndRecordBackoff(userId, libraryId, response.headers);
+
+    // 5. Upstream returned 304 Not Modified: revalidate stale cache entry
+    if (response.status === 304 && cached) {
+      const newVersion = response.headers["last-modified-version"] || cached.entry.lastModifiedVersion;
+      this.cache.touch(cacheKey, newVersion);
+
+      if (
+        clientIfModifiedSince !== undefined &&
+        newVersion !== undefined &&
+        Number(clientIfModifiedSince) >= Number(newVersion)
+      ) {
+        return {
+          status: 304,
+          headers: {
+            ...cached.entry.headers,
+            ...response.headers,
+            "last-modified-version": newVersion,
+            "x-cache": "REVALIDATED",
+          },
+          data: null,
+        };
+      }
+
+      const outHeaders: Record<string, string> = {
+        ...cached.entry.headers,
+        ...response.headers,
+        "x-cache": "REVALIDATED",
+      };
+      if (newVersion) {
+        outHeaders["last-modified-version"] = newVersion;
+      }
+
+      return {
+        status: 200,
+        headers: outHeaders,
+        data: cached.entry.data,
+      };
+    }
+
+
+    // 6. Upstream returned 200 OK: Cache the successful response
+    if (response.status === 200) {
+      this.cache.set({
+        key: cacheKey,
+        userId,
+        libraryId,
+        subPath: cleanSubPath,
+        status: 200,
+        headers: response.headers,
+        data: response.data,
+        lastModifiedVersion: response.headers["last-modified-version"],
+      });
+
+      return {
+        ...response,
+        headers: {
+          ...response.headers,
+          "x-cache": "MISS",
+        },
+      };
+    }
+
+    // 7. Errors or auth failures (>= 400) are NEVER cached
+    return response;
   }
 
   /**

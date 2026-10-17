@@ -215,3 +215,22 @@ export async function unshareDocument(
     }
   );
 }
+
+export async function fetchDocument(
+  documentId: string
+): Promise<{ document: DocumentItem; role: string }> {
+  return docFetch<{ document: DocumentItem; role: string }>(
+    `/api/documents/${encodeURIComponent(documentId)}`
+  );
+}
+
+export async function convertOdtToDocx(
+  documentId: string
+): Promise<{ document: DocumentItem }> {
+  return docFetch<{ document: DocumentItem }>(
+    `/api/documents/${encodeURIComponent(documentId)}/convert-to-docx`,
+    {
+      method: "POST",
+    }
+  );
+}

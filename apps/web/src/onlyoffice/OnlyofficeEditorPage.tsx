@@ -13,6 +13,7 @@ import {
 import { getApiBaseUrl, getCsrfToken } from "../auth/api.js";
 import { getDocumentLanguage } from "../documents/i18n.js";
 import { openZoteroPanel } from "./zoteroPanel.js";
+import { OdtNoticeBanner } from "./OdtNoticeBanner.js";
 
 declare global {
   interface Window {
@@ -492,6 +493,8 @@ export function OnlyofficeEditorPage({
           {error}
         </div>
       )}
+
+      <OdtNoticeBanner documentId={documentId} documentTitle={documentTitle} />
 
       <div className="relative flex flex-1 overflow-hidden">
         {/* Editor canvas */}

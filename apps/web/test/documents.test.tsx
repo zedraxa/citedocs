@@ -382,13 +382,21 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
         }
 
         if (urlStr.includes("/api/documents/upload") && method === "POST") {
+          let name = "UploadedDocument.docx";
+          if (init?.body instanceof FormData) {
+            const file = init.body.get("file") as File | null;
+            if (file?.name) name = file.name;
+          }
+          const isOdt = name.toLowerCase().endsWith(".odt");
           const uploaded: DocumentItem = {
             id: "doc-uploaded",
-            title: "UploadedDocument.docx",
+            title: name,
             ownerUserId: "user-1",
-            s3ObjectKey: "docs/doc-uploaded/UploadedDocument.docx",
+            s3ObjectKey: `docs/doc-uploaded/${name}`,
             fileSize: 8192,
-            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            mimeType: isOdt
+              ? "application/vnd.oasis.opendocument.text"
+              : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             deletedAt: null,
@@ -667,6 +675,37 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
       });
 
       expect(container.textContent).toContain("UploadedDocument.docx");
+    });
+
+    it("shows ODT notice banner with conversion button when an .odt file is uploaded", async () => {
+      const onOpen = vi.fn();
+      await act(async () => {
+        root.render(
+          createElement(
+            AuthProvider,
+            { autoFetch: false },
+            createElement(DocumentsPage, { onOpenDocument: onOpen })
+          )
+        );
+        await new Promise((r) => setTimeout(r, 20));
+      });
+
+      const fileInput = container.querySelector("[data-testid='file-upload-input']") as HTMLInputElement;
+      expect(fileInput).not.toBeNull();
+
+      const fakeOdtFile = new File(["dummy odt content"], "Tez.odt", {
+        type: "application/vnd.oasis.opendocument.text",
+      });
+
+      await act(async () => {
+        fireEvent.change(fileInput, { target: { files: [fakeOdtFile] } });
+        await new Promise((r) => setTimeout(r, 20));
+      });
+
+      const banner = container.querySelector("[data-testid='odt-notice-banner']");
+      expect(banner).not.toBeNull();
+      expect(banner?.textContent).toContain("DOCX olarak kopya oluştur");
+      expect(banner?.textContent).toContain("LibreOffice / ODT Biçimi Uyarısı");
     });
 
     it("triggers onOpenDocument callback when document card is clicked", async () => {

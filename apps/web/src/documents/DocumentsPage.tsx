@@ -37,6 +37,7 @@ import {
 import { ShareDialog } from "./ShareDialog.js";
 import { RenameDialog } from "./RenameDialog.js";
 import { UserMenu } from "../auth/UserMenu.js";
+import { OdtNoticeBanner } from "../onlyoffice/OdtNoticeBanner.js";
 
 interface DocumentsPageProps {
   onOpenDocument?: (doc: DocumentItem) => void;
@@ -67,6 +68,7 @@ export function DocumentsPage({
   // Modals state
   const [sharingDoc, setSharingDoc] = useState<DocumentItem | null>(null);
   const [renamingDoc, setRenamingDoc] = useState<DocumentItem | null>(null);
+  const [uploadedOdtDoc, setUploadedOdtDoc] = useState<DocumentItem | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -132,6 +134,12 @@ export function DocumentsPage({
         used: prev.used + res.document.fileSize,
         percentage: Math.min(100, Math.round(((prev.used + res.document.fileSize) / prev.total) * 10000) / 100),
       }));
+      const isOdt =
+        file.name.toLowerCase().endsWith(".odt") ||
+        res.document.mimeType.includes("opendocument");
+      if (isOdt) {
+        setUploadedOdtDoc(res.document);
+      }
     } catch (err: unknown) {
       setError((err as Error).message || "Belge yüklenemedi");
     } finally {
@@ -437,6 +445,22 @@ export function DocumentsPage({
             </div>
           </div>
         </div>
+
+        {/* ODT Notice Banner on Upload */}
+        {uploadedOdtDoc && (
+          <OdtNoticeBanner
+            className="rounded-xl border border-amber-200"
+            documentId={uploadedOdtDoc.id}
+            documentTitle={uploadedOdtDoc.title}
+            mimeType={uploadedOdtDoc.mimeType}
+            onConverted={(newDoc) => {
+              setMyDocs((prev) => [newDoc, ...prev]);
+              setUploadedOdtDoc(null);
+              handleOpen(newDoc);
+            }}
+            onClose={() => setUploadedOdtDoc(null)}
+          />
+        )}
 
         {/* 4. DOCUMENTS GRID / LIST */}
         <section data-testid="documents-grid-section">

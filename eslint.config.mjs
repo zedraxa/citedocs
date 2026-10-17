@@ -5,7 +5,17 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    ignores: ["**/dist/**", "**/build/**", "**/node_modules/**", "**/.cache/**", "**/coverage/**"],
+    ignores: [
+      "**/dist/**",
+      "**/build/**",
+      "**/node_modules/**",
+      "**/.cache/**",
+      "**/coverage/**",
+      "**/playwright-report/**",
+      "**/test-results/**",
+      "**/public/**",
+      "deploy/**",
+    ],
   },
   {
     rules: {

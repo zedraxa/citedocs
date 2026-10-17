@@ -149,7 +149,20 @@ pnpm format
 
 # Build all packages and applications for production
 pnpm build
+
+# Run Playwright End-to-End student flow tests (configurable with BASE_URL)
+BASE_URL=https://docs.sifirdanbire.com.tr pnpm test:e2e
 ```
+
+### ONLYOFFICE Docs CE Production Deployment
+
+CiteDocs includes a standalone production Compose variant powered by **ONLYOFFICE Docs Community Edition (AGPL v3)**, completely removing Collabora CODE and WOPI containers:
+
+```bash
+# Run the pure ONLYOFFICE production stack
+sudo docker compose -f deploy/docker-compose.prod.onlyoffice.yml up -d --build
+```
+See the full [ONLYOFFICE Deployment & E2E Testing Guide (`docs/onlyoffice-production-and-e2e.md`)](docs/onlyoffice-production-and-e2e.md) for architecture details, Caddy reverse-proxy configuration, and Playwright verification.
 
 Tests use 60-second test/hook limits and one Vitest worker per invocation to
 avoid CPU contention. CSL integration files warm citeproc once before tests;

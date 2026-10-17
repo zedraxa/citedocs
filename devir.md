@@ -1107,6 +1107,7 @@ pnpm build
 
 ---
 
+<<<<<<< HEAD
 ## 17. ONLYOFFICE Docs CE Zotero Panel Açma ve Odaklama Düzeltmesi (1-Click Header Button Fix) — Kayıt #013
 
 > **Kayıt No:** #013  
@@ -1150,3 +1151,36 @@ pnpm build
 - **`pnpm build`:** Tüm monorepo paketleri ve web/server uygulamaları hatasız derlendi.
 - **`pnpm test`:** Monorepo genelinde **46 test dosyası, 443 test %100 yeşil**.
 
+---
+
+## 18. Milestone ONLYOFFICE Docs CE + Zotero E2E & Standalone Production Compose (Kayıt #018)
+
+> **Kayıt No:** #018  
+> **Tarih:** 2026-10-17  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Dal:** `cd-oo-e2e`  
+> **Görev:** `main` dalı üzerine rebase yapılması, `main`'in güncel ONLYOFFICE Docs CE ve Zotero panel özelliklerinin korunması, öğrenci akışını kapsayan Playwright E2E test paketinin güncel UI/testid'lere uyarlanması, Collabora'sız bağımsız üretim compose mimarisinin entegrasyonu ve tam doğrulama.
+
+### 18.1 Yapılan Çalışmalar ve Katkılar
+
+1. **Rebase ve Uygulama Kodu Entegrasyonu:**
+   - `main` dalındaki sağlamlaştırılmış ONLYOFFICE backend kodu, Zotero OAuth ve başlık/eklenti panel özellikleri (`oo-zotero-open`, `oo-panel-toggle`, `oo-add-form`, `oo-add-input`, `oo-add-submit`, `oo-zotero-connect`, `oo-notice`, `oo-error`, `oo-cite-panel`) eksiksiz korundu.
+   - Bu dal sadece test, konfigürasyon, dokümantasyon ve üretim compose katkıları sağlayacak şekilde temizlendi; `main` tarafından kapsanan uygulama kodları bırakıldı.
+   - `tsconfig.tsbuildinfo` dosyaları commit'e dahil edilmedi.
+
+2. **Collabora'sız Bağımsız Üretim Compose Mimarisi:**
+   - `deploy/docker-compose.prod.onlyoffice.yml`: Collabora CODE ve WOPI konteynerlerini tamamen dışarıda bırakan, sadece Postgres, MinIO, Zotero Translation Server, CiteDocs Server, CiteDocs Web, Caddy ve ONLYOFFICE Docs Community Edition (`onlyoffice/documentserver:latest`) barındıran hafif üretim mimarisi.
+   - `deploy/Caddyfile.onlyoffice`: Caddy ters vekili üzerinden `/oo/*` yol öneki ile Document Server yönlendirmesi.
+   - `docs/onlyoffice-production-and-e2e.md`: Dağıtım ve test dokümantasyonu.
+
+3. **Playwright Uçtan Uca (E2E) Test Paketi (`e2e/oo-student-flow.spec.ts`):**
+   - Öğrenci kayıt (`/signup`) -> Belgelerim paneli (`/documents`) -> Boş Word belgesi oluşturma -> ONLYOFFICE editörünün açılması -> Zotero 1-click butonu kontrolü (`oo-zotero-open`) -> Hızlı kaynak paneli kontrolü (`oo-panel-toggle`, `oo-cite-panel`) -> DOI ile kaynak ekleme (`oo-add-input`, `oo-add-submit`, `oo-notice`) -> Belgelerim'e dönüş -> Belgeyi Görüntüleyici (`viewer`) ve Düzenleyici (`editor`) olarak paylaşma akışının tamamı otomatikleştirildi.
+   - `BASE_URL` ortam değişkeniyle yapılandırılabilir kılındı.
+   - Canlı üretim ortamında (`https://docs.sifirdanbire.com.tr`) headless Chromium ile koşturuldu ve başarıyla doğrulandı.
+
+### 18.2 Kalite ve Test Doğrulama Raporu (Rebase Sonrası)
+
+- **`git rebase main`:** Başarıyla güncel `main` (`65afed0`) üzerine rebase edildi.
+- **`pnpm test`:** Monorepo genelinde **49 test dosyası, 474 test %100 yeşil** (1 test atlandı).
+- **`pnpm build`:** Tüm 10 paket ve Vite web uygulaması 0 hata ile başarıyla derlendi.
+- **`BASE_URL=https://docs.sifirdanbire.com.tr pnpm test:e2e`:** Güncellenen UI ve testid'lerle canlı ortamda **2/2 E2E testi %100 yeşil** geçti (11.9s).

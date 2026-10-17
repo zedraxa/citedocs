@@ -93,3 +93,25 @@ Built from source for amd64: `/opt/translation-server` (git clone --recurse-subm
 - CODE ignores `welcome.enable=false`. The "Explore the new" dialog is suppressed by pre-seeding `localStorage.WSDWelcomeVersion` (Collabora runs on the same origin) from `/hosting/capabilities`.
 - cool.html always gets an explicit `lang=` parameter. A browser with an unusable `navigator.language` used to make cool.html throw "Incorrect locale information provided" before it sent `load`. The document then only opened after Collabora's load timeout killed and retried the session; that was the ~128 s load. `per_document.limit_load_secs=20` is kept as a safety net.
 - The editor sends the logged-in user's display name to Collabora.
+
+---
+
+## ONLYOFFICE Docs CE Production Variant (Without Collabora)
+
+For deployments using ONLYOFFICE Docs Community Edition (AGPL v3) without Collabora CODE or WOPI containers:
+
+### Files:
+- Compose file: `deploy/docker-compose.prod.onlyoffice.yml`
+- Caddy config: `deploy/Caddyfile.onlyoffice`
+- Detailed guide: `docs/onlyoffice-production-and-e2e.md`
+
+### To launch:
+```bash
+sudo docker compose -f deploy/docker-compose.prod.onlyoffice.yml up -d --build
+```
+
+### End-to-End Validation:
+The student flow (signup, My Documents, create/open document in ONLYOFFICE, Zotero status, add by DOI, share as view/edit) can be verified automatically via Playwright:
+```bash
+BASE_URL=https://docs.sifirdanbire.com.tr pnpm test:e2e
+```

@@ -1,0 +1,123 @@
+# Production compose variant for ONLYOFFICE Docs Community Edition (AGPL)
+# Completely excludes Collabora Online and WOPI containers.
+# Usage:
+#   docker compose -f deploy/docker-compose.prod.onlyoffice.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: citedocs
+      POSTGRES_USER: citedocs
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U citedocs"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: pgsty/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+
+  translation-server:
+    image: citedocs/translation-server:local
+    build:
+      context: /opt/translation-server
+    restart: unless-stopped
+
+  server:
+    build:
+      context: ..
+      dockerfile: apps/server/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      COLLAB_PORT: 1234
+      DATABASE_URL: postgres://citedocs:${POSTGRES_PASSWORD}@postgres:5432/citedocs
+      TRANSLATION_SERVER_URL: http://translation-server:1969
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: citedocs-attachments
+      S3_REGION: us-east-1
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      CLIENT_URL: https://${PUBLIC_HOST}
+      PUBLIC_URL: https://${PUBLIC_HOST}
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
+      ONLYOFFICE_INTERNAL_URL: http://onlyoffice
+      ONLYOFFICE_STORAGE_URL: http://server:3000
+      ONLYOFFICE_PUBLIC_URL: /oo
+      ZOTERO_OAUTH_CLIENT_KEY: ${ZOTERO_OAUTH_CLIENT_KEY:-}
+      ZOTERO_OAUTH_CLIENT_SECRET: ${ZOTERO_OAUTH_CLIENT_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      translation-server:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 15s
+      retries: 5
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+      args:
+        VITE_API_URL: https://${PUBLIC_HOST}
+        VITE_COLLAB_URL: wss://${PUBLIC_HOST}/collab
+        VITE_EDITOR_BACKEND: onlyoffice
+    restart: unless-stopped
+    depends_on:
+      - server
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
+      interval: 15s
+      retries: 5
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: citedocs-caddy
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile.onlyoffice:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - web
+      - server
+      - onlyoffice
+
+  # Main editor: ONLYOFFICE Docs Community Edition (AGPL, 20 concurrent connections).
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: citedocs-onlyoffice
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${ONLYOFFICE_JWT_SECRET}
+      JWT_HEADER: Authorization
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+      WOPI_ENABLED: "false"
+    volumes:
+      - oo_data:/var/www/onlyoffice/Data
+      - oo_logs:/var/log/onlyoffice
+
+volumes:
+  postgres_data:
+  minio_data:
+  caddy_data:
+  oo_data:
+  oo_logs:

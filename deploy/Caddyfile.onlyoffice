@@ -1,0 +1,28 @@
+{
+	auto_https disable_redirects
+	servers {
+		protocols h1 h2
+	}
+}
+
+http://{$PUBLIC_HOST:docs.sifirdanbire.com.tr}, https://{$PUBLIC_HOST:docs.sifirdanbire.com.tr} {
+	log
+	tls internal {
+		on_demand
+	}
+	route {
+		# ONLYOFFICE Docs (main editor); X-Forwarded-Host carries the /oo prefix.
+		handle_path /oo/* {
+			reverse_proxy onlyoffice:80 {
+				header_up X-Forwarded-Host {host}/oo
+				header_up X-Forwarded-Proto https
+			}
+		}
+		reverse_proxy /api/* server:3000
+		reverse_proxy /health server:3000
+		handle_path /collab* {
+			reverse_proxy server:1234
+		}
+		reverse_proxy web:80
+	}
+}

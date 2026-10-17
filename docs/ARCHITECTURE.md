@@ -538,3 +538,31 @@ services:
 - **Database:** Managed Postgres on Supabase Free Tier / Neon Serverless ($0–$5/mo) or Lightsail Database.
 - **Storage:** AWS S3 Standard with Infrequent Access or Cloudflare R2 ($1/mo for 100GB with zero egress fees).
 - **Translation Service:** Container running alongside server in Lightsail cluster.
+
+---
+
+## 8. ONLYOFFICE Docs Community Edition (AGPL v3) Architecture
+
+CiteDocs supports a pure ONLYOFFICE Docs Community Edition architecture as a native document editing backend:
+
+```mermaid
+flowchart TD
+    Browser[Browser / Web Client] -->|HTTPS :443| Caddy[Caddy Reverse Proxy]
+    Caddy -->|/oo/*| OO[ONLYOFFICE Document Server :80]
+    Caddy -->|/api/*, /health| Server[CiteDocs Fastify Server :3000]
+    Caddy -->|/collab*| ServerWS[Hocuspocus Collab :1234]
+    Caddy -->|/*| Web[CiteDocs Nginx Web SPA :80]
+    
+    Server --> Postgres[(PostgreSQL 16)]
+    Server --> MinIO[(MinIO S3 Storage)]
+    Server --> Trans[Zotero Translation Server :1969]
+    
+    OO -->|Download docx via signed link| Server
+    OO -->|Status callbacks 2 / 6 with JWT| Server
+```
+
+### Architectural Properties:
+1. **No WOPI Middleware:** Direct REST endpoints with link signatures (`/api/onlyoffice/files/:id?s=...` and `/api/onlyoffice/callback/:id?s=...`).
+2. **Origin Rewriting:** Internal Docker communication between Document Server and API server automatically resolves container hostnames without hairpin NAT.
+3. **Zotero Integration:** Direct token exchange with Zotero Web API v3 and DOI translation server via CiteDocs API.
+4. **Automated Testing:** Validated via Playwright E2E tests (`e2e/oo-student-flow.spec.ts`) covering the entire student journey.

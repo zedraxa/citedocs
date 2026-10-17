@@ -15,7 +15,6 @@ import {
   File,
   ArrowLeft,
   AlertCircle,
-  Globe,
 } from "lucide-react";
 import type { DocumentItem, SharedDocumentItem, StorageQuotaInfo } from "./types.js";
 import {
@@ -37,6 +36,7 @@ import {
 import { ShareDialog } from "./ShareDialog.js";
 import { RenameDialog } from "./RenameDialog.js";
 import { UserMenu } from "../auth/UserMenu.js";
+import { useOptionalAuth } from "../auth/AuthContext.js";
 import { OdtNoticeBanner } from "../onlyoffice/OdtNoticeBanner.js";
 
 interface DocumentsPageProps {
@@ -48,8 +48,10 @@ export function DocumentsPage({
   onOpenDocument,
   onNavigateToEditor,
 }: DocumentsPageProps) {
-  const [lang, setLang] = useState<DocumentLanguage>(getDocumentLanguage);
-  const t = docTranslations[lang] || docTranslations.en;
+  const auth = useOptionalAuth();
+  const [fallbackLang] = useState<DocumentLanguage>(getDocumentLanguage);
+  const lang: DocumentLanguage = (auth?.lang as DocumentLanguage) || fallbackLang || "tr";
+  const t = docTranslations[lang] || docTranslations.tr;
 
   const [activeTab, setActiveTab] = useState<"my" | "shared">("my");
   const [myDocs, setMyDocs] = useState<DocumentItem[]>([]);
@@ -71,14 +73,6 @@ export function DocumentsPage({
   const [uploadedOdtDoc, setUploadedOdtDoc] = useState<DocumentItem | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleLanguageToggle = () => {
-    const nextLang: DocumentLanguage = lang === "en" ? "tr" : "en";
-    setLang(nextLang);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("citedocs_lang", nextLang);
-    }
-  };
 
   const loadData = async () => {
     setLoading(true);
@@ -265,16 +259,6 @@ export function DocumentsPage({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* TR / EN Toggle */}
-          <button
-            onClick={handleLanguageToggle}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
-            data-testid="doc-lang-toggle"
-          >
-            <Globe className="w-3.5 h-3.5 text-slate-500" />
-            <span>{lang.toUpperCase()}</span>
-          </button>
-
           {/* User Profile / Menu */}
           <UserMenu />
         </div>

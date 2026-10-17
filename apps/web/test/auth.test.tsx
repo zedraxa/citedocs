@@ -316,7 +316,7 @@ describe("Web Authentication & Signup System (@citedocs/web)", () => {
   });
 
   describe("UserMenu & Language Localization", () => {
-    it("renders login/signup buttons when unauthenticated and switches language between TR and EN", async () => {
+    it("confirms absence of top-bar toggle in unauthenticated view and renders login/signup", async () => {
       const container = document.createElement("div");
       document.body.appendChild(container);
       const root = createRoot(container);
@@ -331,19 +331,12 @@ describe("Web Authentication & Signup System (@citedocs/web)", () => {
         );
       });
 
+      // Confirm top-bar toggle button is entirely absent
+      expect(container.querySelector("[data-testid='lang-toggle-btn']")).toBeNull();
+
       // In English
       expect(container.querySelector("[data-testid='header-login-btn']")?.textContent).toContain("Log In");
       expect(container.querySelector("[data-testid='header-signup-btn']")?.textContent).toContain("Sign Up");
-
-      // Switch language to Turkish
-      const langToggle = container.querySelector("[data-testid='lang-toggle-btn']") as HTMLButtonElement;
-      await act(async () => {
-        fireEvent.click(langToggle);
-      });
-
-      // In Turkish
-      expect(container.querySelector("[data-testid='header-login-btn']")?.textContent).toContain("Giriş Yap");
-      expect(container.querySelector("[data-testid='header-signup-btn']")?.textContent).toContain("Kayıt Ol");
 
       await act(async () => {
         root.unmount();
@@ -351,7 +344,7 @@ describe("Web Authentication & Signup System (@citedocs/web)", () => {
       container.remove();
     });
 
-    it("renders user avatar and dropdown with logout button when authenticated", async () => {
+    it("renders user avatar and dropdown with consistent language label and toggles language", async () => {
       const mockUser = {
         id: "student-1",
         email: "yusuf@campus.edu",
@@ -388,6 +381,28 @@ describe("Web Authentication & Signup System (@citedocs/web)", () => {
       expect(panel?.textContent).toContain("Yusuf Kavak");
       expect(panel?.textContent).toContain("yusuf@campus.edu");
       expect(panel?.querySelector("[data-testid='user-logout-btn']")).not.toBeNull();
+
+      // Check consistent English language label
+      const langBtn = panel?.querySelector("[data-testid='dropdown-lang-toggle-btn']") as HTMLButtonElement;
+      expect(langBtn).not.toBeNull();
+      expect(langBtn.getAttribute("aria-label")).toBe("Language: English");
+      expect(panel?.querySelector("[data-testid='dropdown-lang-label']")?.textContent).toBe("Language");
+      expect(panel?.querySelector("[data-testid='dropdown-lang-active']")?.textContent).toBe("English");
+      expect(panel?.textContent).toContain("My Documents");
+      expect(panel?.textContent).toContain("Log Out");
+
+      // Switch language to Turkish via user menu
+      await act(async () => {
+        fireEvent.click(langBtn);
+      });
+
+      expect(langBtn.getAttribute("aria-label")).toBe("Dil: Türkçe");
+      expect(panel?.querySelector("[data-testid='dropdown-lang-label']")?.textContent).toBe("Dil");
+      expect(panel?.querySelector("[data-testid='dropdown-lang-active']")?.textContent).toBe("Türkçe");
+      expect(panel?.textContent).toContain("Belgelerim");
+      expect(panel?.textContent).toContain("Çıkış Yap");
+      expect(localStorage.getItem("citedocs_lang")).toBe("tr");
+      expect(localStorage.getItem("citedocs_lang_migrated")).toBe("true");
 
       await act(async () => {
         root.unmount();

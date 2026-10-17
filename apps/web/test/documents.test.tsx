@@ -14,7 +14,7 @@ import {
   type SharedDocumentItem,
   type ShareItem,
 } from "../src/documents/index.js";
-import { AuthProvider } from "../src/auth/index.js";
+import { AuthProvider, type AuthUser } from "../src/auth/index.js";
 
 describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
   let container: HTMLDivElement;
@@ -554,40 +554,71 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
       expect(container.textContent).not.toContain("Astrophysics Lab Report.odt");
     });
 
-    it("toggles UI language between English and Turkish", async () => {
+    it("toggles UI language via user menu and confirms absence of top-bar toggle", async () => {
+      const mockUser: AuthUser = {
+        id: "student-1",
+        email: "ogrenci@universite.edu.tr",
+        displayName: "Yusuf Kavak",
+        avatarUrl: null,
+        emailVerified: true,
+      };
+
       await act(async () => {
         root.render(
           createElement(
             AuthProvider,
-            { autoFetch: false },
+            { autoFetch: false, initialUser: mockUser },
             createElement(DocumentsPage)
           )
         );
         await new Promise((r) => setTimeout(r, 20));
       });
 
-      // Default is Turkish
+      // 1. Confirm top-bar toggle button is entirely absent
+      expect(container.querySelector("[data-testid='doc-lang-toggle']")).toBeNull();
+
+      // 2. Default is Turkish
       expect(container.textContent).toContain("Belgelerim");
       expect(container.textContent).toContain("Benimle Paylaşılanlar");
 
-      const langToggle = container.querySelector("[data-testid='doc-lang-toggle']") as HTMLButtonElement;
-      expect(langToggle).not.toBeNull();
-
+      // 3. Open user menu
+      const userMenuBtn = container.querySelector("[data-testid='user-menu-btn']") as HTMLButtonElement;
+      expect(userMenuBtn).not.toBeNull();
       await act(async () => {
-        fireEvent.click(langToggle);
+        fireEvent.click(userMenuBtn);
       });
 
-      // Toggled to English
+      const userDropdown = container.querySelector("[data-testid='user-dropdown-panel']");
+      expect(userDropdown).not.toBeNull();
+      expect(userDropdown?.querySelector("[data-testid='dropdown-lang-label']")?.textContent).toBe("Dil");
+      expect(userDropdown?.querySelector("[data-testid='dropdown-lang-active']")?.textContent).toBe("Türkçe");
+
+      // 4. Toggle to English via user menu
+      const dropdownToggle = container.querySelector("[data-testid='dropdown-lang-toggle-btn']") as HTMLButtonElement;
+      expect(dropdownToggle).not.toBeNull();
+
+      await act(async () => {
+        fireEvent.click(dropdownToggle);
+      });
+
+      // Toggled to English across the UI and user menu
       expect(container.textContent).toContain("My Documents");
       expect(container.textContent).toContain("Shared with Me");
+      expect(userDropdown?.querySelector("[data-testid='dropdown-lang-label']")?.textContent).toBe("Language");
+      expect(userDropdown?.querySelector("[data-testid='dropdown-lang-active']")?.textContent).toBe("English");
+      expect(localStorage.getItem("citedocs_lang")).toBe("en");
+      expect(localStorage.getItem("citedocs_lang_migrated")).toBe("true");
 
-      // Toggle back to Turkish
+      // 5. Toggle back to Turkish
       await act(async () => {
-        fireEvent.click(langToggle);
+        fireEvent.click(dropdownToggle);
       });
 
       expect(container.textContent).toContain("Belgelerim");
       expect(container.textContent).toContain("Benimle Paylaşılanlar");
+      expect(userDropdown?.querySelector("[data-testid='dropdown-lang-label']")?.textContent).toBe("Dil");
+      expect(userDropdown?.querySelector("[data-testid='dropdown-lang-active']")?.textContent).toBe("Türkçe");
+      expect(localStorage.getItem("citedocs_lang")).toBe("tr");
     });
 
     it("creates a blank .docx document via dropdown menu", async () => {

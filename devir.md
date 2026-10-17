@@ -1104,3 +1104,49 @@ pnpm build
    - Çöp kutusu ikonuna (Delete) tıklayarak atıfı belgeden silin; kaynakçanın otomatik temizlendiğini gözlemleyin.
 6. **Kaynakça Ekleme:**
    - Çekmecedeki "Insert Bibliography" butonuna tıklayarak imleç konumuna seçili stilde tam kaynakça yerleştirin.
+
+---
+
+## 17. ONLYOFFICE Docs CE Zotero Panel Açma ve Odaklama Düzeltmesi (1-Click Header Button Fix) — Kayıt #013
+
+> **Kayıt No:** #013  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-oo-zbtn`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Canlı sitede (`https://docs.sifirdanbire.com.tr/editor?doc=...`) ONLYOFFICE Zotero eklenti paneli sol tarafta zaten açık olmasına rağmen kırmızı 'Zotero' üst butonuna tıklandığında "Zotero paneli açılamadı. Editörün Eklentiler sekmesinden Zotero'yu açmayı deneyin." hata bildiriminin çıkması hatasını gidermek; tek tıkla resmi Zotero eklenti panelini açmak veya zaten açıksa odaklamak; "zaten açık" durumunu başarı saymak; ONLYOFFICE Docs CE uyumlu mekanizma kurmak; canlı sitede Playwright ile yeni kayıt ve boş Word belgesi üzerinden doğrulamak; birim testleri ekleyip derleme ve testleri %100 yeşil teslim etmek.
+
+### 17.1 Kök Neden Analizi (Root Cause)
+
+1. **`api.pluginsManager` Yokluğu:** Önceki adapter kodu (`zoteroPanel.ts`), ONLYOFFICE Document Server v10 Community Edition ortamında bulunmayan `controller.api.pluginsManager` nesnesine bağımlıydı. `api.pluginsManager` `undefined` döndüğü için `manager?.getPluginByGuid(...)` kontrolü doğrudan başarısız oluyor ve panel DOM'da açık olmasına rağmen `false` dönerek kullanıcıya hata uyarısı gösteriyordu.
+2. **`asc_pluginRun` Davranışı:** `asc_pluginRun` komutu çalışan bir eklenti üzerinde çağrıldığında eklentiyi kapatır (toggle off). Panel zaten açıkken veya arka planda yüklenirken bu komutun tekrar çağrılmaması, bunun yerine `openUIPlugin` veya sol araç çubuğu yuvası (`#slot-btn-pluginszotero`) üzerinden odaklama yapılması gerekir.
+
+### 17.2 Yapılan İşler ve Mimari Çözüm
+
+1. **`apps/web/src/onlyoffice/zoteroPanel.ts` Adapter Yenilenmesi:**
+   - **DOM & Controller Çift Katmanlı Durum Tespiti:** Document Server iframe DOM'u taranarak `#panel-plugins-zotero` (eklenti paneli) ve `#slot-btn-pluginszotero` (sol kenar çubuğu buton yuvası) varlığı ve `active` durumu kontrol edildi.
+   - **Zaten Açık / Çalışıyor Durumunu Başarı Sayma:** Eklenti DOM'da varsa veya `openUIPlugin` ile yönetiliyorsa, eklentiyi yeniden başlatmadan doğrudan odaklama yapıldı (`openUIPlugin`, sol slot butonu tetikleme, iframe focus).
+   - **Hızlı Çift Tıklama Koruması (Launch Throttle):** Eklenti `asc_pluginRun` ile ilk kez başlatıldığında, asenkron yüklenme sırasında gelebilecek mükerrer tıklamaların eklentiyi yanlışlıkla kapatmasını önlemek için `launchMap` (`WeakMap<HTMLElement, number>`) eklendi.
+   - **Geriye Dönük Uyumluluk ve Fallback Zinciri:** `pluginsManager` olan eski SDK'lar, `Asc.editor.asc_pluginRun`, `openUIPlugin` ve `editorInstance.serviceCommand` fallback zinciri kuruldu. Cross-origin güvenlik engelleri (`DOMException`) tespit edilip temiz bir şekilde ele alındı.
+2. **`apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx` Entegrasyonu:**
+   - Üst bardaki Zotero butonuna `openZoteroPanel(editorContainerRef.current, editorRef.current)` çağrısı bağlandı.
+3. **Birim Testleri (`apps/web/test/zotero-panel.test.ts`):**
+   - Panel zaten açıkken başarı sayılması ve `asc_pluginRun` çağrılmaması testi.
+   - `pluginsManager` undefined olan modern ONLYOFFICE Docs CE v10 ortamı testi.
+   - Arka planda veya daraltılmış panelin sol slot butonu ve `openUIPlugin` ile yeniden aktifleştirilmesi testi.
+   - Hızlı mükerrer tıklamalarda kapanmanın önlenmesi testi.
+   - `Asc.editor` ve `serviceCommand` fallback testleri.
+   - Cross-origin ve eksik eklenti durumlarında görünür başarısızlık testleri. (8/8 test %100 yeşil).
+4. **Canlı Ortam Uçtan Uca Playwright Doğrulaması:**
+   - `https://docs.sifirdanbire.com.tr/signup` üzerinde taze hesap açıldı (`test_*@example.com`).
+   - "Yeni Belge" -> "Boş Word Belgesi" ile yeni `.docx` oluşturuldu.
+   - `/editor?doc=...` URL'ine gidildi ve `/oo/` altındaki iframe yüklendi.
+   - Canlı sitede eski mantığın hata uyarısı verdiği doğrulandı (reproduction).
+   - Yeni `openZoteroPanel` mantığı ile tek tıkla Zotero panelinin odaklandığı, hata uyarısının kalktığı, ardışık hızlı tıklamalarda kapanmadığı, başka sekmeye geçildiğinde butona basınca Zotero panelinin tekrar aktifleştirildiği canlı tarayıcıda kanıtlandı.
+5. **Dokümantasyon:** `docs/onlyoffice-zotero-ui.md` güncellendi.
+
+### 17.3 Kalite ve Test Sonuçları
+
+- **`pnpm typecheck` (`tsc -b`):** 0 hata, tam tip uyumu.
+- **`pnpm build`:** Tüm monorepo paketleri ve web/server uygulamaları hatasız derlendi.
+- **`pnpm test`:** Monorepo genelinde **46 test dosyası, 443 test %100 yeşil**.
+

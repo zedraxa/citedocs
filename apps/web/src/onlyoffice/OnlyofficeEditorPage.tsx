@@ -333,7 +333,7 @@ export function OnlyofficeEditorPage({
           data-testid="oo-zotero-open"
           className="flex items-center gap-1.5 rounded bg-red-700 px-4 py-1.5 font-semibold text-white hover:bg-red-800 disabled:opacity-50"
           onClick={() => {
-            if (openZoteroPanel(editorContainerRef.current)) {
+            if (openZoteroPanel(editorContainerRef.current, editorRef.current)) {
               setNotice(null);
             } else {
               setNotice({

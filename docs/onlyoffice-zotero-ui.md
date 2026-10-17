@@ -10,13 +10,17 @@ without restarting it or losing its search state. The plugin's existing native
 button remains available in ONLYOFFICE's Plugins tab.
 
 The Community Edition deployment uses the same-origin `/oo` proxy. The isolated
-`apps/web/src/onlyoffice/zoteroPanel.ts` adapter accesses ONLYOFFICE's native
-`Common.Controllers.Plugins` controller in the editor frame. It checks plugin
-registration and running state before calling `asc_pluginRun` or `openUIPlugin`.
-The former toggles an already running plugin off, so it must not be called for
-an existing panel. No credentials or document data are sent by this shortcut.
+`apps/web/src/onlyoffice/zoteroPanel.ts` adapter inspects both the editor frame DOM
+(`#panel-plugins-zotero`, `#slot-btn-pluginszotero`) and ONLYOFFICE's internal
+`Common.Controllers.Plugins` controller (`openUIPlugin`, `viewPlugins.pluginPanels`, `api.asc_pluginRun`).
+In modern ONLYOFFICE Docs CE (e.g. v10), `pluginsManager` is not exposed on `api`. The adapter
+treats an existing or active panel in the editor DOM as already open (immediate success), focuses
+the panel without restarting it, and uses `openUIPlugin` or the left sidebar slot button to reveal
+collapsed or backgrounded panels. Because `asc_pluginRun` toggles an existing plugin OFF, it is
+strictly reserved for launching an unstarted plugin and protected against rapid double-click toggles.
+No credentials or document data are sent by this shortcut.
 
-These are version-sensitive editor internals, not the paid Automation connector.
+These are version-sensitive editor internals, compatible with Community Edition.
 Keep the adapter under review when upgrading Document Server. Cross-origin
 Document Server URLs, unavailable plugins, and incompatible editor versions show
 a localized message directing users to the native Plugins tab.

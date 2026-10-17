@@ -1422,4 +1422,56 @@ Detaylı rapor `docs/qa-report-2026-10-17.md` dosyasına kaydedilmiş olup, en k
   - `apps/web/src/documents/DocumentsPage.tsx` içindeki `<span ...>Cloud</span>` etiketini `t.cloud` ("Bulut") yaparak BUG-05'i çözebilir.
 - Tüm testler `BASE_URL=https://docs.sifirdanbire.com.tr pnpm test:e2e` ile 3.5 dakika içinde uçtan uca doğrulanabilir.
 
+---
+
+## 22. ONLYOFFICE Oturum Anahtarı ve Yeniden Açılış Onarımı (cd-oo-session-fix) — Kayıt #024
+
+> **Kayıt No:** #024  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-oo-session-fix` (Taban: `792d3c4` / `main`)  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** BUG-01 (P1) onarımı: Bir öğrenci belgesini düzenleyip kaydettikten sonra (Ctrl+S force-save veya periyodik autoAssembly) Belgelerim'e dönüp belgeyi tekrar açtığında beliren ONLYOFFICE "Versiyon değiştirildi: Dosya versiyonu değiştirildi. Sayfa yenilenecektir." kilitlenme modalının kök nedeninin sunucu tarafında (`apps/server/src/onlyoffice/session.ts`) çözülmesi; ONLYOFFICE `document.key` kurallarına tam uyum sağlanması; birim ve entegrasyon testlerinin (`apps/server/test/onlyoffice-session.test.ts`, `apps/server/test/onlyoffice.test.ts`) ve E2E testinin (`e2e/oo-qa-autosave.spec.ts`) güncellenmesi.
+
+### 22.1 Kök Neden ve Çözüm
+
+1. **Tespit Edilen Kök Neden:**
+   - Önceki `cd-autosave` dalında, `status: 6` force-save çağrısı sırasında MinIO/S3 depolama versiyonu güncellense bile oturum anahtarının (`key`) 24 saat boyunca sabit tutulması kuralı konulmuştu.
+   - ONLYOFFICE Document Server, bir `document.key` ile açılan dosyayı önbelleğe alır. Dosya `status: 6` ile diske yazılıp versiyonu değiştiğinde, kullanıcı sayfayı kapatıp tekrar açtığında (veya yenilediğinde) sunucu eski `key` değerini sunmaktaydı. Document Server ise `document.url` üzerinden yeni dosyayı indirdiğinde anahtar ile dosya hash'i arasındaki tutarsızlığı yakalayarak *"Versiyon değiştirildi: Dosya versiyonu değiştirildi. Sayfa yenilenecektir."* uyarısını fırlatıp editörü kilitliyordu.
+
+2. **Uygulanan Mimari Çözüm (`apps/server/src/onlyoffice/session.ts`):**
+   - **Eş Zamanlı Ortak Çalışma (Co-editing):** Düzenleme oturumu aktifken ve depolamadaki dosya versiyonu değişmemişken `getOrCreateSessionKey` aynı anahtarı döndürmeye devam eder; aynı anda belgeyi açan işbirlikçiler tek bir canlı oturumu paylaşır.
+   - **Kayıt Sonrası Anahtar Rotasyonu:** Bir kaydetme callback'i (`status: 2` veya `status: 6`) dosyayı depolamada güncellediğinde (`storage.putFile`), `sessionManager.recordSave` yeni versiyon ve boyut üzerinden yeni bir `document.key` üretir (`recordSave`). Böylece dosya içeriği her değiştiğinde ONLYOFFICE şartı uyarınca anahtar da değişir.
+   - **Yeniden Açılış (Reopen):** Kayıt sonrası belge tekrar açıldığında güncel depolama versiyonuyla eşleşen yeni anahtar sunulur; Document Server versiyon uyuşmazlığı hatası üretmeden belgeyi doğrudan açar.
+   - **Mükerrer Kayıt Engelleme (Deduplication):** `lastSavedHashes` hafızası korunarak değişiklik yapılmayan periyodik `status: 6` (autoAssembly) çağrılarında depolamaya mükerrer yazım engellenir ve dosya değişmediği için anahtar stabil kalır.
+
+3. **Otomasyon Testleri ve Doğrulama:**
+   - `apps/server/test/onlyoffice-session.test.ts`:
+     - Oturum boyunca anahtarın stabil kalması (key stable during an editing session),
+     - Eş zamanlı düzenleyicilerin aynı anahtarı paylaşması (concurrent editors share the key),
+     - Kayıt callback'i dosyayı güncellediğinde anahtarın değişmesi (key changes after save callback),
+     - Kayıt sonrası yeniden açılışın yeni anahtarı alması (reopen after save gets the new key),
+     - Oturum kapatıldığında (`status: 2` / `status: 4`) taze anahtar üretilmesi,
+     - İçerik hash takibi ve mükerrer kayıt engelleme doğrulandı.
+   - `apps/server/test/onlyoffice.test.ts`:
+     - Fastify HTTP entegrasyonu seviyesinde `status: 6` force-save, `config` yeniden açılışı, `editor` paylaşımı ve `status: 2` kapanışı doğrulandı.
+   - `e2e/oo-qa-autosave.spec.ts`:
+     - Reopen adımındaki "Anladım" butonuna tıklama geçici çözümü kaldırılarak, "Versiyon değiştirildi" modalının açılmadığı ve editörün kilitlenmeden doğrudan hazır hale geldiği kesin assertion (`expect().not.toBeVisible()`) haline getirildi.
+
+### 22.2 Nasıl Doğrulanır?
+
+1. **Birim ve Entegrasyon Testleri:**
+   ```bash
+   pnpm --filter @citedocs/server test test/onlyoffice
+   ```
+2. **Monorepo Genel Sağlık:**
+   ```bash
+   pnpm lint
+   pnpm typecheck
+   pnpm test
+   ```
+
+### 22.3 Açık Kalan Konular (Open Issues)
+- Bu dal sadece sunucu tarafındaki oturum anahtarı mantığını onarmıştır. Canlı ortamdaki (`https://docs.sifirdanbire.com.tr`) `e2e/oo-qa-autosave.spec.ts` testi, sunucu imajı derlenip deploy edildikten sonra yeşile dönecektir (mevcut canlı sunucuda deploy öncesi eski kod koşmaktadır).
+
+
 

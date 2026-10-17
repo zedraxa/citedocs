@@ -21,7 +21,9 @@ import {
 import { zoteroWeblibRoutes } from "./zotero/routes.js";
 import { ZoteroAccountService } from "./zotero/accountService.js";
 import { ZoteroProxyService } from "./zotero/proxyService.js";
+import { ZoteroCache, type ZoteroCacheOptions } from "./zotero/cache.js";
 import { ZoteroOAuthService } from "./zotero/oauthService.js";
+
 import { ZoteroImportService } from "./zotero/importService.js";
 import { ZoteroCredentialRepository } from "./repositories/zoteroRepository.js";
 
@@ -77,7 +79,10 @@ export interface BuildAppOptions {
   zoteroCredentialRepo?: ZoteroCredentialRepository;
   zoteroAccountService?: ZoteroAccountService;
   zoteroProxyService?: ZoteroProxyService;
+  zoteroCache?: ZoteroCache;
+  zoteroCacheOptions?: ZoteroCacheOptions;
   zoteroOAuthService?: ZoteroOAuthService;
+
   zoteroImportService?: ZoteroImportService;
   wopiStorage?: WopiStorage;
 
@@ -164,7 +169,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     importService: options.zoteroImportService,
     credentialRepo,
     fetchFn: options.zoteroFetchFn,
+    cache: options.zoteroCache,
+    cacheOptions: options.zoteroCacheOptions,
   });
+
 
 
   const documentRepo =

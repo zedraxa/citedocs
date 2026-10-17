@@ -2389,4 +2389,83 @@ Açık konular:
 - **`pnpm test` (Tam Test Paketi):**
   - **76 test dosyası** çalıştırıldı.
   - **722 test başarılı**, 1 atlanan, 3 todo (0 başarısız).
+---
+
+## Zotero Web API Proxy Sunucu Önbelleği (In-Memory LRU) ve Çevrimdışı Ölçüm — Kayıt #044
+
+> **Kayıt No:** #044  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-zotero-cache`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Zotero proxy rotaları (`/api/zotero/proxy/*`) üzerinden yapılan upstream Zotero API GET çağrılarının sunucu tarafında güvenli, öğrenci bazında izole, sınırlandırılmış bellek içi LRU önbellek (in-memory LRU with TTL) ile önbelleğe alınması, Zotero API semantiğine uygun olarak `Last-Modified-Version` / `If-Modified-Since-Version` (304 Not Modified) yeniden doğrulaması, `Backoff` ve `Retry-After` başlıklarının karşılanması, POST/PUT/PATCH/DELETE yazma ve DOI ile ekleme işlemlerinde ilgili kütüphane önbelleğinin anında geçersiz kılınması (invalidation), hata ve yetkilendirme yanıtlarının asla önbelleğe alınmaması, api-bench ile önceki/sonraki başarımın ölçülmesi ve kapsamlı test paketinin tamamlanması. (Not: #043 devam eden cite-insert-fix dalı için ayrılmıştır).
+
+### 1. Kök Neden ve Çözüm Mimarisi
+
+1. **Kök Neden ve İhtiyaç Analizi:**
+   - Yusuf'un sitenin yavaş hissettirdiği yönündeki geribildirimi ve Kayıt #041 Açık Konular 1'de belirtilen Zotero proxy rotalarındaki upstream gecikme sorunu incelendi.
+   - Yaklaşık 20 öğrencinin sistemi aynı anda kullanmaya başlaması durumunda her kütüphane, arama ve kaynak okuma isteğinin doğrudan `zotero.org` Web API'sine gitmesi; yurt dışı ağ gecikmesi, SSL el sıkışmaları ve Zotero API hız limitleri nedeniyle editörde ve kütüphane panelinde gecikmeye yol açmaktaydı.
+   - Redis veya yeni bir altyapı bileşeni eklenmeden, Node.js yerel bellek alanı üzerinde çalışan hafif, sınırlandırılmış (bounded) ve sıfır dış bağımlılıklı LRU önbellek mimarisi (`ZoteroCache`) kuruldu.
+
+2. **Kesin Öğrenci İzolasyonu (Per-User Isolation):**
+   - Önbellek anahtarları `${userId}::${libraryId}::${cleanSubPath}?${sortedQueryParams}` şablonuna göre üretilir.
+   - Anahtarın başında öğrencinin CiteDocs `userId` değeri yer alır; iki öğrenci aynı kütüphaneyi veya aynı sorguyu yapsa dahi önbellek kayıtları kesinlikle paylaşılmaz.
+   - Sorgu parametreleri alfabetik olarak sıralanarak (`limit=25&q=science` ile `q=science&limit=25`) tutarlı önbellek anahtarları elde edilir.
+   - API anahtarları, şifreli anahtarlar veya OAuth belirteçleri önbellek anahtarlarına veya log kayıtlarına asla yazılmaz.
+
+3. **Bellek Sınırı ve LRU Tahliye (Bounded LRU & TTL):**
+   - JavaScript `Map` yapısının ekleme sırasını koruma özelliğinden yararlanılarak O(1) okuma, O(1) yazma ve O(1) LRU tahliye mimarisi kuruldu.
+   - Kapasite aşıldığında (`maxEntries`) en eski erişilen (LRU) kayıt otomatik olarak silinir.
+   - Çevre değişkenleri ile yapılandırılabilir: `ZOTERO_CACHE_MAX_ENTRIES` (varsayılan: 1000), `ZOTERO_CACHE_TTL_SECONDS` (varsayılan: 60 sn).
+
+### 2. Zotero API Semantiği ve Protokol Uyumu
+
+1. **304 Not Modified ve Koşullu Yeniden Doğrulama:**
+   - Zotero Web API v3 tam sayı kütüphane sürümlerini (`Last-Modified-Version`) kullanır.
+   - İstemci `If-Modified-Since-Version` başlığı ile geldiğinde, önbellekteki sürüm istemcinin bildirdiği sürümden büyük değilse doğrudan sunucu önbelleğinden `HTTP 304 Not Modified` ve boş gövde dönülür; upstream Zotero API'sine ağ isteği atılmaz.
+   - Önbellekteki kayıt bayatladığında (`isStale: true`), proxy upstream'e koşullu istek atarak `If-Modified-Since-Version: <cachedVersion>` iletir. Upstream 304 Not Modified döndüğünde verinin yeniden indirilmesine gerek kalmadan önbellek TTL süresi uzatılır (`touch`) ve veri istemciye gecikmesiz iletilir (`x-cache: REVALIDATED`).
+
+2. **Yazma Sonrası Anında Geçersiz Kılma (Write Invalidation):**
+   - Proxy üzerinden geçen tüm yazma isteklerinde (`POST`, `PUT`, `PATCH`, `DELETE`) ve `POST /api/zotero/add-by-identifier` (DOI ile kaynak ekleme) ile `POST /api/zotero/import` işlemlerinde ilgili kütüphanenin (`users:<id>` veya `groups:<id>`) tüm önbellek kayıtları anında geçersiz kılınır (`invalidateLibrary`).
+   - Bu sayede yeni eklenen veya güncellenen bir kaynak, web kütüphanesinde veya ONLYOFFICE atıf panelinde anında görünür; önbellek bayat veri sunmaz.
+   - Hesap bağlantısı koparıldığında (`DELETE /api/zotero/account`), kullanıcının tüm önbellek kayıtları temizlenir (`invalidateUser`).
+
+3. **Backoff ve Retry-After Koruması:**
+   - Upstream Zotero API'sinden gelen `Backoff: <seconds>` veya `Retry-After: <seconds>` başlıkları yakalanarak mola penceresi kaydedilir (`setBackoff`).
+   - Mola süresince upstream'e yeni istek atılması engellenir; taze önbellek varsa önbellekten sunulur, yoksa `HTTP 429 Too Many Requests` ve `Retry-After` başlığı döndürülerek Zotero API'sinin hız limitleri korunur.
+
+4. **Hataların Asla Önbelleğe Alınmaması:**
+   - 4xx ve 5xx HTTP durum kodları (401 Unauthorized, 403 Forbidden, 404 Not Found, 500/502 Server Errors) asla önbelleğe yazılmaz; sonraki istekler upstream'i yeniden dener.
+
+### 3. API Karşılaştırma Ölçümü (api-bench) Sonuçları
+
+Node 22 (v22.22.3), 30 ölçüm örneği, Fastify `inject`, 5 ms bellek içi depo gecikmesi ve 25 ms yapay Zotero upstream gecikmesi ile:
+
+| Rota / İşlem | Önce p50 (ms) | Sonra p50 (ms) | Önce p95 (ms) | Sonra p95 (ms) | Önce Upstream Çağrısı | Sonra Upstream Çağrısı | Açıklama / Kazanç |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `zotero-library` (`/users/42/items`) | 38,25 | 12,06 | 39,57 | 12,56 | 30 | 0 | Önbellek isabeti (%100 çağrı tasarrufu, -%68,5 gecikme, ~26,2 ms kazanç) |
+| `zotero-search` (`/users/42/items?q=science`) | 38,45 | 11,87 | 41,96 | 12,31 | 30 | 0 | Önbellek isabeti (%100 çağrı tasarrufu, -%69,1 gecikme, ~26,6 ms kazanç) |
+| `styles-search` (`q=journal`) | 5,40 | 3,73 | 9,67 | 6,11 | 0 | 0 | Arama indeksi önbelleği korundu |
+| `csl-conditional` (ETag 304) | 0,55 | 0,40 | 0,65 | 0,45 | 0 | 0 | 304 Not Modified |
+| `session` (`/api/auth/session`) | 11,85 | 11,84 | 12,21 | 12,10 | 0 | 0 | Sabit |
+| `documents` (liste) | 18,62 | 18,48 | 19,67 | 19,95 | 0 | 0 | Sabit |
+| `onlyoffice-config` | 22,89 | 22,80 | 23,60 | 23,23 | 0 | 0 | Sabit |
+
+*Not:* Yerel test ortamında 25 ms sahte gecikme kullanılmıştır. Canlı ortamda `api.zotero.org` yurt dışı sunucularına yapılan gerçek isteklerde 200-800 ms ağ gecikmesi yaşandığından, sunucu önbelleğinin sağladığı canlı kazanç çok daha yüksektir.
+
+### 4. Dokunulmayan Dosyalar ve İzolasyon Kurallarına Uyum
+
+- `apps/web` klasöründeki hiçbir dosyaya, `OnlyofficeEditorPage.tsx`, `App.tsx` veya ONLYOFFICE eklentisine **KESİNLİKLE DOKUNULMADI.**
+- `deploy/`, `nginx`, `docker-compose.prod.yml`, AWS veya prod altyapısına **KESİNLİKLE DOKUNULMADI.**
+- Değişiklikler yalnızca `apps/server` (zotero proxy/account, testler, cache) ve `.env.example` ile sınırlandırıldı.
+- Dağıtım (deploy), push veya merge yapılmadı; `cd-zotero-cache` dalında küçük commit'lerle tutuldu.
+
+### 5. Doğrulama ve Test Sonuçları
+
+- **`pnpm lint`:** 0 hata, 0 uyarı (temiz).
+- **`pnpm typecheck`:** 0 hata (`tsc -b` tüm monorepo genelinde başarıyla geçti).
+- **`pnpm build`:** Tüm paketler (`@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/zotero-core` vb.) ve uygulamalar (`@citedocs/server`, `@citedocs/web`) başarıyla derlendi.
+- **`apps/server/test/zotero-cache.test.ts`:** 14 yeni birim ve entegrasyon testinin tamamı başarılı (öğrenci veri izolasyonu, önbellek isabeti, 304 doğrulaması, bayat kayıt yenileme, POST/PUT/DELETE yazma geçersiz kılma, hata durumlarının önbelleğe alınmaması, LRU tahliye, Backoff desteği).
+- **`pnpm test` (Tam Test Paketi):**
+  - **76 test dosyası** çalıştırıldı.
+  - **733 test başarılı**, 1 atlanan, 3 todo, 0 başarısız!
 

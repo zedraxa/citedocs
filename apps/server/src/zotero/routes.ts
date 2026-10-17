@@ -17,6 +17,8 @@ import { ZoteroCredentialRepository } from "../repositories/zoteroRepository.js"
 import { zoteroOAuthConfigured, startZoteroOAuth, finishZoteroOAuth, getPendingOAuth } from "./oauth1.js";
 import { normalizeIdentifier } from "@citedocs/zotero-core";
 
+import { ZoteroCache, type ZoteroCacheOptions } from "./cache.js";
+
 export interface ZoteroWeblibPluginOptions {
   accountService?: ZoteroAccountService;
   proxyService?: ZoteroProxyService;
@@ -24,7 +26,10 @@ export interface ZoteroWeblibPluginOptions {
   importService?: ZoteroImportService;
   credentialRepo?: ZoteroCredentialRepository;
   fetchFn?: typeof fetch;
+  cache?: ZoteroCache;
+  cacheOptions?: ZoteroCacheOptions;
 }
+
 
 
 export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> = async (
@@ -41,7 +46,11 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
     options.proxyService ||
     new ZoteroProxyService({
       accountService,
+      fetchFn: options.fetchFn,
+      cache: options.cache,
+      cacheOptions: options.cacheOptions,
     });
+
 
   const oauthService =
     options.oauthService ||
@@ -96,11 +105,13 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
   fastify.delete("/api/zotero/account", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const unlinked = await accountService.unlink(request.userId);
+      proxyService.getCache().invalidateUser(request.userId);
       return reply.status(200).send({
         success: true,
         unlinked,
       });
     } catch (err: unknown) {
+
       const message = err instanceof Error ? err.message : String(err);
       return reply.status(500).send({ error: message });
     }
@@ -311,6 +322,7 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
     const zr = (await z.json().catch(() => ({}))) as { successful?: Record<string, { key: string }>; failed?: unknown };
     const saved = zr.successful && Object.values(zr.successful)[0];
     if (!z.ok || !saved) return reply.status(502).send({ error: "Zotero save failed", status: z.status, failed: zr.failed });
+    proxyService.invalidateLibrary(request.userId, `users:${zuid}`);
     return reply.send({ saved: true, key: saved.key, item: clean[0] });
   });
 
@@ -321,10 +333,14 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
     async (request: FastifyRequest, reply: FastifyReply) => {
       const body = (request.body || {}) as ImportReferencesInput;
 
-
     try {
       const result = await importService.importReferences(request.userId, body);
+      const cred = await credRepo.get(request.userId).catch(() => null);
+      if (cred?.zoteroUserId) {
+        proxyService.invalidateLibrary(request.userId, `users:${cred.zoteroUserId}`);
+      }
       return reply.status(200).send(result);
+
     } catch (err: unknown) {
       if (err instanceof ImportValidationError) {
         return reply.status(err.statusCode).send({

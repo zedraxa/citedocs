@@ -3,5 +3,7 @@ export * from "./accountService.js";
 export * from "./oauthService.js";
 export * from "./proxyService.js";
 export * from "./importService.js";
+export * from "./cache.js";
 export * from "./routes.js";
+
 

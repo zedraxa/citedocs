@@ -352,11 +352,11 @@ function AppEditor() {
           <a
             href="/documents"
             className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full border border-gray-300 hover:bg-gray-50 text-gray-700 cursor-pointer transition-colors"
-            title="My Documents & Cloud Storage"
+            title="Belgelerim ve Bulut Depolama"
             data-testid="header-documents-btn"
           >
             <FolderOpen className="w-3.5 h-3.5 text-blue-600" />
-            <span>Documents</span>
+            <span>Belgelerim</span>
           </a>
 
           {/* Collabora Online Toggle */}
@@ -471,7 +471,7 @@ function AppEditor() {
 
           <button className="flex items-center space-x-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-sm">
             <Share2 className="w-4 h-4" />
-            <span>Share</span>
+            <span>Paylaş</span>
           </button>
 
           <UserMenu currentUser={currentUser} />
@@ -801,12 +801,12 @@ function AppEditor() {
             {/* Modal Red Header */}
             <div className="bg-red-600 text-white px-4 py-2.5 flex items-center justify-between">
               <span className="font-semibold text-sm flex items-center gap-1.5">
-                <BookMarked className="w-4 h-4" /> CiteDocs Reference Library &amp; Citation Picker
+                <BookMarked className="w-4 h-4" /> CiteDocs Kaynak Kütüphanesi &amp; Atıf Seçici
               </span>
               <button
                 onClick={() => setCitationSearchOpen(false)}
                 className="text-white/80 hover:text-white cursor-pointer text-lg leading-none p-1"
-                title="Close dialog"
+                title="Kapat"
                 data-testid="close-zotero-modal"
               >
                 &times;

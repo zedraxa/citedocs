@@ -1424,6 +1424,61 @@ Detaylı rapor `docs/qa-report-2026-10-17.md` dosyasına kaydedilmiş olup, en k
 
 ---
 
+## 21. Türkçe Arayüz Tutarlılığı, Kimlik Doğrulama Hata Eşlemesi ve Ağ Hata Yönetimi (Kayıt #025)
+
+> **Kayıt No:** #025  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-tr-strings` (Taban: `792d3c4` / `main`)  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Aşama:** Canlı Sistem QA Bulgularının Çözümü (BUG-03, BUG-04, BUG-05, BUG-06, BUG-08) ve Tam Türkçe Arayüz Taraması
+
+### 21.1 Yapılan İşler ve Mimari Çözümler
+
+Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci arayüzü dil ve hata gösterimi sorunları mevcut i18n altyapısı genişletilerek çözüldü:
+
+1. **BUG-03: Varsayılan Belge Başlığı Türkçe Yapıldı:**
+   - Sunucu tarafında `apps/server/src/documents/routes.ts` içinde yeni belge oluşturma varsayılanı `"Untitled Document"` yerine `"Adsız Belge"` (`.odt` için `"Adsız Belge.odt"`) olarak güncellendi.
+   - `InMemoryDocumentRepository` ve `InMemoryItemRepository` varsayılan başlıkları `"Adsız Belge"` / `"Adsız"` yapıldı.
+   - Drizzle şema tablosunun varsayılanı değiştirilmedi; böylece gereksiz SQL migrasyon sapması (migration drift) önlendi.
+   - Web tarafında belge oluşturma ve açma akışları `"Adsız Belge"` ile senkronize edildi.
+
+2. **BUG-04: Kimlik Doğrulama Hata Mesajları İstemcide Türkçeleştirildi:**
+   - Sunucu tarafındaki kararlı hata kodları (`INVALID_CREDENTIALS`, `RATE_LIMIT_EXCEEDED`, `SESSION_EXPIRED`, `EMAIL_EXISTS`, `TOKEN_EXPIRED`, `INVALID_TOKEN`, `FORBIDDEN`, `USER_NOT_FOUND`) ve HTTP durum kodları (401, 403, 404, 409, 429, 500+) `apps/web/src/auth/i18n.ts` içinde `getLocalizedAuthError` fonksiyonu ile Türkçe öğrenci dostu mesajlara eşlendi.
+   - Sunucu auth testlerinin beklediği hata metinleri kırılmadan istemci katmanında `"Geçersiz e-posta veya şifre"` gibi tam Türkçe geri bildirim sağlandı.
+
+3. **BUG-05: Depolama Rozeti ("Cloud") Türkçeleştirildi:**
+   - `apps/web/src/documents/i18n.ts` içine `cloud: "Bulut"` / `cloud: "Cloud"` anahtarı eklendi.
+   - `apps/web/src/documents/DocumentsPage.tsx` dosyasındaki sabit `"Cloud"` rozeti `{t.cloud}` ile reaktif hale getirildi.
+
+4. **BUG-06: Belge Kartlarında Saat ve Dakika Hassasiyetinde Türkçe Tarih:**
+   - `apps/web/src/documents/i18n.ts` içine `formatDocumentDate(dateStr, lang)` fonksiyonu eklendi.
+   - `tr-TR` yerel ayarı ve `Europe/Istanbul` saat dilimi ile `17 Eki, 10:19` formatında gün, ay, saat ve dakika bilgisi gösterildi.
+
+5. **BUG-08: Ağ Hataları ("Failed to fetch") Ortak İstemcide Yakalandı:**
+   - `apps/web/src/auth/api.ts` içinde `isNetworkError()`, `createNetworkError()`, `createApiError()` yardımcıları geliştirildi.
+   - `request<T>()`, `docFetch<T>()`, `uploadDocument()`, `downloadDocument()` ve `linkZoteroApiKey()` fonksiyonlarında tarayıcının ham `TypeError: Failed to fetch` veya `NetworkError` istisnaları yakalanarak öğrenciye `"Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin."` mesajı döndürüldü.
+
+6. **Öğrenci Arayüzü İngilizce Dizge Taraması (Sweep):**
+   - Giriş, kayıt, şifre sıfırlama, kullanıcı menüsü (`Student` -> `Öğrenci`), `RenameDialog`, `ShareDialog`, `AddByIdentifier` ve `App.tsx` başlık/butonlarında kalan tüm sızıntılar temizlendi.
+   - ONLYOFFICE editör sayfasına (`apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx`), dağıtım yapılandırmalarına ve Caddyfile'lara dokunulmadı.
+
+7. **Testler ve E2E İyileştirmeleri:**
+   - `apps/web/test/api-errors.test.ts`: Ağ hataları, kimlik doğrulama hata kodları, İstanbul saat dilimi tarih formatı ve LoginPage DOM hata banner'ını test eden 16 yeni birim testi yazıldı.
+   - `e2e/oo-qa-language.spec.ts`: Geçici `test.fixme` kaldırılarak hatalı giriş uyarısı, `Bulut` rozeti, yeniden adlandırma/paylaşım diyalogları ve yeni belge varsayılan başlığı (`Adsız Belge`) için gerçek Playwright assertion'ları devreye alındı.
+
+### 21.2 Doğrulama Durumu
+
+- `pnpm lint`: 0 hata, 0 uyarı.
+- `pnpm typecheck`: 0 hata.
+- `pnpm test`: 56 test dosyası, 532 test başarılı (1 kasıtlı atlama harici).
+- `pnpm build`: Tüm monorepo paketleri ve Vite SPA hatasız derlendi.
+
+### 21.3 Açık Kalan Konular (Open Issues)
+
+- Bu dalda (`cd-tr-strings`) Türkçe arayüz ve hata yerelleştirmeleri tamamlanmıştır; bilinen açık hata veya eksik kalmamıştır.
+- Canlı sunucuya dağıtım ve ONLYOFFICE editör geliştirmeleri ilgili yetkili ajanların sorumluluğundadır.
+
+
 ## 22. ONLYOFFICE Oturum Anahtarı ve Yeniden Açılış Onarımı (cd-oo-session-fix) — Kayıt #024
 
 > **Kayıt No:** #024  
@@ -1551,9 +1606,35 @@ Detaylı rapor `docs/qa-report-2026-10-17.md` dosyasına kaydedilmiş olup, en k
 - **Genel doğrulama (Node v22.22.3):** `pnpm install`, `pnpm lint`, `pnpm typecheck`, `pnpm build` ve `pnpm test` başarılı. Tam pakette 56 dosya, 528 başarılı / 1 atlanan test (529 toplam). Son kod değişikliklerinden sonra lint/typecheck yeniden geçti. Vite büyük paket ve Vitest workspace kullanımdan kaldırma uyarıları engelleyici değil.
 - **Commitler:** `59ec9a7` OAuth sonrası bekleyen kaynak ekleme; `a65a0fc` Türkçe boş DOCX ve dil testleri; bu kayıt son dokümantasyon commit'inde.
 
+## S3 Türkçe Dosya Adı ve ONLYOFFICE Forcesave — Kayıt #027
+
+> **Kayıt No:** #027
+> **Tarih:** 2026-10-17
+> **Dal:** `cd-hotfix-s3-filename`
+
+- **P0 kök neden:** Türkçe dosya adları S3 HTTP metadata başlığına ham yazıldığı için belge oluşturma 500 hatası veriyordu. Ortak `encodeS3MetaValue` / `decodeS3MetaValue` yardımcılarıyla `filename` ve `owner-id` yazımları ASCII olarak kodlanır, okumalar insan tarafından okunabilir metne döner. Bozuk yüzde dizisi içeren eski metadata ham haliyle korunur. Sunucunun diğer S3 yazımlarında kullanıcı metni taşıyan ek metadata bulunmadı.
+- **P1 kök neden:** Her kayıtta anahtar yenilenmesi forcesave sonrası katılan editörleri ayrı oturuma yönlendiriyordu. Status 6 artık anahtarı koruyarak sürüm, hash ve boyutu günceller. Status 2 ve 4 oturumu kapatır; sonraki açılış yeni anahtar üretir. Aynı içerik deduplikasyonu ve BUG-01 kapanış/yeniden açılış davranışı korunur.
+- **Regresyon kapsamı:** Türkçe iki başlık ve varsayılan POST yolu; ASCII metadata, oluşturma/kaydetme/okuma, legacy ve bozuk `%`, çift kodlamama; eşzamanlı editörler, forcesave sonrası katılım, aynı içerikle kapanış, status 4 ve bellekte oturum olmadan gelen callback. Autosave E2E dosyasında anahtar rotasyonu beklentisi yoktu.
+- **Commitler:** `42aade9` S3 metadata; `1bdca4b` ONLYOFFICE oturum anahtarı.
+- **Açık kontrol:** Gerçek S3/ONLYOFFICE ile canlı tarayıcı kontrolü dağıtım sonrası yapılmalı; bu çalışmada üretime erişilmedi, push/deploy yapılmadı. Web, compose, Caddy ve container yapılandırmaları değiştirilmedi.
+||||||| f722528
+
+## Kapasite Planı ve Operasyon Araçları — Kayıt #028
+
+> **Kayıt No:** #028 (#027 başka dal için ayrılmıştır)
+> **Tarih:** 2026-10-17
+> **Dal:** `cd-ops-capacity` (taban `f722528`)
+
+- `docs/CAPACITY.md`: 20/50/100 öğrenci için Türkçe disk, RAM, swap, CPU ve CE bağlantı planı; repo kanıtları ile tahminler ayrıldı. 20 × 5 GiB kota mevcut 100 GB diske güvenle sığmaz; 11 tam yedek + staging ile zirve yaklaşık `30 + 14D GiB`. 4 GiB RAM dar; 8 GiB RAM ve S3/yerel yedek stratejisi değişikliği önerildi.
+- `deploy/ops/`: POSIX kapasite denetimi, 5 dakikalık systemd timer, JSON log rotasyonu örneği ve varsayılan dry-run temizlik. Disk/inode %80/%90, kullanılabilir RAM 768/384 MiB, swap %25/%50, cache 5/10 GiB; isteğe bağlı webhook. Cleanup aktif belge servisleri durmadan silmez; forgotten için ayrıca kurtarma doğrulaması gerekir.
+- 9 sahte girdili Vitest testi: eşikler, Docker ölçüm hatası, webhook hatası, dry-run, bakım koruması, yeni dosya ve symlink koruması. Shell sözdizimi `sh -n` ile doğrulandı; ShellCheck yerelde kurulu değil.
+- Üretime SSH, push, deploy veya ücretli işlem yapılmadı; konteyner oluşturulmadı. Compose, Caddy, `deploy/onlyoffice*` ve uygulama kaynakları değiştirilmedi. Yerelde çalışan CiteDocs/ONLYOFFICE yok; başka projelerin kaynak kullanımı kapasite kanıtı sayılmadı.
+- Açık işler: operatörün alarmı kurup teslimini denemesi, üretim ölçümü ve staging yük testi, 21. bağlantı davranışı, CPU/kredi/bağlantı metrikleri, büyük yedeklerde alan kontrolü ve staging/retention iyileştirmesi. Bunlar üretimde uygulanmış gibi raporlanmadı.
+- Commitler: `947e570` araçlar ve testler; `2c12343` kapasite planı; bu devir kaydı son commit'tedir.
+
 ## Zotero Word & LibreOffice Uyumluluğu ve CSL Stil Deposu Doğrulaması — Kayıt #027
 
-> **Kayıt No:** #027  
+> **Kayıt No:** #029 (birleştirmede #027/#028 çakışması nedeniyle yeniden numaralandı)  
 > **Tarih:** 2026-10-17  
 > **Dal:** `cd-zotero-compat`  
 > **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
@@ -1577,3 +1658,4 @@ Detaylı rapor `docs/qa-report-2026-10-17.md` dosyasına kaydedilmiş olup, en k
 - Konteyner açılmamış, harici para harcanmamış, sunucuya SSH atılmamıştır.
 - `pnpm lint` (0 hata, 0 uyarı), `pnpm typecheck` (0 hata) ve `pnpm test` (58 test dosyası, 546 başarılı test) tam yeşildir.
 
+||||||| b252b0b

@@ -45,7 +45,7 @@ export function createItemRoutes(customRepo?: ItemRepository): FastifyPluginAsyn
     }>("/api/items", async (request, reply) => {
       const body = request.body || {};
       const item = await repo.create(request.userId, {
-        title: body.title || "Untitled",
+        title: body.title || "Adsız",
         itemType: body.itemType || "journalArticle",
         publicationTitle: body.publicationTitle || null,
         parsedDate: body.parsedDate || null,

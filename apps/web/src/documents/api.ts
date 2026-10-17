@@ -1,4 +1,10 @@
-import { getApiBaseUrl, getCsrfToken } from "../auth/api.js";
+import {
+  getApiBaseUrl,
+  getCsrfToken,
+  createNetworkError,
+  createApiError,
+  isNetworkError,
+} from "../auth/api.js";
 import type {
   DocumentItem,
   SharedDocumentItem,
@@ -25,11 +31,19 @@ async function docFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     }
   }
 
-  const res = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch (err: unknown) {
+    if (isNetworkError(err)) {
+      throw createNetworkError(err);
+    }
+    throw err;
+  }
 
   const contentType = res.headers?.get ? res.headers.get("content-type") || "" : "application/json";
   let data: Record<string, unknown> | null = null;
@@ -42,14 +56,7 @@ async function docFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   }
 
   if (!res.ok) {
-    const message =
-      (data?.message as string) ||
-      (data?.error as string) ||
-      `Request failed with status ${res.status}`;
-    const err = new Error(message);
-    (err as unknown as { status: number }).status = res.status;
-    (err as unknown as { data: unknown }).data = data;
-    throw err;
+    throw createApiError(res.status, data);
   }
 
   return (data as unknown as T) || ({} as T);
@@ -104,17 +111,29 @@ export async function uploadDocument(
     headers.set("x-csrf-token", csrf);
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: formData,
-    credentials: "include",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+      credentials: "include",
+    });
+  } catch (err: unknown) {
+    if (isNetworkError(err)) {
+      throw createNetworkError(err);
+    }
+    throw err;
+  }
 
-  const data = (await res.json()) as Record<string, unknown>;
+  let data: Record<string, unknown> | null = null;
+  try {
+    data = (await res.json()) as Record<string, unknown>;
+  } catch {
+    data = null;
+  }
   if (!res.ok) {
-    const message = (data?.message as string) || (data?.error as string) || "Upload failed";
-    throw new Error(message);
+    throw createApiError(res.status, data, "Belge yüklenemedi");
   }
 
   return data as unknown as { document: DocumentItem };
@@ -140,12 +159,20 @@ export async function downloadDocument(documentId: string, fileName: string): Pr
   const baseUrl = getApiBaseUrl();
   const url = `${baseUrl}/api/documents/${documentId}/download`;
 
-  const res = await fetch(url, {
-    credentials: "include",
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      credentials: "include",
+    });
+  } catch (err: unknown) {
+    if (isNetworkError(err)) {
+      throw createNetworkError(err);
+    }
+    throw err;
+  }
 
   if (!res.ok) {
-    throw new Error(`Download failed with status ${res.status}`);
+    throw createApiError(res.status, null, `İndirme başarısız oldu (${res.status})`);
   }
 
   const blob = await res.blob();

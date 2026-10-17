@@ -34,7 +34,7 @@ export function ShareDialog({
         setLoading(false);
       })
       .catch((err) => {
-        setError(err.message || "Failed to load shares");
+        setError(err.message || "Erişim listesi yüklenemedi");
         setLoading(false);
       });
   }, [isOpen, document.id]);
@@ -59,7 +59,7 @@ export function ShareDialog({
       });
       setEmail("");
     } catch (err: unknown) {
-      setError((err as Error).message || "Failed to share document");
+      setError((err as Error).message || "Belge paylaşılamadı");
     } finally {
       setLoading(false);
     }
@@ -70,7 +70,7 @@ export function ShareDialog({
       await unshareDocument(document.id, shareId);
       setShares((prev) => prev.filter((s) => s.id !== shareId));
     } catch (err: unknown) {
-      setError((err as Error).message || "Failed to unshare");
+      setError((err as Error).message || "Erişim kaldırılamadı");
     }
   };
 

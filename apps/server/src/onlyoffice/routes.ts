@@ -298,6 +298,7 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
           updatedAt: new Date(),
         });
 
+        // Status 6 advances the version while preserving the live co-editing key.
         sessionManager.recordSave(
           fileId,
           contentHash,

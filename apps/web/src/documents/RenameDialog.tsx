@@ -35,7 +35,7 @@ export function RenameDialog({
       await onRename(title.trim());
       onClose();
     } catch (err: unknown) {
-      setError((err as Error).message || "Failed to rename document");
+      setError((err as Error).message || "Belge yeniden adlandırılamadı");
     } finally {
       setLoading(false);
     }

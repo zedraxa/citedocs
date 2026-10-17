@@ -165,7 +165,7 @@ export function AuthProvider({
         setActiveModal(null);
         return data.user;
       } catch (err: unknown) {
-        const msg = (err as Error).message || "Login failed";
+        const msg = (err as Error).message || "Giriş başarısız oldu";
         setError(msg);
         throw err;
       }
@@ -186,7 +186,7 @@ export function AuthProvider({
         setActiveModal(null);
         return data.user;
       } catch (err: unknown) {
-        const msg = (err as Error).message || "Signup failed";
+        const msg = (err as Error).message || "Kayıt başarısız oldu";
         setError(msg);
         throw err;
       }
@@ -216,7 +216,7 @@ export function AuthProvider({
       }
       return res;
     } catch (err: unknown) {
-      const msg = (err as Error).message || "Verification failed";
+      const msg = (err as Error).message || "Doğrulama başarısız oldu";
       setError(msg);
       throw err;
     }
@@ -228,7 +228,7 @@ export function AuthProvider({
       const targetEmail = email || user?.email;
       return await authApi.resendVerification(targetEmail);
     } catch (err: unknown) {
-      const msg = (err as Error).message || "Resending verification failed";
+      const msg = (err as Error).message || "Doğrulama kodu yeniden gönderilemedi";
       setError(msg);
       throw err;
     }
@@ -239,7 +239,7 @@ export function AuthProvider({
     try {
       return await authApi.forgotPassword(email);
     } catch (err: unknown) {
-      const msg = (err as Error).message || "Password reset request failed";
+      const msg = (err as Error).message || "Şifre sıfırlama bağlantısı gönderilemedi";
       setError(msg);
       throw err;
     }
@@ -250,7 +250,7 @@ export function AuthProvider({
     try {
       return await authApi.resetPassword(token, newPassword);
     } catch (err: unknown) {
-      const msg = (err as Error).message || "Password reset failed";
+      const msg = (err as Error).message || "Şifre sıfırlanamadı";
       setError(msg);
       throw err;
     }

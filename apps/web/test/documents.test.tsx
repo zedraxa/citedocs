@@ -411,7 +411,7 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
         if (urlStr.includes("/api/documents") && method === "POST") {
           const body = JSON.parse(String(init?.body || "{}"));
           const format = body.format || "docx";
-          const title = body.title || `Untitled Document.${format}`;
+          const title = body.title || (format === "odt" ? "Adsız Belge.odt" : "Adsız Belge");
           const created: DocumentItem = {
             id: "doc-created-new",
             title,
@@ -607,9 +607,9 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
       });
 
       expect(onOpen).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Untitled Document.docx" })
+        expect.objectContaining({ title: "Adsız Belge" })
       );
-      expect(container.textContent).toContain("Untitled Document.docx");
+      expect(container.textContent).toContain("Adsız Belge");
     });
 
     it("creates a blank .odt document via dropdown menu", async () => {
@@ -637,9 +637,9 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
       });
 
       expect(onOpen).toHaveBeenCalledWith(
-        expect.objectContaining({ title: "Untitled Document.odt" })
+        expect.objectContaining({ title: "Adsız Belge.odt" })
       );
-      expect(container.textContent).toContain("Untitled Document.odt");
+      expect(container.textContent).toContain("Adsız Belge.odt");
     });
 
     it("handles file upload via hidden input", async () => {

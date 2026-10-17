@@ -1,4 +1,5 @@
 import type { ZoteroAccountInfo, ZoteroConfigInfo } from "./types.js";
+import { isNetworkError } from "../auth/api.js";
 
 const env =
   typeof import.meta !== "undefined"
@@ -66,7 +67,7 @@ export async function linkZoteroApiKey(
     if (!res.ok) {
       return {
         success: false,
-        error: body.message || body.error || "Failed to link Zotero account",
+        error: body.message || body.error || "Zotero hesabı bağlanamadı",
       };
     }
 
@@ -77,7 +78,11 @@ export async function linkZoteroApiKey(
   } catch (err: unknown) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : String(err),
+      error: isNetworkError(err)
+        ? "Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin."
+        : err instanceof Error
+          ? err.message
+          : "Zotero hesabı bağlanamadı",
     };
   }
 }

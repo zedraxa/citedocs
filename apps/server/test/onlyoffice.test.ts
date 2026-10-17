@@ -327,7 +327,7 @@ describe("ONLYOFFICE routes", () => {
     expect(cfg.editorConfig.customization.forcesave).toBe(true);
   });
 
-  it("keeps key stable during editing session, shares key among concurrent editors, changes key after save callback updates file, and reopens with new key", async () => {
+  it("keeps key stable during editing session, shares key among concurrent editors, keeps key after force-save, and reopens with new key after close", async () => {
     // 1. Initial session opening generates session key K1
     const cfg1 = await config("owner");
     const key1 = cfg1.document.key;
@@ -346,13 +346,13 @@ describe("ONLYOFFICE routes", () => {
     expect(saveRes.json()).toEqual({ error: 0 });
     expect((await storage.getFile("doc")).buffer.toString()).toBe("force-saved content");
 
-    // 4. Reopen after save callback -> MUST receive the new key K2 (!== K1)
+    // 4. Joining after force-save must still receive the live editing key.
     const cfgReopened = await config("owner");
     const key2 = cfgReopened.document.key;
     expect(key2).toBeTruthy();
-    expect(key2).not.toBe(key1);
+    expect(key2).toBe(key1);
 
-    // 5. Concurrent editors opening after save share the new key K2
+    // 5. Concurrent editors joining after force-save share the original key.
     const cfgEditorAfterSave = await config("editor");
     expect(cfgEditorAfterSave.document.key).toBe(key2);
 
@@ -442,6 +442,20 @@ describe("ONLYOFFICE routes", () => {
     expect(resFail.json()).toEqual({ error: 1 });
     // Storage content should remain the 700-byte version
     expect((await storage.getFile("doc")).buffer.length).toBe(700);
+  });
+
+  it("deduplicates status 2 after force-save but still closes and rotates on reopen", async () => {
+    const key = (await config()).document.key;
+    const putFile = vi.spyOn(storage, "putFile");
+    expect((await callback({ status: 6, url: "http://onlyoffice/file" })).json()).toEqual({ error: 0 });
+    expect((await config("editor")).document.key).toBe(key);
+    expect((await callback({ status: 6, url: "http://onlyoffice/file" })).json()).toEqual({ error: 0 });
+    expect((await config("editor")).document.key).toBe(key);
+    expect((await callback({ status: 2, url: "http://onlyoffice/file" })).json()).toEqual({ error: 0 });
+    expect(putFile).toHaveBeenCalledTimes(1);
+    const reopenedKey = (await config()).document.key;
+    expect(reopenedKey).not.toBe(key);
+    expect((await config("editor")).document.key).toBe(reopenedKey);
   });
 
   it("closes session on status 4 (no changes) allowing next session to receive a new key", async () => {

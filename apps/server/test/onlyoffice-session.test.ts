@@ -23,7 +23,7 @@ describe("OnlyofficeSessionManager", () => {
     expect(keyUserB).toBe(keyUserA);
   });
 
-  it("changes the session key after a save callback updates the file", () => {
+  it("preserves the session key and advances version, hash and size on force-save", () => {
     const manager = new OnlyofficeSessionManager();
     const key1 = manager.getOrCreateSessionKey("doc-1", "v1", 100);
     expect(key1).toBeTruthy();
@@ -31,23 +31,35 @@ describe("OnlyofficeSessionManager", () => {
     // Save callback updates file to version v2, size 200
     const newKey = manager.recordSave("doc-1", "hash-new-content", 200, "v2", key1);
     expect(newKey).toBeTruthy();
-    expect(newKey).not.toBe(key1);
+    expect(newKey).toBe(key1);
     expect(manager.getActiveSession("doc-1")?.key).toBe(newKey);
     expect(manager.getActiveSession("doc-1")?.version).toBe("v2");
+    expect(manager.getActiveSession("doc-1")?.lastSavedHash).toBe("hash-new-content");
+    expect(manager.getActiveSession("doc-1")?.lastSavedSize).toBe(200);
+    expect(manager.getOrCreateSessionKey("doc-1", "v2", 200)).toBe(key1);
   });
 
   it("reopen after save gets the new key", () => {
     const manager = new OnlyofficeSessionManager();
     const key1 = manager.getOrCreateSessionKey("doc-1", "v1", 100);
 
-    // Document is edited and saved (force-save or autosave)
+    // Force-save keeps the session open; status 2 then closes it.
     const savedKey = manager.recordSave("doc-1", "hash-saved", 250, "v2", key1);
-    expect(savedKey).not.toBe(key1);
+    expect(savedKey).toBe(key1);
+    manager.closeSession("doc-1");
 
     // Reopening the document with updated storage metadata (v2, 250) returns the new key
     const reopenedKey = manager.getOrCreateSessionKey("doc-1", "v2", 250);
-    expect(reopenedKey).toBe(savedKey);
+    expect(reopenedKey).not.toBe(savedKey);
     expect(reopenedKey).not.toBe(key1);
+  });
+
+  it("preserves the callback key when force-save arrives without an in-memory session", () => {
+    const manager = new OnlyofficeSessionManager();
+    expect(manager.recordSave("doc-1", "hash", 200, "v2", "active-ds-key")).toBe("active-ds-key");
+    expect(manager.getOrCreateSessionKey("doc-1", "v2", 200)).toBe("active-ds-key");
+    manager.closeSession("doc-1");
+    expect(manager.getOrCreateSessionKey("doc-1", "v2", 200)).not.toBe("active-ds-key");
   });
 
   it("generates a new key if storage version changed externally", () => {

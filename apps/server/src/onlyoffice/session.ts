@@ -89,36 +89,24 @@ export class OnlyofficeSessionManager {
   }
 
   /**
-   * Records a save event (status 2 or 6) with content hash, size and version.
-   * Whenever the stored file changes, generates a new session key according to
-   * ONLYOFFICE key rules so subsequent joins/reopens get the new key.
+   * Records persisted content without changing the active editing key (status 6).
+   * Advance the stored version so joining editors still share this session.
+   * The callback closes the session separately on status 2; the next open rotates it.
    */
-  recordSave(fileId: string, contentHash: string, size: number, newVersion: string, _oldKey?: string): string {
-    const now = Date.now();
-    const existing = this.sessions.get(fileId);
-    const nextSeq = (this.documentSequences.get(fileId) || 0) + 1;
-    this.documentSequences.set(fileId, nextSeq);
-
-    const newKey = crypto
-      .createHash("sha256")
-      .update(`${fileId}:${newVersion}:${size}:seq_${nextSeq}`)
-      .digest("hex")
-      .slice(0, 40);
-
+  recordSave(fileId: string, contentHash: string, size: number, newVersion: string, oldKey?: string): string {
+    let session = this.sessions.get(fileId);
+    if (!session) {
+      this.getOrCreateSessionKey(fileId, newVersion, size);
+      session = this.sessions.get(fileId)!;
+      // A callback can arrive after process restart, without an in-memory session.
+      if (oldKey) session.key = oldKey;
+    }
+    session.version = newVersion;
+    session.lastSavedHash = contentHash;
+    session.lastSavedSize = size;
+    session.lastActiveAt = Date.now();
     this.lastSavedHashes.set(fileId, contentHash);
-
-    const session: OnlyofficeSession = {
-      key: newKey,
-      version: newVersion,
-      sessionSeq: nextSeq,
-      lastSavedHash: contentHash,
-      lastSavedSize: size,
-      startedAt: existing?.startedAt || now,
-      lastActiveAt: now,
-    };
-    this.sessions.set(fileId, session);
-
-    return newKey;
+    return session.key;
   }
 
   /**

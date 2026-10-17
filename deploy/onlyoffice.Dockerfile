@@ -8,6 +8,7 @@ RUN mkdir -p /tmp/oo-plugins \
     && rm -rf /tmp/oo-plugins /tmp/plugins.tar.gz
 
 COPY deploy/onlyoffice/zotero-translations/tr-TR.json /var/www/onlyoffice/documentserver/sdkjs-plugins/zotero/translations/tr-TR.json
+COPY deploy/onlyoffice/zotero-sync-hook.js /var/www/onlyoffice/documentserver/sdkjs-plugins/zotero/zotero-sync-hook.js
 RUN python3 -c 'exec("\n".join([\
     "import gzip, json, os, shutil",\
     "base = \"/var/www/onlyoffice/documentserver/sdkjs-plugins/zotero\"",\
@@ -16,12 +17,17 @@ RUN python3 -c 'exec("\n".join([\
     "cfg_file = os.path.join(base, \"config.json\")",\
     "tr_tr_file = os.path.join(trans_dir, \"tr-TR.json\")",\
     "tr_file = os.path.join(trans_dir, \"tr.json\")",\
+    "hook_file = os.path.join(base, \"zotero-sync-hook.js\")",\
+    "index_file = os.path.join(base, \"index.html\")",\
+    "bundle_file = os.path.join(base, \"dist\", \"bundle.modern.js\")",\
     "if not os.path.isfile(langs_file):",\
     "    raise FileNotFoundError(\"Missing langs.json: \" + langs_file)",\
     "if not os.path.isfile(cfg_file):",\
     "    raise FileNotFoundError(\"Missing config.json: \" + cfg_file)",\
     "if not os.path.isfile(tr_tr_file):",\
     "    raise FileNotFoundError(\"Missing tr-TR.json: \" + tr_tr_file)",\
+    "if not os.path.isfile(hook_file):",\
+    "    raise FileNotFoundError(\"Missing zotero-sync-hook.js: \" + hook_file)",\
     "shutil.copyfile(tr_tr_file, tr_file)",\
     "with open(langs_file, \"r\", encoding=\"utf-8\") as f:",\
     "    langs = json.load(f)",\
@@ -47,9 +53,28 @@ RUN python3 -c 'exec("\n".join([\
     "make_gz(langs_file)",\
     "make_gz(tr_tr_file)",\
     "make_gz(tr_file)",\
+    "make_gz(hook_file)",\
+    "if os.path.isfile(index_file):",\
+    "    with open(index_file, \"r\", encoding=\"utf-8\") as f:",\
+    "        idx_c = f.read()",\
+    "    if \"zotero-sync-hook.js\" not in idx_c:",\
+    "        idx_c = idx_c.replace(\"<script src=\\\"vendor/citeproc/citeproc_commonjs.js\\\">\", \"<script src=\\\"zotero-sync-hook.js\\\"\\></script\\>\\n    <script src=\\\"vendor/citeproc/citeproc_commonjs.js\\\">\")",\
+    "        with open(index_file, \"w\", encoding=\"utf-8\") as f:",\
+    "            f.write(idx_c)",\
+    "        make_gz(index_file)",\
+    "if os.path.isfile(bundle_file):",\
+    "    with open(bundle_file, \"r\", encoding=\"utf-8\") as f:",\
+    "        b_c = f.read()",\
+    "    if \"window.__zoteroSettings\" not in b_c:",\
+    "        b_c = b_c.replace(\"r = new Z(t, e), i = new zt(\", \"window.__zoteroSettings = r = new Z(t, e), window.__zoteroCitationService = i = new zt(\")",\
+    "        with open(bundle_file, \"w\", encoding=\"utf-8\") as f:",\
+    "            f.write(b_c)",\
+    "        make_gz(bundle_file)",\
     "if os.path.isfile(cfg_file + \".gz\"): make_gz(cfg_file)",\
     "ref_st = os.stat(langs_file)",\
-    "targets = [langs_file, langs_file + \".gz\", tr_tr_file, tr_tr_file + \".gz\", tr_file, tr_file + \".gz\", cfg_file]",\
+    "targets = [langs_file, langs_file + \".gz\", tr_tr_file, tr_tr_file + \".gz\", tr_file, tr_file + \".gz\", cfg_file, hook_file, hook_file + \".gz\"]",\
+    "if os.path.isfile(index_file): targets.extend([index_file, index_file + \".gz\"])",\
+    "if os.path.isfile(bundle_file): targets.extend([bundle_file, bundle_file + \".gz\"])",\
     "if os.path.isfile(cfg_file + \".gz\"): targets.append(cfg_file + \".gz\")",\
     "for t in targets:",\
     "    os.chmod(t, 0o644)",\
@@ -66,8 +91,10 @@ RUN python3 -c 'exec("\n".join([\
     "assert dec == raw_langs, \"decompressed langs.json.gz does not equal langs.json\"",\
     "assert os.path.isfile(tr_tr_file + \".gz\"), \"tr-TR.json.gz missing\"",\
     "assert os.path.isfile(tr_file + \".gz\"), \"tr.json.gz missing\"",\
-    "print(\"Zotero Turkish translation installed and verified successfully.\")",\
+    "assert os.path.isfile(hook_file + \".gz\"), \"zotero-sync-hook.js.gz missing\"",\
+    "print(\"Zotero Turkish translation and sync hook installed and verified successfully.\")",\
 ]))'
+
 
 # Periodic force-save (autoAssembly) configuration: install jq and wrap container entrypoint
 RUN apt-get update && apt-get install -y --no-install-recommends jq && rm -rf /var/lib/apt/lists/*

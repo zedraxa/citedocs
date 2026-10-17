@@ -1,0 +1,12 @@
+[Unit]
+Description=CiteDocs Daily Backup Timer (03:30 Europe/Istanbul)
+Documentation=file:///opt/citedocs/docs/BACKUP.md
+
+[Timer]
+# Europe/Istanbul is UTC+3 (00:30 UTC)
+OnCalendar=*-*-* 03:30:00 Europe/Istanbul
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

@@ -12,7 +12,7 @@ import { extractZoteroState } from "../src/documents/zoteroFields.js";
 import { signJwt } from "../src/onlyoffice/jwt.js";
 import {
   createZoteroWordDocxBuffer,
-  createZoteroLibreOfficeOdtBuffer as _createZoteroLibreOfficeOdtBuffer,
+  createZoteroLibreOfficeOdtBuffer,
 } from "./fixtures/zoteroWordDocx.js";
 
 const TEST_SECRET = "test-onlyoffice-jwt-secret-xyz";
@@ -106,9 +106,111 @@ describe("Zotero Compatibility & Round-Trip Verification (apps/server)", () => {
       expect(state.style).toBe("ieee");
     });
 
-    it.todo(
-      "ZC-02: extractZoteroState does not inspect content.xml for LibreOffice Zotero reference marks in ODT files",
-    );
+    it("ZC-02: extracts LibreOffice Zotero reference marks (citations, bibliography, style prefs) from ODT files", async () => {
+      const buffer = await createZoteroLibreOfficeOdtBuffer({
+        citationId: "cit-test-odt-extraction-1",
+        itemId: "item-odt-101",
+        authorFamily: "Demir",
+        authorGiven: "Fatma",
+        year: 2023,
+        title: "LibreOffice ve ODF Standartlari",
+        formattedCitation: "(Demir, 2023)",
+        styleId: "apa",
+        rndSuffix: "ODT9988",
+      });
+
+      const state = await extractZoteroState(buffer);
+
+      // Verify citations
+      expect(state.citations).toHaveLength(1);
+      const cit = state.citations[0];
+      expect(cit.code).toContain("ZOTERO_ITEM CSL_CITATION");
+      expect(cit.code).toContain("RNDODT9988");
+      expect(cit.result).toBe("(Demir, 2023)");
+
+      const payload = cit.payload as {
+        citationID?: string;
+        citationItems?: Array<{ id?: string; itemData?: { title?: string } }>;
+      };
+      expect(payload).toBeDefined();
+      expect(payload.citationID).toBe("cit-test-odt-extraction-1");
+      expect(payload.citationItems).toHaveLength(1);
+      expect(payload.citationItems[0].id).toBe("item-odt-101");
+      expect(payload.citationItems[0].itemData?.title).toBe("LibreOffice ve ODF Standartlari");
+
+      // Verify bibliography
+      expect(state.bibliography).toBeDefined();
+      expect(state.bibliography?.code).toContain("ZOTERO_BIBL");
+      expect(state.bibliography?.code).toContain("RNDODT9988");
+      expect(state.bibliography?.result).toContain("Demir, F. (2023)");
+      expect(state.bibliography?.result).toContain("LibreOffice ve ODF Standartlari");
+
+      // Verify document-level prefs
+      expect(state.prefs).toBeDefined();
+      expect(state.prefs).toContain("https://www.zotero.org/styles/apa");
+      expect(state.style).toBe("apa");
+    });
+
+    it("ZC-02: defensively handles ODT edge cases (malformed JSON, point marks, entity escaping, chunked prefs)", async () => {
+      const zip = new JSZip();
+      zip.file("mimetype", "application/vnd.oasis.opendocument.text", { compression: "STORE" });
+      zip.file(
+        "content.xml",
+        `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <!-- 1. Citation with escaped XML entities in payload and title -->
+      <text:p>Giris <text:reference-mark-start text:name="ZOTERO_ITEM CSL_CITATION {&quot;citationID&quot;:&quot;cit-ent-1&quot;,&quot;citationItems&quot;:[{&quot;id&quot;:&quot;item-1&quot;,&quot;itemData&quot;:{&quot;title&quot;:&quot;A &amp; B &lt;Test&gt;&quot;}}]} RND123"/>(A &amp; B, 2024)<text:reference-mark-end text:name="ZOTERO_ITEM CSL_CITATION {&quot;citationID&quot;:&quot;cit-ent-1&quot;,&quot;citationItems&quot;:[{&quot;id&quot;:&quot;item-1&quot;,&quot;itemData&quot;:{&quot;title&quot;:&quot;A &amp; B &lt;Test&gt;&quot;}}]} RND123"/> metin.</text:p>
+      <!-- 2. Citation with malformed JSON -->
+      <text:p>Bozuk <text:reference-mark-start text:name="ZOTERO_ITEM CSL_CITATION {invalid json RND456"/>(Bozuk, 2024)<text:reference-mark-end text:name="ZOTERO_ITEM CSL_CITATION {invalid json RND456"/> metin.</text:p>
+      <!-- 3. Point reference mark -->
+      <text:p>Nokta <text:reference-mark text:name="ZOTERO_ITEM CSL_CITATION {&quot;citationID&quot;:&quot;cit-point-1&quot;} RND789"/> bos atif.</text:p>
+      <!-- 4. Bibliography with text:s and spans -->
+      <text:p><text:reference-mark-start text:name="ZOTERO_BIBL {&quot;custom&quot;:[]} CSL_BIBLIOGRAPHY RNDBIB"/><text:span>Yazar, A.</text:span><text:s text:c="2"/>(2024).<text:s/>Kitap.<text:reference-mark-end text:name="ZOTERO_BIBL {&quot;custom&quot;:[]} CSL_BIBLIOGRAPHY RNDBIB"/></text:p>
+    </office:text>
+  </office:body>
+</office:document-content>`,
+      );
+
+      // Chunked meta preferences
+      zip.file(
+        "meta.xml",
+        `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  <office:meta>
+    <meta:user-defined meta:name="ZOTERO_PREF_1">&lt;data data-version=&quot;3&quot;&gt;&lt;style id=&quot;https://www.zotero.org/styles/</meta:user-defined>
+    <meta:user-defined meta:name="ZOTERO_PREF_2">chicago-author-date&quot; hasBibliography=&quot;1&quot;/&gt;&lt;/data&gt;</meta:user-defined>
+  </office:meta>
+</office:document-meta>`,
+      );
+
+      const buf = Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
+      const state = await extractZoteroState(buf);
+
+      expect(state.citations).toHaveLength(3);
+
+      // First citation: entity escaping
+      expect(state.citations[0].result).toBe("(A & B, 2024)");
+      const p1 = state.citations[0].payload as { citationID: string; citationItems: Array<{ itemData: { title: string } }> };
+      expect(p1.citationID).toBe("cit-ent-1");
+      expect(p1.citationItems[0].itemData.title).toBe("A & B <Test>");
+
+      // Second citation: malformed JSON should result in payload null and not throw
+      expect(state.citations[1].payload).toBeNull();
+      expect(state.citations[1].result).toBe("(Bozuk, 2024)");
+
+      // Third citation: point mark
+      expect(state.citations[2].result).toBe("");
+      const p3 = state.citations[2].payload as { citationID: string };
+      expect(p3.citationID).toBe("cit-point-1");
+
+      // Bibliography
+      expect(state.bibliography?.result).toBe("Yazar, A.  (2024). Kitap.");
+
+      // Chunked prefs
+      expect(state.style).toBe("chicago-author-date");
+    });
   });
 
   describe("2. Document Upload & Download Storage Round-Trip", () => {
@@ -183,6 +285,53 @@ describe("Zotero Compatibility & Round-Trip Verification (apps/server)", () => {
       expect(downloadedState.citations).toHaveLength(1);
       expect(downloadedState.citations[0].payload.citationID).toBe("cit-upload-test-1");
       expect(downloadedState.bibliography).toBeDefined();
+    });
+
+    it("uploads an ODT document and returns extracted citations via GET /api/documents/:id/citations", async () => {
+      const odtBuffer = await createZoteroLibreOfficeOdtBuffer({
+        citationId: "cit-odt-upload-1",
+        authorFamily: "Kaya",
+        year: 2024,
+      });
+
+      const boundary = "----WebKitFormBoundary" + crypto.randomBytes(16).toString("hex");
+      const filename = "Tez_Taslak_LibreOffice.odt";
+
+      const header = Buffer.from(
+        `--${boundary}\r\n` +
+          `Content-Disposition: form-data; name="file"; filename="${filename}"\r\n` +
+          `Content-Type: application/vnd.oasis.opendocument.text\r\n\r\n`,
+      );
+      const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+      const multipartBody = Buffer.concat([header, odtBuffer, footer]);
+
+      const uploadRes = await app.inject({
+        method: "POST",
+        url: "/api/documents/upload",
+        headers: {
+          "x-user-id": testUser.id,
+          "content-type": `multipart/form-data; boundary=${boundary}`,
+        },
+        payload: multipartBody,
+      });
+
+      expect(uploadRes.statusCode).toBe(201);
+      const docId = JSON.parse(uploadRes.body).document.id;
+
+      const citationsRes = await app.inject({
+        method: "GET",
+        url: `/api/documents/${docId}/citations`,
+        headers: {
+          "x-user-id": testUser.id,
+        },
+      });
+
+      expect(citationsRes.statusCode).toBe(200);
+      const citJson = JSON.parse(citationsRes.body);
+      expect(citJson.citations).toHaveLength(1);
+      expect(citJson.citations[0].payload.citationID).toBe("cit-odt-upload-1");
+      expect(citJson.bibliography).toBeDefined();
+      expect(citJson.style).toBe("apa");
     });
   });
 

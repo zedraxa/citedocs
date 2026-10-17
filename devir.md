@@ -2697,3 +2697,56 @@ Yapılan derinlemesine inceleme ve kod takibinde sorunun 3 kritik kök nedenden 
 - `pnpm --filter @citedocs/web vitest run test/onlyoffice-editor.test.tsx`: 18 test başarılı.
 - Dağıtım yapılmadı; prod ortamına veya compose dosyalarına dokunulmadı.
 
+---
+
+## 53. ONLYOFFICE Sürümlü Eklenti ve API Varlıklarında Değişmez (Immutable) Önbellek Başlıklarının Geçersiz Kılınması (Kayıt #048)
+
+> **Kayıt No:** #048  
+> **Tarih:** 2026-10-17  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Dal:** `cd-style-switch-fix`  
+> **İlgili Görev:** Devir #046'da `deploy/Caddyfile` ve `deploy/Caddyfile.onlyoffice` içine eklenen önbellek kurallarının canlı ortamda (`docs.sifirdanbire.com.tr`) etkisiz kalarak Zotero eklenti dosyalarının (`/oo/10.0.0-x/sdkjs-plugins/zotero/...`) hala `Cache-Control: public, max-age=31536000, immutable` döndürmesi sorununun kök nedeninin giderilmesi; sürümlü önek altında dahi `*.html`, `*.json`, `translations`, `zotero-sync-hook.js`, `sdkjs-plugins/zotero/**` ve `api.js` varlıklarının `Cache-Control: no-cache` başlığı almasının sağlanması; diğer statik varlıkların değişmez kalmasının korunması ve testlerin genişletilmesi.
+
+---
+
+### 1. Kök Neden Tespiti ve Analiz (Root Cause Analysis)
+
+1. **`handle` Bloklarının Değerlendirme Sırası Hatası:**
+   - ONLYOFFICE Document Server, istemci editörü başlattığında tüm eklenti dosyalarını, komut dosyalarını ve çevirileri sürümlü yol öneki (`/oo/10.0.0-x/...` veya `/oo/8.2.0-xxx/...`) üzerinden talep eder ve dahili nginx sunucusu bunlara varsayılan olarak `Cache-Control: public, max-age=31536000, immutable` yanıt başlığı ekler.
+   - Devir #046'da `handle_path /oo/*` bloğu içine eklenen kurallarda:
+     ```caddy
+     @versioned path_regexp ^/[0-9]+
+     handle @versioned { ... }
+     @no_cache path *.html *.json ...
+     handle @no_cache { ... }
+     ```
+     şeklinde `@versioned` kuralı birinci sırada yer almaktaydı. Caddy'nin `handle` direktifleri aynı grupta karşılıklı dışlayıcı (mutually exclusive) çalıştığından, `/oo/10.0.0-x/...` ile başlayan tüm gerçek eklenti ve API istekleri ilk kural olan `@versioned` bloğu tarafından yakalanmış ve `@no_cache` bloğu hiçbir zaman çalışmamıştır.
+2. **Kapsam Eksikliği (`sdkjs-plugins/zotero/**`):**
+   - Önceki `@no_cache` yol eşleştiricisi yalnızca belirli uzantıları (`*.html *.json *zotero-sync-hook.js *api.js`) içeriyordu; Zotero eklenti paketinin geri kalan betik ve kaynak dosyaları (`*sdkjs-plugins/zotero*`) açıkça kapsanmamıştı.
+
+---
+
+### 2. Yapılan Değişiklikler ve Çözüm
+
+1. **`deploy/Caddyfile` ve `deploy/Caddyfile.onlyoffice` Güncellemesi:**
+   - `handle_path /oo/*` içerisinde `@no_cache` bloğu `@versioned` bloğunun önüne alındı.
+   - `@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero*` kuralı ile hem sürümlü hem sürümsüz tüm eklenti, çeviri, hook ve API dosyaları kapsama alındı.
+   - `header >Cache-Control "no-cache"` direktifi ile ters vekil ve downstream yanıt başlıklarının üzerine kesin olarak yazılması garanti edildi; ayrıca vekil içi `header_down Cache-Control "no-cache"` korundu.
+   - `@versioned path_regexp ^/[0-9]+` kuralı ikinci sıraya alınarak çekirdek ONLYOFFICE varlıklarının (`web-apps/apps/documenteditor/main/app.js`, `sdkjs/word/sdk-all.js`, font dosyaları vb.) 1 yıllık değişmez önbelleklenmesi (`immutable`) korundu.
+
+2. **Test Paketi Genişletildi (`apps/server/test/cache-headers-config.test.ts`):**
+   - `@no_cache` kuralının `@versioned` kuralından önce tanımlandığı dosya bazında doğrulandı.
+   - `caddy adapt` çalıştırılarak Caddyfile'ın JSON çıktısında `Cache-Control: ["no-cache"]` başlıklarının üretildiği teyit edildi.
+   - Sürümlü önek altındaki eklenti yollarının (`/oo/10.0.0-x/sdkjs-plugins/zotero/index.html`, `/oo/10.0.0-x/sdkjs-plugins/zotero/zotero-sync-hook.js`, `/oo/10.0.0-x/sdkjs-plugins/zotero/scripts/code.js`, `/oo/10.0.0-123/web-apps/apps/api/documents/api.js` vb.) `no-cache` aldığı; çekirdek editör JavaScript ve fontlarının ise `versioned` kaldığı doğrulandı.
+
+---
+
+### 3. Test ve Doğrulama Sonuçları
+
+- `pnpm --filter @citedocs/server vitest run test/cache-headers-config.test.ts`: 5 testin tamamı başarılı (Caddy validate, Caddy adapt ve URL eşleştirme testleri yeşil).
+- `pnpm lint`: 0 hata, 0 uyarı.
+- `pnpm typecheck`: 0 hata.
+- `pnpm test`: 78 test dosyası, 742 test başarılı (0 hata).
+- Dağıtım (deploy) yapılmadı; prod ortamına veya compose dosyalarına dokunulmadı.
+
+

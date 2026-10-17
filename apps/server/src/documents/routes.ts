@@ -95,12 +95,10 @@ export const createDocumentRoutes = (
         });
       }
 
-      const owned = await documentRepo.listOwned(userId, {
-        search,
-        sortBy,
-        sortOrder,
-      });
-      const quota = await getQuotaInfo(documentRepo, userId);
+      const [owned, quota] = await Promise.all([
+        documentRepo.listOwned(userId, { search, sortBy, sortOrder }),
+        getQuotaInfo(documentRepo, userId),
+      ]);
 
       return reply.status(200).send({
         documents: owned,

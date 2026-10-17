@@ -208,6 +208,17 @@ describe("ONLYOFFICE routes", () => {
       ).toBe(404);
     }
   });
+  it("rejects deleted documents and revoked config access on the next request", async () => {
+    const config = (user: string) => app.inject({
+      url: "/api/documents/doc/onlyoffice-config",
+      headers: { "x-user-id": user },
+    });
+    expect((await config("editor")).statusCode).toBe(200);
+    await repo.unshare("owner", "doc", "editor");
+    expect((await config("editor")).statusCode).toBe(403);
+    await repo.delete("owner", "doc");
+    expect((await config("owner")).statusCode).toBe(404);
+  });
   it.each([2, 6])("saves status %s without browser CSRF and updates metadata", async (status) => {
     const res = await callback(
       { status, url: "http://onlyoffice/cache/edited.docx" },

@@ -3,6 +3,15 @@ import { requireAuth } from "../middleware/auth.js";
 import { ZoteroAccountService, ZoteroValidationError } from "./accountService.js";
 import { ZoteroProxyService } from "./proxyService.js";
 import { ZoteroOAuthService } from "./oauthService.js";
+import {
+  ZoteroImportService,
+  type ImportReferencesInput,
+  ImportValidationError,
+  ImportPayloadTooLargeError,
+  ImportZoteroUnlinkedError,
+  ImportSaveError,
+  ImportTranslationError,
+} from "./importService.js";
 import { validateLinkApiKeyInput } from "./types.js";
 import { ZoteroCredentialRepository } from "../repositories/zoteroRepository.js";
 import { zoteroOAuthConfigured, startZoteroOAuth, finishZoteroOAuth, getPendingOAuth } from "./oauth1.js";
@@ -12,9 +21,11 @@ export interface ZoteroWeblibPluginOptions {
   accountService?: ZoteroAccountService;
   proxyService?: ZoteroProxyService;
   oauthService?: ZoteroOAuthService;
+  importService?: ZoteroImportService;
   credentialRepo?: ZoteroCredentialRepository;
   fetchFn?: typeof fetch;
 }
+
 
 export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> = async (
   fastify,
@@ -158,6 +169,15 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
     (accountService as unknown as { credentialRepo?: ZoteroCredentialRepository }).credentialRepo ||
     new ZoteroCredentialRepository();
 
+  const importService =
+    options.importService ||
+    new ZoteroImportService({
+      credentialRepo: credRepo,
+      fetchFn,
+      translationServerUrl: process.env.TRANSLATION_SERVER_URL,
+    });
+
+
   fastify.get("/api/zotero/plugin-credentials", async (request: FastifyRequest, reply: FastifyReply) => {
     reply.header("Cache-Control", "no-store, private");
     const cred = await credRepo.get(request.userId).catch(() => null);
@@ -278,6 +298,62 @@ export const zoteroWeblibRoutes: FastifyPluginAsync<ZoteroWeblibPluginOptions> =
     if (!z.ok || !saved) return reply.status(502).send({ error: "Zotero save failed", status: z.status, failed: zr.failed });
     return reply.send({ saved: true, key: saved.key, item: clean[0] });
   });
+
+  // Import references from file, pasted text, or pre-parsed items (BibTeX, RIS, CSL-JSON, EndNote XML, Zotero RDF)
+  fastify.post(
+    "/api/zotero/import",
+    { bodyLimit: 5 * 1024 * 1024 },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const body = (request.body || {}) as ImportReferencesInput;
+
+
+    try {
+      const result = await importService.importReferences(request.userId, body);
+      return reply.status(200).send(result);
+    } catch (err: unknown) {
+      if (err instanceof ImportValidationError) {
+        return reply.status(err.statusCode).send({
+          error: "Validation failed",
+          message: err.message,
+        });
+      }
+      if (err instanceof ImportPayloadTooLargeError) {
+        return reply.status(413).send({
+          error: "Payload Too Large",
+          message: err.message,
+        });
+      }
+      if (err instanceof ImportZoteroUnlinkedError) {
+        return reply.status(409).send({
+          error: err.error,
+          message: err.message,
+          total: err.total,
+          items: err.items,
+          rawItems: err.rawItems,
+        });
+      }
+      if (err instanceof ImportSaveError) {
+        return reply.status(err.statusCode).send({
+          error: err.error,
+          message: err.message,
+          failedItems: err.failedItems,
+        });
+      }
+      if (err instanceof ImportTranslationError) {
+        return reply.status(err.statusCode).send({
+          error: "Translation failed",
+          message: err.message,
+        });
+      }
+
+      const msg = err instanceof Error ? err.message : String(err);
+      return reply.status(500).send({
+        error: "Internal Server Error",
+        message: msg,
+      });
+    }
+  });
+
 
   // 6. Translation-Server Search Proxy: POST /api/zotero/translation/search and POST /search
   // Directly contacts the translation-server microservice at port 1969

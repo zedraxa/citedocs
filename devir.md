@@ -1885,9 +1885,179 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
 
 ---
 
-## ONLYOFFICE Zotero Eklentisi Atıf Stili Senkronizasyonu ve Tek Doğruluk Kaynağı — Kayıt #034
+## 32. Üretim Dağıtım Notları ve Duman Testi (Release Notes & Smoke Test) — Kayıt #035
 
-> **Kayıt No:** #034  
+> **Kayıt No:** #035  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-release-notes`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Ana ajanın yürüttüğü ONLYOFFICE geçişi ve AWS üretim dağıtımı öncesinde, sistemin güvenle dağıtılmasını ve doğrulanmasını sağlamak:
+> 1. `72fd910` (ve bilinen son dağıtım `99c938c`) sonrasındaki tüm operasyonel değişiklikleri kapsayan Türkçe sürüm belgesinin (`docs/RELEASE-2026-10-17.md`) hazırlanması.
+> 2. Dağıtım sonrası canlı sistemde doğrulamayı otomatikleştiren Playwright duman testinin (`e2e/smoke-release.spec.ts`) eklenmesi ve canlı sunucuya (`https://docs.sifirdanbire.com.tr`) karşı çalıştırılması.
+
+### 1. Yapılan Çalışmalar ve Çıktılar
+
+1. **Üretim Sürüm Notları ve Operasyon Kılavuzu (`docs/RELEASE-2026-10-17.md`):**
+   - **Referans Dağıtım:** `docs/DEPLOY.md` içindeki son kayıtlı commit `99c938c` ve ONLYOFFICE geçiş tabanı `72fd910` temel alınarak tüm operasyonel değişiklikler kod kanıtlarıyla döküldü.
+   - **Veritabanı Migrasyonları:** `0002_fuzzy_marvex.sql` (`pdf_annotations` tablosu, indeksler ve cascade kuralları).
+   - **Ortam Değişkenleri:** `S3_DOCUMENTS_BUCKET`, `S3_ATTACHMENTS_BUCKET`, `S3_FORCE_PATH_STYLE`, `ONLYOFFICE_JWT_SECRET`, `ONLYOFFICE_INTERNAL_URL`, `ONLYOFFICE_PUBLIC_URL`, `ONLYOFFICE_STORAGE_URL`, `BACKUP_*` ve `DISK_RESERVE_PERCENT`.
+   - **Volume ve Disk Etkisi:** CSL stil indeksinin diske yazmayan bellek içi (in-memory) yapısı (~2-5 MB RAM), S3 MinIO kovaları, ONLYOFFICE `oo_data`/`oo_logs` ve dahili cache dizini (`/var/lib/onlyoffice/documentserver/App_Data/cache/files`) ile yedekleme staging alanı alan hesabı ($S + A + \%20$).
+   - **Statik Varlıklar:** `deploy/office/blank.docx` içine eklenen Türkçe denetim dili (`tr-TR`, BUG-07) ve Zotero kanonik APA 7 tercihleri (`docProps/custom.xml`, ZC-04).
+   - **Zamanlayıcılar:** 03:30 Europe/Istanbul yedekleme cron/timer (`citedocs-backup.cron`/`citedocs-backup.timer`) ve 5 dakikalık kapasite denetim zamanlayıcısı (`citedocs-capacity.timer`).
+   - **Yeni API Rotaları:** `POST /api/documents/:id/convert-to-docx`, `GET /api/styles`, `GET /api/styles/:id`, `PUT /api/documents/:id/style`, genişletilmiş `GET /api/documents/:id/citations` ve güvenli `POST /api/onlyoffice/callback/:id`.
+   - **Rollback Runbook:** Kod, veritabanı, konteyner ve zamanlayıcı geri alma adımları.
+   - **Post-Deploy Checklist:** Dağıtım sonrası adım adım operatör kontrol listesi.
+
+2. **Otomatik Duman Testi Paketi (`e2e/smoke-release.spec.ts`):**
+   - Benzersiz öğrenci kaydı (`/signup` -> otomatik oturum).
+   - Türkçe "Belgelerim" paneli, tablar, "Yeni Belge" menüsü ve kota kartı doğrulaması.
+   - Boş Word belgesinin ONLYOFFICE editöründe `lang=tr` ve `region=tr-TR` ile yüklenmesi.
+   - ONLYOFFICE üst barındaki CSL Atıf Stili Seçici bileşeni, popüler stiller ve TÜBİTAK araması (ZC-03, ZC-05).
+   - Tek ekranda Zotero butonu, tanımlayıcıyla kaynak ekleme formu ve hızlı atıf yan paneli açılışı.
+   - Geçerli ikili ODT yüklemesi (`createMinimalOdtBuffer`), Türkçe ODT uyarı afişi (`OdtNoticeBanner`) ve "DOCX olarak kopya oluştur" eylemi doğrulaması.
+   - Üretilen test belgelerinin otomatik temizlenmesi (`deleteDocument`).
+   - Bağlı Zotero hesabı gerektiren senaryoların gerekçesiyle `test.fixme` olarak işaretlenmesi.
+
+### 2. Canlı Sunucu ve Kalite Doğrulama Sonuçları
+
+- **Canlı Sunucu Doğrulaması (`BASE_URL=https://docs.sifirdanbire.com.tr`):**
+  - `npx playwright test e2e/smoke-release.spec.ts` çalıştırıldı.
+  - **1 test başarılı, 1 test skipped (fixme)** — 14.0 saniye içinde tüm 7 adım canlı üretim ortamında başarıyla yeşil geçti!
+- **`pnpm lint`:** 0 hata, 0 uyarı.
+- **`pnpm typecheck`:** 0 hata (`tsc -b` temiz).
+- **Kurallara Uyum:** `apps/`, `packages/`, `deploy/`, Caddyfile veya compose dosyalarına dokunulmadı; yalnızca `docs/` ve `e2e/` çalışıldı. Üretime push/deploy/SSH yapılmadı.
+
+---
+
+## Zotero Dosya ve Metinden Kaynak İçe Aktarma (BibTeX / RIS / CSL-JSON) — Kayıt #036
+
+> **Kayıt No:** #036 (dalda #034 olarak açıldı; main dalında en yüksek kayıt #035 olduğu için birleştirmede sıralı devamlılık amacıyla #036 olarak güncellendi)  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-bib-import`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Zotero eksik ekleme yöntemi: Öğrencilerin herhangi bir harici masaüstü yazılımı kurmadan, tarayıcı üzerinden dosya yükleyerek (.bib, .ris, .json, .xml, .rdf) veya metin yapıştırarak Zotero kütüphanelerine kaynak aktarabilmesi. translation-server mikroservisi ve mevcut kullanıcı Zotero yazma yolu üzerinden 50'şerli paketleme (batching) ile kayıt oluşturma, Türkçe önizleme/özet, 2 MB dosya ve 500 kaynak sınırları, bağlı olmayan kullanıcılar için satır içi "Zotero'yu bağla" akışı ve OAuth dönüşünde bekleyen içe aktarmanın otomatik tamamlanması.
+
+### 1. Yapılan Geliştirmeler ve Mimari Çözümler
+
+1. **Sunucu Taraflı İçe Aktarma ve Toplu Yazma Servisi (`apps/server/src/zotero/importService.ts`):**
+   - Desteklenen formatlar: BibTeX (`.bib`), RIS (`.ris`), CSL-JSON (`.json`), EndNote XML (`.xml`) ve Zotero RDF (`.rdf`).
+   - Format ve MIME tespiti: `detectFormatAndContentType()` fonksiyonu ile dosya uzantısı veya içerik yapısından (`@article`, `TY  -`, JSON dizi/nesne, `<?xml`, `<rdf:RDF`) otomatik format tanıma.
+   - Sınırlar ve Doğrulama: Maksimum 2 MB (`MAX_IMPORT_BYTES = 2 * 1024 * 1024`) yük sınırı (413 Payload Too Large) ve maksimum 500 kaynak (`MAX_IMPORT_ITEMS = 500`) sınırı (400 Bad Request).
+   - `translation-server` Entegrasyonu: `POST /import` uç noktasına kaynak verisi iletilerek Zotero item dizisine dönüştürülmesi sağlandı. Hata durumları (502 Bad Gateway) açıklayıcı Türkçe mesajlarla ele alındı.
+   - 50'şerli Paketleme (Batching): Zotero Web API v3 limitine (`ZOTERO_BATCH_SIZE = 50`) tam uyumlu parçalama. Her parça `POST /users/:userId/items` uç noktasına Zotero API anahtarı ve `If-None-Match` başlığı ile gönderilir.
+   - Kısmi Başarısızlık ve Detaylı Rapor: Zotero API'sinden dönen `failed` ve `unchanged` kayıtlar ayıklanarak `failedItems` listesinde Türkçe nedenleriyle (`Zotero şeması geçersiz veya eksik alan`, `400 Geçersiz veri formatı`, vb.) raporlanır.
+   - Bağlı Olmayan Öğrenci Koruması: Zotero hesabı bağlı olmayan kullanıcılar için kaynaklar çözümlenir ve HTTP 409 (`ImportZoteroUnlinkedError`) ile bulunan kaynakların önizleme verisiyle birlikte istemciye iletilir.
+   - REST Rota Kaydı (`apps/server/src/zotero/routes.ts`): `POST /api/zotero/import` rotası `requireAuth` korumalı olarak eklendi.
+
+2. **İstemci Web API ve Bileşen Katmanı (`apps/web`):**
+   - `apps/web/src/zotero/api.ts`: `importZoteroReferences()` API çağrısı, tip tanımları (`ImportReferencesRequest`, `ImportReferencesResponse`, `ItemPreviewData`, `FailedItemData`).
+   - `apps/web/src/components/ImportReferences.tsx`:
+     - Tamamen Türkçe, temiz ve kullanıcı dostu arayüz.
+     - Sekmeli görünüm: "Dosya Yükle" (sürükle-bırak dropzone, dosya boyutu göstergesi) ve "Metin Yapıştır" (kod editör stili textarea).
+     - Format seçici açılır kutusu: Otomatik Algıla, BibTeX, RIS, CSL-JSON, EndNote XML, Zotero RDF.
+     - İki aşamalı eylem: "Önizle" (yalnızca çözümler ve kartları listeler) ve "Kütüphaneme Aktar" (doğrudan Zotero kütüphanesine kaydeder).
+     - İstemci tarafı dosya boyutu kontrolü: 2 MB üzeri dosyalarda Türkçe uyarı ("Dosya boyutu 2 MB sınırını aşıyor...").
+     - Zotero Bağlı Değil Uyarısı: 409 durumunda satır içi `Zotero Hesabı Bağlı Değil` kartı ve `Zotero'yu bağla` butonu; `sessionStorage` (`citedocs.pendingZoteroImport`) ile bekleyen aktarım saklanır.
+     - OAuth Dönüşünde Otomatik Kurtarma: Öğrenci Zotero hesabını bağlayıp döndüğünde bekleyen kaynaklar otomatik olarak kütüphanesine aktarılır.
+     - Başarı ve Hata Bildirimleri: Başarıyla eklenen kaynak sayısı, ONLYOFFICE atıf ipucu, başarısız olanların gerekçeli listesi.
+   - `apps/web/src/components/AddByIdentifier.tsx`:
+     - Üst bölüme sekme kontrolleri eklendi: "Tanımlayıcı (DOI / ISBN / URL)" ve "Dosya veya Metinden Aktar".
+     - TipTap editör modalı ve Collabora editöründe de dosya/metin içe aktarma doğrudan erişilebilir kılındı.
+   - `apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx`:
+     - Sağ taraftaki "Kaynak & Atıf Paneli" (`oo-cite-panel`) içerisine minimal kablolama satırıyla `ImportReferences` bileşeni eklendi.
+     - İçe aktarılan kaynaklar anında "Bu Oturumda Eklenen Kaynaklar" listesine ve editör başarı bildirimine yansıtılır.
+     - Eşzamanlı çalışan diğer işçinin (cd-style-picker) ve ana ajanın alanlarına (top bar, deploy, compose) kesinlikle dokunulmadı.
+
+3. **Otomasyon Testleri:**
+   - Sunucu Testleri (`apps/server/test/zotero-import.test.ts`): 18 kapsamlı senaryo (BibTeX parsing, RIS parsing, CSL-JSON parsing, 50'li batching, 2 MB sınır aşımı (413), 500 kaynak sınır aşımı (400), kısmi Zotero yazma hataları, translation-server 502 hatası, bağlı olmayan kullanıcı 409 yanıtı, save=false önizleme modu).
+   - İstemci Bileşen Testleri (`apps/web/test/import-references.test.tsx`): 9 birim ve entegrasyon testi (Türkçe etiketler ve dropzone, metin yapıştırma sekmesi, önizleme akışı, Zotero'ya doğrudan kayıt, bağlı olmayan kullanıcı 409 ve satır içi Zotero'yu bağla butonu, 2 MB sınır denetimi, kısmi hata raporlaması, sessionStorage OAuth kurtarma, temizleme butonu).
+   - Tanımlayıcı Bileşeni Testleri (`apps/web/test/add-by-identifier.test.ts`): Mevcut 7 teste ek olarak mod değiştirme ve ImportReferences render testi (8/8 başarılı).
+   - E2E Testi (`e2e/oo-zotero-import.spec.ts`): Editör yan panelinde bileşenin varlığı ve canlı Zotero hesabı gerektiren testin `test.fixme` ile işaretlenmesi.
+
+### 2. Nasıl Kullanılır (How to Use)
+
+1. **ONLYOFFICE Editöründe:**
+   - Belgeyi açın, sağ taraftaki "Kaynak & Atıf Paneli"ni açın (`oo-cite-panel`).
+   - "Dosya veya Metinden Kaynak İçe Aktar" alanında ister `.bib`, `.ris`, `.json` dosyasını sürükleyip bırakın, ister BibTeX / RIS metnini yapıştırın.
+   - "Önizle" butonuna basarak bulunan kaynakları inceleyin veya "Kütüphaneme Aktar" butonuna basarak doğrudan Zotero hesabınıza ekleyin.
+   - Kaynaklar eklendiğinde ONLYOFFICE eklentisinden anında aratıp belgenize atıf ekleyebilirsiniz.
+2. **Bağlı Olmayan Kullanıcı Deneyimi:**
+   - Eğer Zotero hesabınız henüz bağlı değilse kaynaklar çözümlenir, "Zotero Hesabı Bağlı Değil" uyarısı ve "Zotero'yu bağla" butonu gösterilir.
+   - Butona tıklandığında OAuth akışı tamamlanır ve editöre geri dönüldüğünde kaynaklar otomatik olarak kütüphanenize kaydedilir.
+
+### 3. Doğrulama Durumu
+
+- `pnpm lint`: 0 hata, 0 uyarı.
+- `pnpm typecheck`: 0 hata (`tsc -b` temiz).
+- `pnpm test`: 61 test dosyası, tüm testler başarılı.
+- Web import testleri: 9/9 başarılı.
+- AddByIdentifier testleri: 8/8 başarılı.
+- Server import testleri: 18/18 başarılı.
+
+### 4. Açık Kalan Konular (Open Issues)
+
+- Canlı zotero.org hesabı ile uçtan uca doğrulama `e2e/oo-zotero-import.spec.ts` içinde `test.fixme` olarak işaretlenmiştir; CI/CD çevrimdışı çalışmaktadır.
+- ONLYOFFICE Document Server ve AWS dağıtımları ana ajanın kontrolündedir.
+
+---
+
+## Web Üst Bar Dil Değiştirici Butonunun Kaldırılması, Kullanıcı Menüsü Dil Senkronizasyonu ve Tek Seferlik Geçiş — Kayıt #037
+
+> **Kayıt No:** #037  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-lang-toggle`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Web üst barındaki başlıksız/etiketsiz "TR" dil değiştirici butonunun tamamen kaldırılması, varsayılan dilin Türkçe korunması, kullanıcı menüsü içinde gerçek UI diliyle tam senkronize tek bir dil seçeneğinin ("Dil: Türkçe / English") bırakılması, daha önceki oturumlardan kalan "en" dil anahtarını tek seferlik "tr"ye sıfırlayan ve bilinçli seçimleri koruyan geçiş (migration) mekanizmasının kurulması ve testlerin güncellenmesi.
+
+### 1. Yapılan Çalışmalar ve Mimari Çözümler
+
+1. **Tek Seferlik Dil Tercihi Geçiş Mekanizması (`apps/web/src/auth/languageMigration.ts`):**
+   - Uygulama başlatıldığında (`main.tsx` ve `AuthContext`), eğer tarayıcı belleğindeki (`localStorage`) `citedocs_lang` anahtarı `"en"` değerine sahipse ve geçiş belirteci (`citedocs_lang_migrated`) yoksa, varsayılan Türkçe dil politikası gereğince anahtar `"tr"` olarak sıfırlanır ve `citedocs_lang_migrated = "true"` olarak işaretlenir.
+   - Kullanıcı daha sonra kullanıcı menüsünden bilinçli olarak İngilizceyi seçtiğinde (`persistLanguagePreference`), belirteç zaten mevcut olduğu için gelecekteki açılışlarda kullanıcının bilinçli seçimi korunur ve sıfırlanmaz.
+   - Özel gezinti (private browsing) ve kotalı depolama istisnaları sessiz ve güvenli şekilde yakalanır.
+   - 9 birim ve entegrasyon testi ile doğrulandı (`apps/web/test/language-migration.test.ts`).
+
+2. **Üst Bar Dil Değiştirici Butonunun Tamamen Kaldırılması (`apps/web/src/documents/DocumentsPage.tsx`):**
+   - Belge listesi üst barındaki etiketsiz `{/* TR / EN Toggle */}` (`doc-lang-toggle`) butonu ve bileşen içi yerel `handleLanguageToggle` fonksiyonu tamamen kaldırıldı.
+   - ONLYOFFICE editör üst barı (`OnlyofficeEditorPage.tsx`), atıf stili seçici (`StylePicker`) ve ODT uyarı başlığı (`OdtNoticeBanner`) gibi bileşenlere dokunulmadı; editör arayüzü korundu.
+   - `UserMenu` bileşeninin oturum açılmamış (unauthenticated) durumunda üst barda render edilen etiketsiz `lang-toggle-btn` butonu kaldırıldı; oturum açmamış kullanıcılar için yalnızca Giriş Yap ve Kayıt Ol butonları bırakıldı.
+
+3. **Kullanıcı Menüsü Dil Seçimi ve Tek Doğruluk Kaynağı Senkronizasyonu (`apps/web/src/auth/UserMenu.tsx` & `DocumentsPage.tsx`):**
+   - `DocumentsPage`, dil durumunu kopuk yerel bir `useState` yerine `useOptionalAuth()` üzerinden merkezi `AuthContext`'ten türetecek şekilde güncellendi.
+   - Kullanıcı menüsü dropdown panelindeki `dropdown-lang-toggle-btn` bileşeni tek dil değiştirici olarak korundu.
+   - Buton etiketi ve aktif dil göstergesi doğrudan merkezi i18n durumundan türetildi:
+     - Türkçe modunda: `t("language")` ("Dil"), aktif rozet `t("languageTurkish")` ("Türkçe"), erişilebilirlik etiketi `aria-label="Dil: Türkçe"`.
+     - İngilizce modunda: `t("language")` ("Language"), aktif rozet `t("languageEnglish")` ("English"), erişilebilirlik etiketi `aria-label="Language: English"`.
+   - Kullanıcı menüsünden dil değiştirildiğinde hem `UserMenu` hem `DocumentsPage` hem de tüm alt diyaloglar (Yeniden Adlandır, Paylaş vb.) tek bir kaynaktan anında eşzamanlı olarak güncellenmektedir.
+
+4. **Kapsamlı Test Paketi ve Eski Testlerin Güncellenmesi:**
+   - `apps/web/test/language-migration.test.ts`: Geçiş mantığı, belirteç varlığı/yokluğu, bilinçli İngilizce seçimlerinin korunması, hata dayanıklılığı ve AuthProvider entegrasyonu (9 test).
+   - `apps/web/test/user-menu-lang.test.tsx`: Üst bar butonunun bulunmadığının (`toBeNull()`), üst barda etiketsiz "TR"/"EN" bulunmadığının, unauthenticated görünümde butonun olmadığının ve kullanıcı menüsü üzerinden dil değişiminin hem menü etiketlerini hem de belge listesi arayüzünü anında eşitlediğinin bileşen testleri (3 test).
+   - `apps/web/test/documents.test.tsx`: Eski `doc-lang-toggle` testi, üst bar butonunun yokluğunu ve kullanıcı menüsü üzerinden dil geçişini test edecek şekilde güncellendi.
+   - `apps/web/test/auth.test.tsx`: Eski `lang-toggle-btn` testi, üst bar butonunun yokluğunu ve kullanıcı menüsü dropdown'ındaki etiket senkronizasyonunu test edecek şekilde güncellendi.
+
+### 2. Kural ve Kısıtlamalara Uyum
+
+- `deploy/` altındaki hiçbir dosya değiştirilmemiştir.
+- Dağıtım (deploy), push veya merge kesinlikle yapılmamıştır.
+- Paralel geliştirilen ONLYOFFICE atıf stili seçici (`StylePicker`) ve ODT uyarı bandı (`OdtNoticeBanner`) bileşenleri aynen korunmuştur.
+- TypeScript derleme gürültüsü (`tsconfig.tsbuildinfo`) temizlenmiştir.
+- `pnpm lint`, `pnpm typecheck`, `pnpm build` ve `pnpm test` adımlarının tamamı sıfır hata ile yeşildir.
+
+### 3. Doğrulama ve Test Sonuçları
+
+- **`pnpm lint`:** 0 hata, 0 uyarı (temiz).
+- **`pnpm typecheck`:** 0 hata (tüm monorepo TypeScript derlemesi başarılı).
+- **`pnpm build`:** Tüm paketler (`@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/server`, `@citedocs/web`) başarıyla derlendi.
+- **`pnpm test` (Tam Test Paketi):**
+  - **70 test dosyası** çalıştırıldı (2 yeni test dosyası eklendi).
+  - **658 test başarılı**, 1 atlanan, 3 yapılacak (todo). 0 başarısız!
+
+---
+
+## ONLYOFFICE Zotero Eklentisi Atıf Stili Senkronizasyonu ve Tek Doğruluk Kaynağı — Kayıt #038
+
+> **Kayıt No:** #038 (dalda #034 olarak açıldı; main dalındaki #035, #036 ve #037 kayıtlarının ardından ardışık sıra korunarak #038 olarak güncellendi)  
 > **Tarih:** 2026-10-17  
 > **Dal:** `cd-style-sync`  
 > **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
@@ -1951,7 +2121,7 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
 3. **Monorepo Genel Doğrulama:**
    - `pnpm lint`: 0 hata, 0 uyarı.
    - `pnpm typecheck`: 0 hata.
-   - `pnpm test`: **68 test dosyası**, **658 başarılı**, 1 atlanan, 3 todo, 0 başarısız!
+   - `pnpm test`: **72 test dosyası**, **697 başarılı**, 1 atlanan, 3 todo, 0 başarısız (main dalı birleştirmesi sonrası tam paket doğrulaması)!
    - `pnpm build`: Tüm paket ve uygulamalar eksiksiz derlendi.
    - `tsconfig.tsbuildinfo` temizlendi.
 
@@ -1959,4 +2129,3 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
 
 - Canlı ONLYOFFICE Document Server ve Zotero eklentisi konteynerlerinin çalıştığı tam entegrasyon ortamında Requirement 3 e2e testindeki `test.fixme` kaldırılarak canlı re-render doğrulaması yapılabilir.
 - Paralel geliştirilen ZC-01 ve ZC-02 (ODT formatındaki Zotero referans işaretleri) konuları bağımsız olarak devam etmektedir.
-

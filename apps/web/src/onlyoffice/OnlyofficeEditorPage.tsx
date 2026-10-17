@@ -17,6 +17,7 @@ import { OdtNoticeBanner } from "./OdtNoticeBanner.js";
 import { StylePicker, type StyleItem } from "./StylePicker.js";
 import { applyStyleInOnlyoffice, syncZoteroPluginStorage } from "./editorStyleBridge.js";
 import { DEFAULT_STYLE_ID, DEFAULT_LOCALE, normalizeStyleId } from "@citedocs/shared";
+import { ImportReferences } from "../components/ImportReferences.js";
 
 declare global {
   interface Window {
@@ -710,6 +711,43 @@ export function OnlyofficeEditorPage({
                   </ul>
                 </div>
               </div>
+
+              {/* File or pasted text reference import */}
+              <ImportReferences
+                documentId={documentId}
+                linked={creds?.linked}
+                apiUrl={getApiBaseUrl()}
+                onConnectZotero={() => connectZotero(panelIdentifier || identifier)}
+                onItemsImported={(items) => {
+                  if (items.length > 0) {
+                    const first = items[0];
+                    const added: AddedCiteItem = {
+                      title: first.title,
+                      authors: first.authors,
+                      year: first.year,
+                      doi: first.doi,
+                      itemType: first.itemType,
+                      key: first.key,
+                    };
+                    setLastAdded(added);
+                    setRecentItems((prev) => [
+                      ...items.map((i) => ({
+                        title: i.title,
+                        authors: i.authors,
+                        year: i.year,
+                        doi: i.doi,
+                        itemType: i.itemType,
+                        key: i.key,
+                      })),
+                      ...prev.filter((p) => !items.some((it) => it.key && it.key === p.key)),
+                    ]);
+                    setNotice({
+                      ok: true,
+                      text: `${items.length} kaynak Zotero kütüphanene eklendi. ONLYOFFICE Zotero panelinde aratıp atıf ekleyebilirsin.`,
+                    });
+                  }
+                }}
+              />
 
               {/* Last added item card */}
               {lastAdded && (

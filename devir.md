@@ -1203,10 +1203,15 @@ pnpm build
    - `apps/server/test/onlyoffice.test.ts`: Testler `lang: "tr"`, `region: "tr-TR"` ve `spellcheck: true` beklentilerine göre güncellendi.
    - `apps/server/src/onlyoffice/routes.ts` içindeki Document Server callback işleyicisine ve forcesave/autosave ayarlarına dokunulmayarak paralel çalışan `cd-autosave` dalıyla çakışmalar önlendi.
 
-2. **Zotero ONLYOFFICE Eklentisi Türkçe Çevirisi (Offline Kurulum):**
+2. **Zotero ONLYOFFICE Eklentisi Türkçe Çevirisi (Offline Kurulum, Python3 & gzip_static):**
    - `deploy/onlyoffice/zotero-translations/tr-TR.json`: Zotero eklentisinin kaynak çeviri setindeki 114 anahtarın tamamını kapsayan eksiksiz Türkçe çeviri dosyası oluşturuldu.
-   - `deploy/onlyoffice.Dockerfile`: İlgili dosya `COPY` ile eklentinin `translations/` dizinine aktarıldı; `langs.json` ve `config.json` içine "tr-TR" ve "tr" yerel ayarlarını ekleyen dayanıklı bir Node.js betiği eklendi.
-   - `apps/server/test/zotero-translation.test.ts`: JSON formatının geçerliliğini ve 114 çeviri anahtarının eksiksizliğini doğrulayan testler yazıldı.
+   - `deploy/onlyoffice.Dockerfile`: Document Server CE imajında PATH'te `node` ve `jq` bulunmadığı (yalnızca `/usr/bin/python3` mevcut olduğu) ve Document Server nginx'in `gzip_static` kullandığı tespit edildi. Kurulum adımı `python3` ile baştan yazıldı:
+     - `|| true` ve `2>/dev/null` kaldırılarak herhangi bir hata durumunda derlemenin anında başarısız olması sağlandı (`fail-build`).
+     - `langs.json` içine idempotent şekilde `"tr-TR"`, `config.json` içine `nameLocale.tr: "Zotero"` ve tüm varyasyonlara `descriptionLocale.tr` eklendi.
+     - `tr-TR.json` dosyası `tr.json` olarak kopyalandı; `langs.json.gz`, `tr-TR.json.gz`, `tr.json.gz` ve varsa `config.json.gz` dosyaları `gzip -9` seviyesinde yeniden sıkıştırıldı.
+     - Dosya izinleri `0644` yapılarak ve kardeş dosya sahipliğiyle eşitlenerek nginx (`ds`/`www-data`) tarafından okunabilir kılındı.
+     - Derleme aşamasında `langs.json` içinde `"tr-TR"` olduğunu ve açılan `langs.json.gz` içeriğinin `langs.json` ile birebir eşleştiğini doğrulayan `assert` kontrolleri eklendi.
+   - `apps/server/test/zotero-translation.test.ts`: JSON formatı ve 114 anahtar kontrolüne ek olarak Dockerfile adımını statik olarak denetleyen (python3 kullanımı, `|| true` bulunmaması, `.gz` yeniden üretimi ve derleme doğrulaması) ve geçici dizinde python betiğini çalıştırıp idempotentliğini ve gzip açılımını test eden birim testleri eklendi.
 
 3. **React Web UI (`apps/web`) Türkçe Yerelleştirmesi:**
    - `apps/web/index.html`: `<html lang="tr">` ve `<title>CiteDocs - Akademik Kelime İşlemci</title>` yapıldı.

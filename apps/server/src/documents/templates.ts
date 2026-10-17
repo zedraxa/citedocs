@@ -34,6 +34,8 @@ export async function createBlankDocxBuffer(): Promise<Buffer> {
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
 </Types>`
   );
 
@@ -53,7 +55,7 @@ export async function createBlankDocxBuffer(): Promise<Buffer> {
     <w:p>
       <w:pPr>
         <w:rPr>
-          <w:lang w:val="tr-TR"/>
+          <w:lang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="tr-TR"/>
         </w:rPr>
       </w:pPr>
     </w:p>
@@ -63,9 +65,30 @@ export async function createBlankDocxBuffer(): Promise<Buffer> {
   );
 
   zip.file(
+    "word/styles.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault><w:rPr><w:lang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="tr-TR"/></w:rPr></w:rPrDefault>
+    <w:pPrDefault><w:pPr/></w:pPrDefault>
+  </w:docDefaults>
+</w:styles>`
+  );
+
+  zip.file(
+    "word/settings.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:themeFontLang w:val="tr-TR" w:eastAsia="tr-TR" w:bidi="tr-TR"/>
+</w:settings>`
+  );
+
+  zip.file(
     "word/_rels/document.xml.rels",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rIdSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>
 </Relationships>`
   );
 

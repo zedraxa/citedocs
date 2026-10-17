@@ -155,10 +155,10 @@ describe("ONLYOFFICE routes", () => {
     expect(cfg.editorConfig.customization.spellcheck).toBe(true);
     expect(permissionsForRole("unknown").permissions.edit).toBe(false);
   });
-  it("always defaults ONLYOFFICE editorConfig to Turkish (lang tr, region tr-TR, spellcheck true) regardless of Accept-Language", async () => {
+  it.each(["en-US,en;q=0.9", "tr-TR", "de-DE"])("defaults editorConfig to Turkish regardless of Accept-Language %s", async (acceptLanguage) => {
     const res = await app.inject({
       url: "/api/documents/doc/onlyoffice-config",
-      headers: { "x-user-id": "owner", "accept-language": "en-US,en;q=0.9" },
+      headers: { "x-user-id": "owner", "accept-language": acceptLanguage },
     });
     expect(res.statusCode).toBe(200);
     const cfg = res.json().config;

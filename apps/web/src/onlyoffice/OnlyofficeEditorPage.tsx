@@ -14,6 +14,8 @@ import { getApiBaseUrl, getCsrfToken } from "../auth/api.js";
 import { getDocumentLanguage } from "../documents/i18n.js";
 import { openZoteroPanel } from "./zoteroPanel.js";
 import { OdtNoticeBanner } from "./OdtNoticeBanner.js";
+import { StylePicker, type StyleItem } from "./StylePicker.js";
+import { applyStyleInOnlyoffice } from "./editorStyleBridge.js";
 
 declare global {
   interface Window {
@@ -135,6 +137,69 @@ export function OnlyofficeEditorPage({
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [recentItems, setRecentItems] = useState<AddedCiteItem[]>([]);
   const [lastAdded, setLastAdded] = useState<AddedCiteItem | null>(null);
+  const [currentStyle, setCurrentStyle] = useState<string>("apa");
+
+  // Fetch current document style from Zotero preferences
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api<{ style?: string | null }>(
+          `/api/documents/${encodeURIComponent(documentId)}/citations`,
+        );
+        if (!cancelled && res.ok && res.data.style) {
+          setCurrentStyle(res.data.style);
+        }
+      } catch {
+        /* fallback to default apa */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId]);
+
+  const handleStyleChange = useCallback(
+    async (style: StyleItem) => {
+      try {
+        // 1. In-editor ONLYOFFICE bridge (custom properties, plugin storage, plugin refresh)
+        applyStyleInOnlyoffice(
+          editorContainerRef.current,
+          editorRef.current,
+          style.id,
+          "tr-TR",
+        );
+
+        // 2. Server-side update for docProps/custom.xml
+        const r = await api<{ ok?: boolean; error?: string }>(
+          `/api/documents/${encodeURIComponent(documentId)}/style`,
+          {
+            method: "PUT",
+            body: JSON.stringify({ styleId: style.id, locale: "tr-TR" }),
+          },
+        );
+
+        if (r.ok) {
+          setCurrentStyle(style.id);
+          setNotice({
+            ok: true,
+            text: `Atıf stili güncellendi: “${style.title}”.`,
+          });
+        } else {
+          setNotice({
+            ok: false,
+            text: `Atıf stili sunucuda güncellenemedi: ${r.data.error || "Bilinmeyen hata"}.`,
+          });
+        }
+      } catch {
+        setNotice({
+          ok: false,
+          text: "Atıf stili güncellenirken bir hata oluştu.",
+        });
+      }
+    },
+    [documentId],
+  );
 
   // Check URL query parameters for OAuth returns (e.g. ?zotero=connected / denied / error)
   useEffect(() => {
@@ -420,6 +485,14 @@ export function OnlyofficeEditorPage({
           <BookPlus size={14} className={isPanelOpen ? "text-blue-600" : "text-slate-500"} />
           <span>Kaynak Paneli</span>
         </button>
+
+        {/* CiteDocs citation style picker */}
+        <StylePicker
+          documentId={documentId}
+          currentStyleId={currentStyle}
+          onStyleSelected={handleStyleChange}
+          disabled={status === "error"}
+        />
 
         {/* Header identifier and Zotero connection form */}
         <form

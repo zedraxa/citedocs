@@ -260,4 +260,77 @@ describe("pending Zotero identifier", () => {
     );
     expect(add).not.toHaveBeenCalled();
   });
+
+  it("renders StylePicker in the top bar, loads document style, and applies selected style", async () => {
+    const fetchFn = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.includes("/api/documents/doc/citations")) {
+        return new Response(JSON.stringify({ citations: [], bibliography: null, style: "ieee" }));
+      }
+      if (url.includes("/api/documents/doc/style") && init?.method === "PUT") {
+        return new Response(JSON.stringify({ ok: true, styleId: "turkiye-bilimsel-ve-teknolojik-arastirma-kurumu" }));
+      }
+      if (url.includes("/api/documents/doc/onlyoffice-config")) {
+        return new Response(
+          JSON.stringify({
+            documentServerUrl: "/oo",
+            config: {
+              token: "test-token",
+              document: { key: "doc-key", permissions: { edit: true } },
+              editorConfig: { mode: "edit", user: { id: "u1", name: "User" } },
+            },
+          }),
+        );
+      }
+      if (url.includes("plugin-credentials")) {
+        return new Response(JSON.stringify({ linked: false }));
+      }
+      return new Response(JSON.stringify({}));
+    });
+    vi.stubGlobal("fetch", fetchFn);
+
+    window.DocsAPI = { DocEditor: vi.fn().mockImplementation(() => ({ destroyEditor: vi.fn() })) };
+
+    render(
+      <OnlyofficeEditorPage
+        documentId="doc"
+        documentTitle="Academic Paper"
+        onBackToDocuments={vi.fn()}
+      />,
+    );
+
+    // Initial style should load from citations API (ieee)
+    await waitFor(() => {
+      const label = screen.getByTestId("oo-style-current-label");
+      expect(label.textContent).toBe("IEEE");
+    });
+
+    // Open style picker
+    fireEvent.click(screen.getByTestId("oo-style-picker-btn"));
+    expect(screen.getByTestId("oo-style-picker-dropdown")).toBeDefined();
+
+    // Select TÜBİTAK style
+    const tubitakBtn = screen.getByTestId(
+      "oo-style-item-turkiye-bilimsel-ve-teknolojik-arastirma-kurumu",
+    );
+    fireEvent.click(tubitakBtn);
+
+    // Should call PUT /api/documents/doc/style
+    await waitFor(() => {
+      expect(fetchFn).toHaveBeenCalledWith(
+        "/api/documents/doc/style",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({
+            styleId: "turkiye-bilimsel-ve-teknolojik-arastirma-kurumu",
+            locale: "tr-TR",
+          }),
+        }),
+      );
+    });
+
+    // Notice should appear in Turkish
+    await waitFor(() => {
+      expect(screen.getByTestId("oo-notice").textContent).toContain("Atıf stili güncellendi");
+    });
+  });
 });

@@ -2557,3 +2557,74 @@ handle_path /oo/* {
 2. **Kısıtlar:**
    - `docker-compose.prod.yml` dosyasına kesinlikle dokunulmadı.
    - Dağıtım (deploy) yapılmadı.
+
+---
+
+## 52. ONLYOFFICE Gerçek Tarayıcıda Uçtan Uca Atıf ve Kaynakça Akışı Doğrulaması (Kayıt #045)
+
+> **Kayıt No:** #045  
+> **Tarih:** 2026-10-17  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Dal:** `cd-cite-e2e`  
+> **İlgili Görev:** ONLYOFFICE yerel stack üzerinde (`citedocs-onlyoffice-test:latest` yamalanmış imajı + yerel sunucu + yerel Vite web) gerçek headless Chromium tarayıcıda Zotero atıf ekleme ("Atıf eklenemedi"/CSL hatasız), kaynakça ekleme (insert bibliography), Word/LibreOffice Zotero alan kodları (`ADDIN ZOTERO_ITEM`, `CSL_CITATION`, `ADDIN ZOTERO_BIBL`, `CSL_BIBLIOGRAPHY`) ile otomatik kaydetme (autosave) ve indirme döngüsünün uçtan uca kanıtlanması.
+
+---
+
+### 1. Kök Neden Analizi ve Çalışma Kapsamı
+
+Kayıt #043 ile `deploy/onlyoffice/patch-zotero-plugin.py` ve `deploy/onlyoffice.Dockerfile` içine `citeproc-plus-csl.min.js` betik tag'i düzeltilmiş ve `citedocs-onlyoffice-test:latest` yerel imajında `index.html` doğrulanmıştı. Ancak gerçek bir tarayıcıda ONLYOFFICE Document Server, Zotero eklenti iframe'i ve CiteDocs web/sunucu entegrasyonuyla tam kullanıcı akışı daha önce test edilmemişti.
+
+Bu çalışmada yerel docker ortamındaki `citedocs-onlyoffice-test:latest` konteyneri (`cite-e2e-oo`), yerel Fastify sunucusu (`apps/server`) ve Vite frontend (`apps/web`) ile uçtan uca gerçek tarayıcı (headless Chromium) E2E test paketi kurulmuş ve Zotero atıf/kaynakça döngüsü kanıtlanmıştır.
+
+---
+
+### 2. Uygulanan Mimari ve Test Tasarımı (`e2e/oo-cite-flow.spec.ts`)
+
+1. **Uçtan Uca Akış (`e2e/oo-cite-flow.spec.ts`):**
+   - **Kullanıcı & Belge Oluşturma:** `/signup` üzerinden taze öğrenci hesabı açılır, `/documents` paneline geçilir ve Boş Word (.docx) oluşturularak `/editor?doc=<uuid>` açılır.
+   - **ONLYOFFICE & Zotero Panelinin Açılması:** ONLYOFFICE editör iframe'i yüklendikten sonra üst bardaki kırmızı Zotero butonu (`oo-zotero-open`) tıklanır ve `sdkjs-plugins/zotero/index.html` iframe'inin başarıyla monte edildiği doğrulanır.
+   - **CSL Nesnesi Doğrulaması:** Eklenti penceresi içinde `hasCSL: true` ve `cslType: "object"` olduğu, `#043` kancasının sorunsuz çalıştığı programatik olarak teyit edilir.
+   - **Mock Upstream:** Test ortamında gerçek Zotero kimlik bilgisi kullanılmaz; `page.route("**/api/zotero/plugin-credentials")` ve `context.route("https://api.zotero.org/**")` ile "Quantum Supremacy Using a Programmable Superconducting Processor" (Arute & Arya, 2019) CSL/JSON verisi simüle edilir.
+   - **Atıf Ekleme (Insert Citation):** Eklenti listesindeki makale seçilip "Atıf Ekle" butonuna basılır. Konsolda veya eklenti hata kutusunda **0 adet "Atıf eklenemedi"** / **0 adet "CSL is not defined"** hatası oluştuğu (`cslErrors.length === 0`) doğrulanır. Metin içi atıfın `(Arute & Arya, 2019)` şeklinde oluşturulduğu teyit edilir.
+   - **Kaynakça Ekleme (Insert Bibliography):** Eklenti panelindeki "Kaynakça Ekle" (`#insertBibBtn`) butonuna tıklanarak belgenin sonuna kaynakça bloğu eklenir.
+   - **Otomatik / Zorla Kaydetme (Autosave / Force-Save):** Editör tuvaline odaklanılarak `Ctrl+S` tetiklenir ve `/api/documents` üzerinden belgenin `updatedAt` damgasının güncellendiği doğrulanır.
+   - **Word / LibreOffice Zotero Alan Kodlarının Korunması:** `/api/documents/:id/download` ile dosya indirilir; JSZip ile `word/document.xml` incelenerek:
+     - `ADDIN ZOTERO_ITEM`
+     - `CSL_CITATION`
+     - `ADDIN ZOTERO_BIBL`
+     - `CSL_BIBLIOGRAPHY`
+     - `Quantum Supremacy`
+     alanlarının tam olarak korunduğu kanıtlanır.
+   - **Görsel Doğrulama:** Başarılı akışın tam sayfa ekran görüntüsü `test-results/oo-cite-flow-success.png` dosyasına kaydedilir.
+
+2. **Stil Değişimi ve Devir #047:**
+   - Stil değiştirme sırasında (`oo-style-picker-btn` -> `oo-style-item-ieee`), React DOM mutasyonunda oluşan `Failed to execute 'insertBefore' on 'Node'` (beyaz sayfa) hatası tespit edilmiştir. Bu hata paralel çalışan işçi (`cd-style-switch-fix`) tarafından çözüldüğü için talimat uyarınca `test.fixme` olarak işaretlenmiş ve devir #047'ye referans verilmiştir.
+
+3. **Vite Proxy Yapılandırması (`apps/web/vite.config.ts`):**
+   - Yerel ortamda ONLYOFFICE Document Server'a güvenli ve şeffaf erişim için `/oo` proxy kuralı eklenmiştir (`X-Forwarded-Host: localhost:5173/oo`).
+
+4. **Kullanıcı Arayüzü İzolasyonu (`apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx`):**
+   - `oo-notices-wrapper` kapsayıcısı ile uyarı ve bildirim banner'larının DOM yapısı izole edilmiştir.
+
+---
+
+### 3. Test ve Doğrulama Sonuçları
+
+- **E2E Test Paketi (`e2e/oo-cite-flow.spec.ts`):**
+  - **1 passed, 1 skipped (fixme: devir #047)** (Süre: 36.2s / 39.6s).
+  - Ekran görüntüsü: `test-results/oo-cite-flow-success.png` (107 KB).
+- **`pnpm lint`:** 0 hata, 0 uyarı (tamamen temiz).
+- **`pnpm typecheck`:** 0 hata (`tsc -b` tüm monorepoda hatasız geçti).
+- **`pnpm test` (Tam Test Paketi):**
+  - **78 test dosyası** çalıştırıldı.
+  - **741 test başarılı**, 1 atlanan, 3 todo, 0 başarısız!
+- **`tsconfig.tsbuildinfo`:** Çalışma alanındaki tüm buildinfo dosyaları temizlendi.
+
+---
+
+### 4. Dokunulmayan Dosyalar ve İzolasyon Kurallarına Uyum
+
+- `docker-compose.prod.yml`, AWS, nginx veya canlı sunucuya (63.186.117.58) **KESİNLİKLE DOKUNULMADI.**
+- Canlı ortama dağıtım (deploy), push veya merge yapılmadı.
+- Yalnızca `cd-cite-e2e` dalında scoped ve temiz değişiklikler yapıldı.
+

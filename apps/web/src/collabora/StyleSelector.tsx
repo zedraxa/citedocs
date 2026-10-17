@@ -141,7 +141,7 @@ export function StyleSelector({
             ? "bg-blue-50 text-blue-800 border-blue-300 ring-2 ring-blue-100"
             : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300"
         } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-        title={`Current Citation Style: ${currentMeta.name}`}
+        title={`Mevcut Atıf Stili: ${currentMeta.name}`}
         data-testid="csl-style-selector-btn"
       >
         {changingStyle ? (
@@ -164,9 +164,9 @@ export function StyleSelector({
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-amber-500" />
-                Citation Style
+                Atıf Stili
               </span>
-              <span className="text-[10px] text-slate-400">CSL Compatible</span>
+              <span className="text-[10px] text-slate-400">CSL Uyumlu</span>
             </div>
 
             <div className="relative">
@@ -175,7 +175,7 @@ export function StyleSelector({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search styles (e.g. Nature, ACM, Oxford)..."
+                placeholder="Stil ara (örn. Nature, ACM, Oxford)..."
                 className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg placeholder-slate-400 text-slate-800 focus:outline-hidden focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all"
                 autoFocus
                 data-testid="csl-style-search-input"
@@ -193,7 +193,7 @@ export function StyleSelector({
               searchResults.length > 0 ? (
                 <div>
                   <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Search Results ({searchResults.length})
+                    Arama Sonuçları ({searchResults.length})
                   </div>
                   {searchResults.map((style) => {
                     const isSelected =
@@ -228,14 +228,14 @@ export function StyleSelector({
                 </div>
               ) : !searching ? (
                 <div className="px-3 py-6 text-center text-xs text-slate-400">
-                  No styles found for &ldquo;{searchQuery}&rdquo;.
+                  &ldquo;{searchQuery}&rdquo; için stil bulunamadı.
                 </div>
               ) : null
             ) : (
               // Popular Styles
               <div>
                 <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Popular Styles
+                  Popüler Stiller
                 </div>
                 {POPULAR_STYLES.map((style) => {
                   const isSelected =
@@ -274,7 +274,7 @@ export function StyleSelector({
 
           {/* Footer note */}
           <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 text-[10px] text-slate-400 flex items-center justify-between">
-            <span>Official CSL Styles Repository</span>
+            <span>Resmi CSL Stil Deposu</span>
             <span>citeproc-js</span>
           </div>
         </div>

@@ -693,17 +693,17 @@ export function CollaboraEditorPage({
           {onBackToDocuments ? (
             <button
               onClick={onBackToDocuments}
-              title="Back to Documents"
+              title="Belgelerim'e Dön"
               data-testid="collabora-back-to-docs-btn"
               className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors flex items-center gap-1 text-xs font-medium cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Documents</span>
+              <span>Belgelerim</span>
             </button>
           ) : onBackToTipTap ? (
             <button
               onClick={onBackToTipTap}
-              title="Back to legacy editor"
+              title="Eski editöre dön"
               className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -722,7 +722,7 @@ export function CollaboraEditorPage({
               </span>
             </div>
             <div className="text-xs text-slate-400">
-              WOPI Host &bull; {documentLoaded ? "Live Synced" : "Connecting..."}
+              WOPI Sunucusu &bull; {documentLoaded ? "Canlı Senkronize" : "Bağlanıyor..."}
             </div>
           </div>
         </div>
@@ -741,22 +741,22 @@ export function CollaboraEditorPage({
             type="button"
             onClick={handleOpenInsertModal}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors cursor-pointer shadow-2xs"
-            title="Insert citation cluster at cursor"
+            title="İmlecin bulunduğu yere atıf kümesi ekle"
             data-testid="collabora-insert-citation-btn"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Insert Citation</span>
+            <span>Atıf Ekle</span>
           </button>
 
           {/* Add by Identifier Button */}
           <button
             onClick={() => setShowAddIdentifier(true)}
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-md transition-colors cursor-pointer shadow-2xs"
-            title="Add citation by DOI, ISBN, PMID or arXiv"
+            title="DOI, ISBN, PMID veya arXiv ile atıf ekle"
             data-testid="collabora-add-identifier-btn"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Add by DOI</span>
+            <span>DOI ile Ekle</span>
           </button>
 
           {/* Document Citations & Bibliography Drawer Button */}
@@ -768,11 +768,11 @@ export function CollaboraEditorPage({
                 ? "bg-slate-200 text-slate-800 border-slate-300"
                 : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
             }`}
-            title="View, edit, or remove document citations & bibliography"
+            title="Belge atıflarını ve kaynakçayı görüntüle, düzenle veya kaldır"
             data-testid="collabora-citations-drawer-btn"
           >
             <ListPlus className="w-3.5 h-3.5 text-blue-600" />
-            <span>Citations</span>
+            <span>Atıflar</span>
             <span className="px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
               {documentCitations.length}
             </span>
@@ -786,11 +786,11 @@ export function CollaboraEditorPage({
                 ? "bg-slate-200 text-slate-800 border-slate-300"
                 : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
             }`}
-            title="Toggle Zotero Web Library sidebar"
+            title="Zotero Web Kitaplığı kenar çubuğunu aç/kapat"
             data-testid="collabora-zotero-toggle-btn"
           >
             <BookMarked className="w-3.5 h-3.5 text-red-600" />
-            <span>Zotero Library</span>
+            <span>Zotero Kitaplığı</span>
           </button>
 
           {/* Toggle PDF Reader */}
@@ -803,10 +803,10 @@ export function CollaboraEditorPage({
                 : "text-slate-700 bg-white border-slate-200 hover:bg-slate-50"
             }`}
             data-testid="toggle-pdf-reader-btn"
-            title="Open Zotero PDF Reader in split panel"
+            title="Zotero PDF Okuyucusunu bölmeli panelde aç"
           >
             <BookOpen className="w-3.5 h-3.5 text-red-600" />
-            <span>PDF Reader</span>
+            <span>PDF Okuyucu</span>
           </button>
 
           {/* Save Button */}
@@ -818,12 +818,12 @@ export function CollaboraEditorPage({
             {saveSuccess ? (
               <>
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span className="text-emerald-700">Saved</span>
+                <span className="text-emerald-700">Kaydedildi</span>
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                <span>Save</span>
+                <span>Kaydet</span>
               </>
             )}
           </button>
@@ -835,7 +835,7 @@ export function CollaboraEditorPage({
         <main className="flex-1 h-full relative">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-slate-600 text-sm">
-              Initializing Collabora Online session...
+              Collabora Online oturumu başlatılıyor...
             </div>
           )}
 

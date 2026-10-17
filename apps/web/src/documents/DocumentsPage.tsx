@@ -441,7 +441,7 @@ export function DocumentsPage({
         <section data-testid="documents-grid-section">
           {loading && (
             <div className="py-16 text-center text-xs text-slate-400">
-              Loading documents...
+              {t.loadingDocuments}
             </div>
           )}
 
@@ -538,10 +538,10 @@ export function DocumentsPage({
                       <div className="pt-4 border-t border-slate-100 mt-3 flex items-center justify-between">
                         <span className="text-[10px] font-medium text-slate-400">
                           {doc.mimeType.includes("opendocument")
-                            ? "LibreOffice Writer"
+                            ? t.docTypeOdt
                             : doc.mimeType.includes("pdf")
-                              ? "PDF Document"
-                              : "Microsoft Word"}
+                              ? t.docTypePdf
+                              : t.docTypeDocx}
                         </span>
 
                         <button

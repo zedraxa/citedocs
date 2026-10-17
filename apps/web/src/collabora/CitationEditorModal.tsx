@@ -40,16 +40,16 @@ interface EditableCitationItem {
 }
 
 const LOCATOR_LABELS = [
-  { value: "page", label: "Page (p.)" },
-  { value: "chapter", label: "Chapter (ch.)" },
-  { value: "section", label: "Section (sec.)" },
-  { value: "figure", label: "Figure (fig.)" },
-  { value: "paragraph", label: "Paragraph (para.)" },
-  { value: "verse", label: "Verse (v.)" },
-  { value: "column", label: "Column (col.)" },
-  { value: "line", label: "Line (l.)" },
-  { value: "note", label: "Note (n.)" },
-  { value: "volume", label: "Volume (vol.)" },
+  { value: "page", label: "Sayfa (s.)" },
+  { value: "chapter", label: "Bölüm (böl.)" },
+  { value: "section", label: "Kısım (ksm.)" },
+  { value: "figure", label: "Şekil (şkl.)" },
+  { value: "paragraph", label: "Paragraf (par.)" },
+  { value: "verse", label: "Ayet / Dize" },
+  { value: "column", label: "Sütun (süt.)" },
+  { value: "line", label: "Satır (sat.)" },
+  { value: "note", label: "Not (n.)" },
+  { value: "volume", label: "Cilt (c.)" },
 ];
 
 export function CitationEditorModal({
@@ -226,10 +226,10 @@ export function CitationEditorModal({
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-800">
-                {mode === "edit" ? "Edit Citation" : "Insert Citation"}
+                {mode === "edit" ? "Atfı Düzenle" : "Atıf Ekle"}
               </h2>
               <p className="text-[11px] text-slate-400">
-                CSL Format &bull; Style: <span className="font-semibold text-slate-600">{currentStyleId.toUpperCase()}</span>
+                CSL Biçimi &bull; Stil: <span className="font-semibold text-slate-600">{currentStyleId.toUpperCase()}</span>
               </p>
             </div>
           </div>
@@ -249,10 +249,10 @@ export function CitationEditorModal({
           <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl" data-testid="citation-live-preview">
             <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700 flex items-center gap-1 mb-1">
               <Sparkles className="w-3 h-3 text-blue-600" />
-              In-Text Citation Preview
+              Metin İçi Atıf Önizlemesi
             </div>
             <div className="text-sm font-semibold text-slate-900 bg-white px-3 py-2 rounded-lg border border-blue-100 shadow-2xs font-serif">
-              {livePreview || <span className="text-slate-400 italic">No sources selected</span>}
+              {livePreview || <span className="text-slate-400 italic">Kaynak seçilmedi</span>}
             </div>
           </div>
 
@@ -260,7 +260,7 @@ export function CitationEditorModal({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Cited Sources ({items.length})
+                Atıf Yapılan Kaynaklar ({items.length})
               </label>
               <button
                 type="button"
@@ -269,14 +269,14 @@ export function CitationEditorModal({
                 data-testid="add-source-to-citation-btn"
               >
                 <Plus className="w-3.5 h-3.5" />
-                Add Source to Cluster
+                Kümeye Kaynak Ekle
               </button>
             </div>
 
             {/* Source tabs */}
             <div className="flex flex-wrap gap-1.5 mb-3">
               {items.map((it, idx) => {
-                const author = it.itemData?.author?.[0]?.family || "Source";
+                const author = it.itemData?.author?.[0]?.family || "Kaynak";
                 const year = it.itemData?.issued?.["date-parts"]?.[0]?.[0] || "";
                 const isSelected = idx === activeItemIndex;
                 return (
@@ -301,7 +301,7 @@ export function CitationEditorModal({
                           handleRemoveItem(idx);
                         }}
                         className={`p-0.5 rounded-full hover:bg-black/20 ${isSelected ? "text-white" : "text-slate-400"}`}
-                        title="Remove from citation"
+                        title="Atıftan kaldır"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -320,7 +320,7 @@ export function CitationEditorModal({
                     type="text"
                     value={addSourceSearch}
                     onChange={(e) => setAddSourceSearch(e.target.value)}
-                    placeholder="Search available library items..."
+                    placeholder="Kütüphanedeki kaynaklarda ara..."
                     className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:border-blue-500"
                     autoFocus
                   />
@@ -335,14 +335,14 @@ export function CitationEditorModal({
                         className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-blue-50 rounded-md transition-colors flex items-center justify-between cursor-pointer"
                       >
                         <span className="truncate font-medium text-slate-700">
-                          {avail.author?.[0]?.family || "Unknown"} &ndash; {avail.title}
+                          {avail.author?.[0]?.family || "Bilinmeyen"} &ndash; {avail.title}
                         </span>
                         <Plus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                       </button>
                     ))
                   ) : (
                     <div className="text-[11px] text-slate-400 py-2 text-center">
-                      No additional items found
+                      Başka kaynak bulunamadı
                     </div>
                   )}
                 </div>
@@ -354,14 +354,14 @@ export function CitationEditorModal({
           {currentItem && (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3.5">
               <div className="text-xs font-semibold text-slate-800">
-                {currentItem.itemData?.title || `Item ${currentItem.id}`}
+                {currentItem.itemData?.title || `Kaynak ${currentItem.id}`}
               </div>
 
               {/* Locator Row: Type & Number */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Locator Type
+                    Konum Türü
                   </label>
                   <div className="relative">
                     <select
@@ -382,13 +382,13 @@ export function CitationEditorModal({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Locator Value (e.g. 525, 12-14)
+                    Konum Değeri (örn. 525, 12-14)
                   </label>
                   <input
                     type="text"
                     value={currentItem.locator || ""}
                     onChange={(e) => handleUpdateCurrentItem({ locator: e.target.value })}
-                    placeholder="e.g. 42 or 105-110"
+                    placeholder="örn. 42 veya 105-110"
                     className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:border-blue-500"
                     data-testid="locator-value-input"
                   />
@@ -399,13 +399,13 @@ export function CitationEditorModal({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Prefix
+                    Ön Ek
                   </label>
                   <input
                     type="text"
                     value={currentItem.prefix || ""}
                     onChange={(e) => handleUpdateCurrentItem({ prefix: e.target.value })}
-                    placeholder="e.g. see, cf."
+                    placeholder="örn. bkz."
                     className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:border-blue-500"
                     data-testid="prefix-input"
                   />
@@ -413,13 +413,13 @@ export function CitationEditorModal({
 
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Suffix
+                    Son Ek
                   </label>
                   <input
                     type="text"
                     value={currentItem.suffix || ""}
                     onChange={(e) => handleUpdateCurrentItem({ suffix: e.target.value })}
-                    placeholder="e.g. , for an overview"
+                    placeholder="örn. genel bakış için"
                     className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:border-blue-500"
                     data-testid="suffix-input"
                   />
@@ -437,7 +437,7 @@ export function CitationEditorModal({
                     data-testid="suppress-author-checkbox"
                   />
                   <span>
-                    <strong>Suppress Author</strong> &mdash; omit author name, show only year (e.g. &ldquo;(2021)&rdquo;)
+                    <strong>Yazarı Gizle</strong> &mdash; yazar adını gizle, yalnızca yılı göster (örn. &ldquo;(2021)&rdquo;)
                   </span>
                 </label>
               </div>
@@ -459,7 +459,7 @@ export function CitationEditorModal({
                 data-testid="delete-citation-btn"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete Citation</span>
+                <span>Atfı Sil</span>
               </button>
             )}
           </div>
@@ -470,7 +470,7 @@ export function CitationEditorModal({
               onClick={onClose}
               className="px-3.5 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-800 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
             >
-              Cancel
+              İptal
             </button>
             <button
               type="button"
@@ -480,7 +480,7 @@ export function CitationEditorModal({
               data-testid="save-citation-modal-btn"
             >
               <Check className="w-3.5 h-3.5" />
-              <span>{mode === "edit" ? "Update Citation" : "Insert Citation"}</span>
+              <span>{mode === "edit" ? "Atfı Güncelle" : "Atıf Ekle"}</span>
             </button>
           </div>
         </div>

@@ -38,15 +38,15 @@ export function ZoteroAccountModal({
 
     if (result.success && result.data) {
       setApiKeyInput("");
-      setSuccessMsg("Zotero account successfully linked & validated!");
+      setSuccessMsg("Zotero hesabı başarıyla bağlandı ve doğrulandı!");
       onAccountUpdated(result.data);
     } else {
-      setErrorMsg(result.error || "Failed to link Zotero account");
+      setErrorMsg(result.error || "Zotero hesabı bağlanamadı");
     }
   };
 
   const handleUnlink = async () => {
-    if (!confirm("Are you sure you want to disconnect your Zotero account?")) return;
+    if (!confirm("Zotero hesabınızın bağlantısını kesmek istediğinizden emin misiniz?")) return;
 
     setLoading(true);
     setErrorMsg(null);
@@ -56,7 +56,7 @@ export function ZoteroAccountModal({
     setLoading(false);
 
     if (ok) {
-      setSuccessMsg("Zotero account disconnected.");
+      setSuccessMsg("Zotero hesabının bağlantısı kesildi.");
       onAccountUpdated({
         linked: false,
         userId,
@@ -68,7 +68,7 @@ export function ZoteroAccountModal({
         lastSyncVersion: 0,
       });
     } else {
-      setErrorMsg("Failed to disconnect Zotero account.");
+      setErrorMsg("Zotero hesabının bağlantısı kesilemedi.");
     }
   };
 
@@ -87,12 +87,12 @@ export function ZoteroAccountModal({
         <div className="bg-[#c92c2c] text-white px-5 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Key className="w-4 h-4" />
-            <h3 className="font-semibold text-sm">Zotero Account Linking</h3>
+            <h3 className="font-semibold text-sm">Zotero Hesap Bağlantısı</h3>
           </div>
           <button
             onClick={onClose}
             className="text-white/80 hover:text-white p-1 rounded-full cursor-pointer text-base leading-none"
-            title="Close"
+            title="Kapat"
             data-testid="close-account-modal"
           >
             <X className="w-4 h-4" />
@@ -126,15 +126,15 @@ export function ZoteroAccountModal({
               <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 flex flex-col gap-2">
                 <div className="flex items-center gap-2 text-emerald-800 font-semibold text-xs">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span>Account Connected to Zotero.org</span>
+                  <span>Hesap Zotero.org'a Bağlandı</span>
                 </div>
                 <div className="text-gray-600 space-y-1 mt-1 text-[11px]">
                   <div>
-                    <span className="font-medium text-gray-700">Zotero User ID:</span>{" "}
+                    <span className="font-medium text-gray-700">Zotero Kullanıcı ID:</span>{" "}
                     <span className="font-mono">{account.zoteroUserId || "—"}</span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">API Key:</span>{" "}
+                    <span className="font-medium text-gray-700">API Anahtarı:</span>{" "}
                     <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-gray-200">
                       {account.maskedKey || "••••••••"}
                     </span>
@@ -145,7 +145,7 @@ export function ZoteroAccountModal({
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-blue-900 flex items-start gap-2 text-[11px]">
                 <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <span>
-                  Your key is stored encrypted at rest with server AES-256-GCM. It is never returned in full to the browser.
+                  Anahtarınız sunucuda AES-256-GCM ile şifrelenerek saklanır. Asla tam haliyle tarayıcıya iletilmez.
                 </span>
               </div>
 
@@ -156,25 +156,25 @@ export function ZoteroAccountModal({
                 className="w-full mt-2 py-2 px-3 border border-red-300 text-red-600 hover:bg-red-50 rounded-lg font-semibold transition-colors disabled:opacity-50 cursor-pointer"
                 data-testid="btn-disconnect-zotero"
               >
-                {loading ? "Disconnecting..." : "Disconnect Account"}
+                {loading ? "Bağlantı Kesiliyor..." : "Hesap Bağlantısını Kes"}
               </button>
             </div>
           ) : (
             <form onSubmit={handleLink} className="flex flex-col gap-3.5">
               <p className="text-gray-600 leading-relaxed">
-                Connect your <strong>zotero.org</strong> account to browse your personal libraries, collections, and insert references into your documents.
+                Kişisel kitaplıklarınıza ve koleksiyonlarınıza göz atmak ve belgelerinize kaynak eklemek için <strong>zotero.org</strong> hesabınızı bağlayın.
               </p>
 
               <div className="flex flex-col gap-1.5">
                 <label htmlFor="apiKey" className="font-semibold text-gray-700">
-                  Zotero API Key
+                  Zotero API Anahtarı
                 </label>
                 <input
                   id="apiKey"
                   type="password"
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
-                  placeholder="Paste your zotero.org API key..."
+                  placeholder="zotero.org API anahtarınızı yapıştırın..."
                   className="p-2 border border-gray-300 rounded-lg focus:border-red-600 focus:outline-none font-mono text-xs"
                   data-testid="input-zotero-api-key"
                   disabled={loading}
@@ -189,14 +189,14 @@ export function ZoteroAccountModal({
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline flex items-center gap-1"
                 >
-                  <span>Create an API key on zotero.org</span>
+                  <span>zotero.org üzerinde bir API anahtarı oluşturun</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
 
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-gray-600 text-[11px] flex items-start gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                <span>Encrypted at rest using AES-256-GCM. Never shared with third parties or exposed to the browser.</span>
+                <span>AES-256-GCM ile şifrelenerek saklanır. Asla üçüncü taraflarla paylaşılmaz veya tarayıcıya iletilmez.</span>
               </div>
 
               <button
@@ -208,10 +208,10 @@ export function ZoteroAccountModal({
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Validating with zotero.org...</span>
+                    <span>zotero.org ile doğrulanıyor...</span>
                   </>
                 ) : (
-                  <span>Validate &amp; Connect</span>
+                  <span>Doğrula ve Bağla</span>
                 )}
               </button>
             </form>

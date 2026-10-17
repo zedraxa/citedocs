@@ -1184,3 +1184,71 @@ pnpm build
 - **`pnpm test`:** Monorepo genelinde **49 test dosyası, 474 test %100 yeşil** (1 test atlandı).
 - **`pnpm build`:** Tüm 10 paket ve Vite web uygulaması 0 hata ile başarıyla derlendi.
 - **`BASE_URL=https://docs.sifirdanbire.com.tr pnpm test:e2e`:** Güncellenen UI ve testid'lerle canlı ortamda **2/2 E2E testi %100 yeşil** geçti (11.9s).
+
+---
+
+## 19. Türkçe Arayüz ve Yerelleştirme Entegrasyonu (cd-turkish-ui) — Kayıt #019
+
+> **Kayıt No:** #019  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-turkish-ui`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** CiteDocs sisteminin (ONLYOFFICE Docs editör yapılandırması, Zotero ONLYOFFICE eklentisi ve React web arayüzü) baştan sona tutarlı şekilde Türkçe yapılması; varsayılan dilin her yerde Türkçe ("tr" / "tr-TR") olarak belirlenmesi; CSL atıf stili ve Zotero alan kodlarının bozulmadan korunması; birim ve entegrasyon testlerinin güncellenmesi.
+
+### 19.1 Yapılan Çalışmalar
+
+1. **ONLYOFFICE editorConfig ve Belge Şablonu:**
+   - `apps/server/src/onlyoffice/routes.ts`: `editorConfig.lang: "tr"`, `editorConfig.region: "tr-TR"` ve `customization.spellcheck: true` varsayılan olarak sabitlendi. Güvenli `tr` öncelikli dil çözümlemesi sağlandı.
+   - `apps/server/src/documents/templates.ts`: Yeni oluşturulan boş Word (.docx) belgelerinin varsayılan paragraf stiline Türkçe dil tanımlayıcısı (`<w:lang w:val="tr-TR"/>`) eklendi. Böylece ONLYOFFICE içinde yeni belgeler doğrudan Türkçe imla denetimiyle açılır.
+   - `apps/server/test/onlyoffice.test.ts`: Testler `lang: "tr"`, `region: "tr-TR"` ve `spellcheck: true` beklentilerine göre güncellendi.
+   - `apps/server/src/onlyoffice/routes.ts` içindeki Document Server callback işleyicisine ve forcesave/autosave ayarlarına dokunulmayarak paralel çalışan `cd-autosave` dalıyla çakışmalar önlendi.
+
+2. **Zotero ONLYOFFICE Eklentisi Türkçe Çevirisi (Offline Kurulum):**
+   - `deploy/onlyoffice/zotero-translations/tr-TR.json`: Zotero eklentisinin kaynak çeviri setindeki 114 anahtarın tamamını kapsayan eksiksiz Türkçe çeviri dosyası oluşturuldu.
+   - `deploy/onlyoffice.Dockerfile`: İlgili dosya `COPY` ile eklentinin `translations/` dizinine aktarıldı; `langs.json` ve `config.json` içine "tr-TR" ve "tr" yerel ayarlarını ekleyen dayanıklı bir Node.js betiği eklendi.
+   - `apps/server/test/zotero-translation.test.ts`: JSON formatının geçerliliğini ve 114 çeviri anahtarının eksiksizliğini doğrulayan testler yazıldı.
+
+3. **React Web UI (`apps/web`) Türkçe Yerelleştirmesi:**
+   - `apps/web/index.html`: `<html lang="tr">` ve `<title>CiteDocs - Akademik Kelime İşlemci</title>` yapıldı.
+   - `apps/web/src/auth/AuthContext.tsx` & `apps/web/src/documents/i18n.ts`: Varsayılan dil durumu ve fallback dili İngilizce yerine `"tr"` yapıldı.
+   - Kimlik doğrulama sayfaları (`LoginPage`, `SignupPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `VerifyEmailPage`, `UserMenu`): Hata metinleri, butonlar, rozetler ve ipuçları Türkçeleştirildi.
+   - Belgelerim ve Bulut Depolama (`DocumentsPage`, `ShareDialog`, `RenameDialog`, `i18n.ts`): Depolama kotaları, tablo başlıkları, modal formları, doküman tipi etiketleri Türkçeleştirildi; İngilizce/Türkçe anahtar simetrisi korundu.
+   - Belge Taslağı / Outline (`OutlineSidebar.tsx`, `App.tsx`): Başlıklar, boş durumlar ve erişilebilirlik etiketleri Türkçeleştirildi.
+   - Kaynak ve Atıf Bileşenleri (`AddByIdentifier.tsx`, `CitationEditorModal.tsx`, `DocumentCitationsDrawer.tsx`, `StyleSelector.tsx`, `CollaboraEditorPage.tsx`, `ZoteroSidebar.tsx`, `ZoteroAccountModal.tsx`): Tüm butonlar, form alanları, etiketler ve durum bildirimleri Türkçeleştirildi.
+   - PDF Okuyucu Paneli (`PdfReaderPanel.tsx`): Varsayılan dil `"tr"` yapıldı.
+
+4. **CSL Atıf Uyumluluğu:**
+   - CSL motoru ve Zotero alan kodları (`ADDIN ZOTERO_ITEM CSL_CITATION` vb.) kesinlikle değiştirilmedi; CSL yerel ayarı stil ayarlarına göre bağımsız çalışmaya devam ediyor.
+
+5. **Test Paketi Uyarlamaları ve Doğrulama:**
+   - `apps/web/test/outline.test.tsx`, `apps/web/test/collabora-cite-workflow.test.tsx`, `apps/web/test/zotero-sidebar.test.tsx`, `apps/web/test/auth.test.tsx`, `apps/web/test/pdf.test.tsx`, `apps/web/test/documents.test.tsx`: Türkçe arayüz metinlerine göre güncellendi.
+   - `pnpm lint`, `pnpm typecheck`, `pnpm build` ve `pnpm test` monorepo genelinde başarıyla tamamlandı.
+
+### 19.2 Nasıl Doğrulanır?
+
+1. **Sunucu ve Çeviri Testleri:**
+   ```bash
+   pnpm --filter @citedocs/server test
+   ```
+   - ONLYOFFICE rota konfigürasyonunun `lang: "tr"`, `region: "tr-TR"`, `spellcheck: true` döndüğü doğrulanır.
+   - Zotero çeviri dosyasının 114 anahtarla geçerli JSON olduğu test edilir.
+
+2. **Web Arayüz Testleri:**
+   ```bash
+   pnpm --filter @citedocs/web test
+   ```
+   - 13 test dosyasında 101 testin tamamının Türkçe metinlerle hatasız geçtiği doğrulanır.
+
+3. **Tam Monorepo Doğrulaması:**
+   ```bash
+   pnpm lint
+   pnpm typecheck
+   pnpm test
+   pnpm build
+   ```
+
+### 19.3 Açık Kalan Konular / Tarayıcı Kontrolü Gerekenler
+
+- ONLYOFFICE Docs CE konteyneri ayağa kaldırıldığında, Dockerfile içinde eklenen Zotero Türkçe çevirisinin sol eklenti panelinde ("Kaynak Ekle", "Stil Seç", "Zotero'ya Bağlan" vb.) tarayıcı üzerinden görsel kontrolü.
+- Canlı sitede ONLYOFFICE editör menülerinin (Dosya, Giriş, Ekle, vb.) Türkçe görüntülendiğinin teyidi.
+

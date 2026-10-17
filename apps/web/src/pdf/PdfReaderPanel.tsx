@@ -14,7 +14,7 @@ export function PdfReaderPanel({
   onCiteAnnotation,
   collaboraIframeRef,
   initialViewMode = "panel",
-  lang = "en",
+  lang = "tr",
 }: PdfReaderPanelProps) {
   const [viewMode, setViewMode] = useState<PdfReaderViewMode>(initialViewMode);
   const [currentLang, setCurrentLang] = useState<"en" | "tr">(lang);

@@ -113,7 +113,7 @@ export function ZoteroSidebar({
                 ? "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100"
                 : "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100"
             }`}
-            title="Manage linked Zotero account"
+            title="Bağlı Zotero hesabını yönet"
             data-testid="zotero-account-pill"
           >
             <span
@@ -121,7 +121,7 @@ export function ZoteroSidebar({
                 account?.linked ? "bg-emerald-500" : "bg-amber-500"
               }`}
             />
-            <span>{account?.linked ? "Zotero Linked" : "Link Zotero"}</span>
+            <span>{account?.linked ? "Zotero Bağlı" : "Zotero'yu Bağla"}</span>
           </button>
 
           {/* Refresh iframe */}
@@ -132,7 +132,7 @@ export function ZoteroSidebar({
               setIframeKey((k) => k + 1);
             }}
             className="p-1 text-gray-500 hover:text-gray-800 rounded hover:bg-gray-200 transition-colors cursor-pointer"
-            title="Refresh library"
+            title="Kütüphaneyi yenile"
             data-testid="refresh-weblib-btn"
           >
             <RefreshCw className="w-3.5 h-3.5" />
@@ -143,7 +143,7 @@ export function ZoteroSidebar({
             type="button"
             onClick={onClose}
             className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200 transition-colors cursor-pointer"
-            title="Close sidebar"
+            title="Kenar çubuğunu kapat"
             data-testid="close-zotero-sidebar-btn"
           >
             <X className="w-4 h-4" />

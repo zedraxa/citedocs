@@ -15,7 +15,7 @@ export function ShareDialog({
   document,
   isOpen,
   onClose,
-  lang = "en",
+  lang = "tr",
 }: ShareDialogProps) {
   const t = docTranslations[lang] || docTranslations.en;
   const [shares, setShares] = useState<ShareItem[]>([]);

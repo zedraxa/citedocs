@@ -56,7 +56,7 @@ export function UserMenu({ currentUser }: UserMenuProps) {
           onClick={toggleLang}
           data-testid="lang-toggle-btn"
           className="flex items-center space-x-1 text-xs font-semibold px-2 py-1 rounded-full border border-gray-300 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
-          title={`Switch language: currently ${lang.toUpperCase()}`}
+          title={`Dil değiştir: şu anda ${lang.toUpperCase()}`}
         >
           <Globe className="w-3.5 h-3.5 text-gray-500" />
           <span>{lang === "tr" ? "TR" : "EN"}</span>
@@ -92,7 +92,7 @@ export function UserMenu({ currentUser }: UserMenuProps) {
         onClick={() => setDropdownOpen(!dropdownOpen)}
         data-testid="user-menu-btn"
         className="flex items-center space-x-1.5 p-0.5 rounded-full hover:ring-2 hover:ring-blue-400 focus:outline-none transition-all cursor-pointer"
-        title={`Account: ${displayName}`}
+        title={`Hesap: ${displayName}`}
         aria-expanded={dropdownOpen}
       >
         <div

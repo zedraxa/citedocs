@@ -27,7 +27,7 @@ export function LoginPage({
     setLocalError(null);
 
     if (!email.trim() || !password) {
-      setLocalError(t("requiredFields" as unknown as "invalidEmail") || "Please fill all fields");
+      setLocalError(t("requiredFields" as unknown as "invalidEmail") || "Lütfen tüm alanları doldurun");
       return;
     }
 
@@ -36,7 +36,7 @@ export function LoginPage({
       const user = await login({ email: email.trim(), password });
       onSuccess?.(user);
     } catch (err: unknown) {
-      setLocalError((err as Error).message || "Login failed");
+      setLocalError((err as Error).message || "Giriş başarısız oldu");
     } finally {
       setSubmitting(false);
     }

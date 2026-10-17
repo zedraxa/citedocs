@@ -41,7 +41,7 @@ export function ResetPasswordPage({
 
     const trimmedToken = token.trim();
     if (!trimmedToken) {
-      setLocalError(t("resetToken") + " is required");
+      setLocalError(t("resetToken") + " zorunludur");
       return;
     }
 
@@ -61,7 +61,7 @@ export function ResetPasswordPage({
       setSuccess(true);
       onSuccess?.();
     } catch (err: unknown) {
-      setLocalError((err as Error).message || "Reset failed");
+      setLocalError((err as Error).message || "Şifre sıfırlama başarısız oldu");
     } finally {
       setSubmitting(false);
     }

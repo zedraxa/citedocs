@@ -179,7 +179,7 @@ describe("Web PDF Reader Integration", () => {
       );
 
       expect(screen.getByTestId("pdf-reader-panel")).toBeDefined();
-      expect(screen.getByText("Zotero PDF Reader")).toBeDefined();
+      expect(screen.getByText("Zotero PDF Okuyucu")).toBeDefined();
       expect(screen.getByText("— Einstein1935.pdf")).toBeDefined();
       expect(screen.getByTestId("close-pdf-reader-btn")).toBeDefined();
       expect(screen.getByTestId("toggle-fullscreen-btn")).toBeDefined();

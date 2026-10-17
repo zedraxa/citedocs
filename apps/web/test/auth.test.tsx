@@ -40,7 +40,7 @@ describe("Web Authentication & Signup System (@citedocs/web)", () => {
       expect(container.querySelector("[data-testid='login-email-input']")).not.toBeNull();
       expect(container.querySelector("[data-testid='login-password-input']")).not.toBeNull();
       expect(container.querySelector("[data-testid='login-submit-btn']")).not.toBeNull();
-      expect(container.textContent).toContain("100% free for students");
+      expect(container.textContent).toContain("%100 ücretsiz");
 
       await act(async () => {
         root.unmount();
@@ -160,7 +160,7 @@ describe("Web Authentication & Signup System (@citedocs/web)", () => {
         fireEvent.submit(form);
       });
 
-      expect(container.querySelector("[data-testid='auth-error-banner']")?.textContent).toContain("at least 8 characters");
+      expect(container.querySelector("[data-testid='auth-error-banner']")?.textContent).toContain("en az 8 karakter");
 
       // 2. Mismatched passwords
       await act(async () => {
@@ -172,7 +172,7 @@ describe("Web Authentication & Signup System (@citedocs/web)", () => {
         fireEvent.submit(form);
       });
 
-      expect(container.querySelector("[data-testid='auth-error-banner']")?.textContent).toContain("do not match");
+      expect(container.querySelector("[data-testid='auth-error-banner']")?.textContent).toContain("eşleşmiyor");
 
       await act(async () => {
         root.unmount();

@@ -399,7 +399,7 @@ function AppEditor() {
           <button
             onClick={() => setShowOutline(!showOutline)}
             className={`p-1.5 rounded-full hover:bg-gray-100 text-gray-600 ${showOutline ? "bg-gray-100" : ""}`}
-            title="Toggle Document Outline"
+            title="Belge Taslağını Aç/Kapat"
             aria-expanded={showOutline}
             aria-controls="document-outline"
           >
@@ -996,7 +996,7 @@ export function EditorRoute() {
     return (
       <OnlyofficeEditorPage
         documentId={doc}
-        documentTitle={params.get("title") || "Untitled Document"}
+        documentTitle={params.get("title") || "Adsız Belge"}
         onBackToDocuments={() => {
           window.location.href = "/documents";
         }}
@@ -1006,7 +1006,7 @@ export function EditorRoute() {
   return (
     <CollaboraEditorPage
       documentId={doc}
-      documentTitle={params.get("title") || "Untitled Document"}
+      documentTitle={params.get("title") || "Adsız Belge"}
       onBackToDocuments={() => {
         window.location.href = "/documents";
       }}

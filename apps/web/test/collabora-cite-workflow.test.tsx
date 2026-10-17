@@ -100,7 +100,7 @@ describe("CitationEditorModal Component", () => {
     );
 
     expect(screen.getByTestId("citation-editor-modal")).toBeDefined();
-    expect(screen.getAllByText("Insert Citation").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Atıf Ekle").length).toBeGreaterThan(0);
 
     const preview = screen.getByTestId("citation-live-preview");
     expect(preview.textContent).toContain("Libby, 2021");
@@ -167,7 +167,7 @@ describe("CitationEditorModal Component", () => {
       />,
     );
 
-    expect(screen.getByText("Edit Citation")).toBeDefined();
+    expect(screen.getByText("Atfı Düzenle")).toBeDefined();
     const deleteBtn = screen.getByTestId("delete-citation-btn");
     expect(deleteBtn).toBeDefined();
 

@@ -393,4 +393,121 @@ test.describe("Zotero & CSL Style Compatibility (oo-zotero-compat)", () => {
     await expect(styleLabel).toContainText(/TÜBİTAK/i);
     await expect(page.getByTestId("oo-notice")).toContainText(/Atıf stili güncellendi/i);
   });
+
+  test.fixme(
+    "Requirement 3: Citation style switch triggers plugin refresh and re-renders citations and bibliography (needs live ONLYOFFICE & Zotero)",
+    async ({ page, context }) => {
+      // -------------------------------------------------------------------------
+      // Step 1: Sign up fresh student and create new document
+      // -------------------------------------------------------------------------
+      const timestamp = Date.now();
+      const studentEmail = `qa+stylesync_${timestamp}@example.com`;
+      const password = "StrongStudentPassword123!";
+
+      await page.goto("/signup");
+      await page.getByTestId("signup-email-input").fill(studentEmail);
+      await page.getByTestId("signup-name-input").fill(`Style Sync Student ${timestamp}`);
+      await page.getByTestId("signup-password-input").fill(password);
+      await page.getByTestId("signup-confirm-password-input").fill(password);
+      await page.getByTestId("signup-submit-btn").click();
+      await expect(page).toHaveURL(/.*\/documents/, { timeout: 15_000 });
+
+      await page.getByTestId("new-document-button").click();
+      await expect(page).toHaveURL(/.*\/editor\?doc=/, { timeout: 20_000 });
+      const docUrl = page.url();
+      const docId = new URL(docUrl).searchParams.get("doc");
+      expect(docId).toBeTruthy();
+
+      // -------------------------------------------------------------------------
+      // Step 2: Verify default style is APA 7th ('apa', 'tr-TR')
+      // -------------------------------------------------------------------------
+      const styleLabel = page.getByTestId("oo-style-current-label");
+      await expect(styleLabel).toContainText(/APA 7/i, { timeout: 15_000 });
+
+      // Verify server document style endpoint returns default APA 7
+      const initialCitationsRes = await page.evaluate(async (id) => {
+        const res = await fetch(`/api/documents/${id}/citations`);
+        return { status: res.status, data: await res.json() };
+      }, docId);
+      expect(initialCitationsRes.status).toBe(200);
+
+      // Verify localStorage is seeded with canonical keys for ONLYOFFICE Zotero plugin
+      const storageState = await page.evaluate(() => ({
+        styleId: localStorage.getItem("zoteroStyleId"),
+        lang: localStorage.getItem("zoteroLang"),
+        formatId: localStorage.getItem("zoteroFormatId"),
+      }));
+      expect(storageState.styleId).toBe("apa");
+      expect(storageState.lang).toBe("tr-TR");
+      expect(storageState.formatId).toBe("author-date");
+
+      // -------------------------------------------------------------------------
+      // Step 3: Switch style to IEEE via StylePicker
+      // -------------------------------------------------------------------------
+      await page.getByTestId("oo-style-picker-btn").click();
+      const dropdown = page.getByTestId("oo-style-picker-dropdown");
+      await expect(dropdown).toBeVisible();
+
+      await page.getByTestId("oo-style-item-ieee").click();
+      await expect(dropdown).not.toBeVisible();
+      await expect(styleLabel).toContainText(/IEEE/i);
+      await expect(page.getByTestId("oo-notice")).toContainText(/Atıf stili güncellendi/i);
+
+      // -------------------------------------------------------------------------
+      // Step 4: Verify server document preferences and storage keys are updated
+      // -------------------------------------------------------------------------
+      const updatedStorageState = await page.evaluate(() => ({
+        styleId: localStorage.getItem("zoteroStyleId"),
+        lang: localStorage.getItem("zoteroLang"),
+        formatId: localStorage.getItem("zoteroFormatId"),
+      }));
+      expect(updatedStorageState.styleId).toBe("ieee");
+      expect(updatedStorageState.lang).toBe("tr-TR");
+      expect(updatedStorageState.formatId).toBe("numeric");
+
+      // Verify document ZOTERO_PREF on server
+      const updatedCitationsRes = await page.evaluate(async (id) => {
+        const res = await fetch(`/api/documents/${id}/citations`);
+        return { status: res.status, data: await res.json() };
+      }, docId);
+      expect(updatedCitationsRes.data.style).toBe("ieee");
+
+      // -------------------------------------------------------------------------
+      // Step 5: Verify live ONLYOFFICE document re-rendered citation & bibliography
+      // -------------------------------------------------------------------------
+      // Inside ONLYOFFICE editor iframe and Zotero plugin frame, citations must render as [1]
+      // instead of (Author, Year).
+      const reRendered = await page.evaluate(() => {
+        try {
+          const frame = document.querySelector('iframe[name="frameEditor"]') as HTMLIFrameElement | null;
+          const doc = frame?.contentDocument || (frame?.contentWindow as Window | undefined)?.document;
+          const bodyText = doc?.body?.innerText || "";
+          return bodyText.includes("[1]");
+        } catch {
+          return false;
+        }
+      });
+      expect(reRendered).toBe(true);
+
+      // -------------------------------------------------------------------------
+      // Step 6: Verify persistence across reload and fresh session
+      // -------------------------------------------------------------------------
+      // Open in fresh browser tab to ensure style comes from document ZOTERO_PREF
+      const newPage = await context.newPage();
+      await newPage.goto(`/editor?doc=${docId}`);
+      await expect(newPage.getByTestId("oo-style-current-label")).toContainText(/IEEE/i, {
+        timeout: 20_000,
+      });
+
+      const reloadedStorage = await newPage.evaluate(() => ({
+        styleId: localStorage.getItem("zoteroStyleId"),
+        lang: localStorage.getItem("zoteroLang"),
+      }));
+      expect(reloadedStorage.styleId).toBe("ieee");
+      expect(reloadedStorage.lang).toBe("tr-TR");
+
+      await newPage.close();
+    },
+  );
 });
+

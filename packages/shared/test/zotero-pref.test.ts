@@ -7,6 +7,8 @@ import {
   DEFAULT_STYLE_ID,
   DEFAULT_LOCALE,
   PINNED_STYLE_IDS,
+  ZOTERO_PLUGIN_STORAGE_KEYS,
+  getStyleCitationFormat,
 } from "../src/zoteroPref.js";
 
 describe("Zotero Preferences XML & Chunking (zoteroPref)", () => {
@@ -121,5 +123,23 @@ describe("Zotero Preferences XML & Chunking (zoteroPref)", () => {
     expect(PINNED_STYLE_IDS).toContain(
       "turkiye-bilimsel-ve-teknolojik-arastirma-kurumu",
     );
+  });
+
+  it("exposes canonical ONLYOFFICE Zotero plugin storage keys", () => {
+    expect(ZOTERO_PLUGIN_STORAGE_KEYS.STYLE_ID).toBe("zoteroStyleId");
+    expect(ZOTERO_PLUGIN_STORAGE_KEYS.LANG).toBe("zoteroLang");
+    expect(ZOTERO_PLUGIN_STORAGE_KEYS.FORMAT_ID).toBe("zoteroFormatId");
+    expect(ZOTERO_PLUGIN_STORAGE_KEYS.CONTAIN_BIBLIOGRAPHY).toBe("zoteroContainBibliography");
+    expect(ZOTERO_PLUGIN_STORAGE_KEYS.NOTES_STYLE_ID).toBe("zoteroNotesStyleId");
+  });
+
+  it("determines correct citation format for various style IDs", () => {
+    expect(getStyleCitationFormat("apa")).toBe("author-date");
+    expect(getStyleCitationFormat("ieee")).toBe("numeric");
+    expect(getStyleCitationFormat("turkiye-bilimsel-ve-teknolojik-arastirma-kurumu")).toBe("numeric");
+    expect(getStyleCitationFormat("vancouver")).toBe("numeric");
+    expect(getStyleCitationFormat("chicago-notes-bibliography")).toBe("note");
+    expect(getStyleCitationFormat("chicago-author-date")).toBe("author-date");
+    expect(getStyleCitationFormat("unknown-custom-style")).toBe("author-date");
   });
 });

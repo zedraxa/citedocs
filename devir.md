@@ -1999,11 +1999,11 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
 - Canlı zotero.org hesabı ile uçtan uca doğrulama `e2e/oo-zotero-import.spec.ts` içinde `test.fixme` olarak işaretlenmiştir; CI/CD çevrimdışı çalışmaktadır.
 - ONLYOFFICE Document Server ve AWS dağıtımları ana ajanın kontrolündedir.
 
-||||||| 0ee6f1b
+---
 
 ## Web Üst Bar Dil Değiştirici Butonunun Kaldırılması, Kullanıcı Menüsü Dil Senkronizasyonu ve Tek Seferlik Geçiş — Kayıt #037
 
-> **Kayıt No:** #034  
+> **Kayıt No:** #037  
 > **Tarih:** 2026-10-17  
 > **Dal:** `cd-lang-toggle`  
 > **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
@@ -2053,9 +2053,114 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
   - **70 test dosyası** çalıştırıldı (2 yeni test dosyası eklendi).
   - **658 test başarılı**, 1 atlanan, 3 yapılacak (todo). 0 başarısız!
 
-## Zotero OAuth Bağlantı Düzeltmesi ve Manuel API Anahtarı Girişinin UI'dan Kaldırılması — Kayıt #038
+---
 
-> **Kayıt No:** #038  
+## ONLYOFFICE Zotero Eklentisi Atıf Stili Senkronizasyonu ve Tek Doğruluk Kaynağı — Kayıt #038
+
+> **Kayıt No:** #038 (dalda #034 olarak açıldı; main dalındaki #035, #036 ve #037 kayıtlarının ardından ardışık sıra korunarak #038 olarak güncellendi)  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-style-sync`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Üst bar atıf stili seçicisinin (StylePicker) tek doğruluk kaynağı (Single Source of Truth) yapılması. APA 7 <-> IEEE ve diğer stiller arası geçişte ONLYOFFICE editöründeki atıfların ve kaynakçanın anında yeniden render edilmesi; yeni belgelerin ve eklentinin IEEE yerine APA 7th edition (`apa`, `tr-TR`) varsayılanıyla başlaması; belgeden gelen stilin kapatıp açma ve yeni tarayıcı oturumlarında kalıcılığının sağlanması; ZOTERO_PREF ve Word alan kodları uyumluluğunun korunması.
+
+### 1. Kök Neden Analizi (Root Cause Analysis)
+
+1. **Yanlış/Tahmini localStorage Anahtarları:**
+   - Resmi ONLYOFFICE Zotero eklentisi kaynak kodları (`sdkjs-plugins/content/zotero`, `CslStylesManager`, `LocalesManager`, `CslStylesStorage`) incelendiğinde; eklentinin seçili CSL stilini `zoteroStyleId`, dili `zoteroLang`, formatı `zoteroFormatId` anahtarlarından okuduğu belirlendi.
+   - Önceki `syncZoteroPluginStorage()` fonksiyonu ise tahmin edilmiş `zoteroStyle`, `zotero_style`, `zoteroLocale` anahtarlarına yazıyordu. Eklenti bu anahtarları okumadığı için kodlanmış varsayılanı olan `ieee` ve `en-US` değerlerine geri dönüyordu. Bu nedenle sıfır bir belge dahi açıldığında stil seçici APA 7 dese de eklenti IEEE render ediyordu.
+2. **Farklı Frame/Origin İzolasyonu:**
+   - Önceki kod yalnızca ana React uygulaması penceresinin (`window.localStorage`) depolamasına yazıyordu. Oysa ONLYOFFICE Zotero eklentisi editör içi iframe (`#panel-plugins-zotero iframe`) içinde çalıştığından ana sayfa depolamasındaki değişiklikler eklenti çerçevesine ulaşmıyordu.
+3. **Hatalı DOM Tetikleme Seçicisi:**
+   - Yenileme butonu `button#refresh` veya `.btn-refresh` seçicileriyle aranıyordu; ancak resmi Zotero eklentisinde yenileme butonunun gerçek element id'si `refreshBtn`'dir (`new Button("refreshBtn")`).
+4. **Motor Önbellek Eksikliği:**
+   - `refreshBtn` doğrudan tıklandığında `citationService.updateCslItems()` çalışır ve `#updateFormatter()` içinde `cslStylesManager.cached(styleId)` arar. Eğer hedef stil daha önce `getStyle(styleId, true)` ile bellek içine indirilip önbelleğe alınmamışsa motor ilklendirilemez (`CSL.Engine` hatası oluşur).
+
+### 2. Uygulanan Mimari Çözümler
+
+1. **Ortak Anahtar ve Format Tanımları (`packages/shared/src/zoteroPref.ts`):**
+   - Eklentinin okuduğu kanonik anahtarlar `ZOTERO_PLUGIN_STORAGE_KEYS` sabiti olarak tanımlandı (`STYLE_ID: "zoteroStyleId"`, `LANG: "zoteroLang"`, `FORMAT_ID: "zoteroFormatId"`, `CONTAIN_BIBLIOGRAPHY: "zoteroContainBibliography"`, `NOTES_STYLE_ID: "zoteroNotesStyleId"`).
+   - Stilin atıf formatını (`numeric`, `author-date`, `note`) çözümleyen `getStyleCitationFormat(styleId)` yardımcı fonksiyonu eklendi.
+   - 11 birim testi ile doğrulandı (`packages/shared/test/zotero-pref.test.ts`).
+
+2. **Konteyner Eklenti Refakatçi Kancası (`deploy/onlyoffice/zotero-sync-hook.js`):**
+   - ONLYOFFICE Zotero eklentisi çalışma ortamına enjekte edilen hafif refakatçi kanca geliştirildi:
+     - Eklenti ilk yüklendiğinde `zoteroStyleId` boşsa varsayılanı doğrudan `apa` ve `tr-TR` olarak tohumlar (böylece sıfır belgelerde eklenti asla IEEE ile başlamaz).
+     - `window.__citedocsSyncStyle(styleId, locale, format)` metodunu dışa açar.
+     - `message` dinleyicisi ile `postMessage` (`zotero:refreshStyle`, `zotero:setStyle`, `citedocs:styleChange`) mesajlarını karşılar.
+     - `LocalesManager.loadLocale()`, `CslStylesManager.getStyle(styleId, true)` ve `citationService.updateCslItems(true)` (veya notlu stiller için `updateCslItemsInNotes`) zincirini yürüterek motoru günceller ve tüm atıflar ile kaynakçayı otomatik re-render eder.
+
+3. **ONLYOFFICE İmaj Entegrasyonu (`deploy/onlyoffice.Dockerfile`):**
+   - `zotero-sync-hook.js` eklenti dizinine kopyalandı.
+   - `index.html` içine betik etiketi olarak eklendi.
+   - `bundle.modern.js` üzerinde `window.__zoteroSettings` ve `window.__zoteroCitationService` referansları dışa aktarılarak doğrudan API kontrolü sağlandı.
+   - Gzip sıkıştırmaları ve 0o644 dosya izinleri tamamlandı. `docker-compose` ve Caddyfile dosyalarına dokunulmadı.
+
+4. **Çok Pencereli Editör Köprüsü (`apps/web/src/onlyoffice/editorStyleBridge.ts`):**
+   - `syncZoteroPluginStorage()`: Ana pencere, editör iframe penceresi ve eklenti iframe penceresinin tümüne kanonik ve geriye dönük uyumlu anahtarları yazar.
+   - `applyStyleInOnlyoffice()`:
+     - 250 karakterlik `ZOTERO_PREF_1..` parçalarını `Asc.editor.callCommand` ve `connector.executeMethod` ile belgenin `Api.GetCustomProperties()` alanına yazar.
+     - `pluginWindow.__citedocsSyncStyle` varsa doğrudan çağırır.
+     - `__zoteroSettings` ve `__zoteroCitationService` üzerinden `loadLocale`, `getStyle`, `updateCslItems` tetikler.
+     - DOM üzerinden `refreshBtn` elementini tıklar.
+     - Eklenti penceresine `postMessage` gönderir.
+
+5. **Editör Sayfası Yaşam Döngüsü (`apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx`):**
+   - Sayfa açılışında `GET /api/documents/:id/citations` çağrılarak belgenin stili çözümlenir (tanımlı değilse APA 7 ve `tr-TR`).
+   - Eklenti açılmadan hemen önce `syncZoteroPluginStorage()` çağrılarak localStorage tohumlanır.
+   - `onDocumentReady` olayında `applyStyleInOnlyoffice()` çağrılarak belge ve eklentiye stil basılır.
+   - Üst bar `StylePicker` üzerinden seçim yapıldığında `applyStyleInOnlyoffice()` anında çalıştırılır, `PUT /api/documents/:id/style` ile sunucuya kaydedilir ve Türkçe bildirim gösterilir.
+
+### 3. Test ve Doğrulama Durumu
+
+1. **Birim ve Entegrasyon Testleri:**
+   - `apps/web/test/editor-style-bridge.test.ts`: 12 test (kanonik anahtarlar, çoklu pencere senkronizasyonu, cross-origin/hata toleransı, `__citedocsSyncStyle`, doğrudan servis tetikleme, DOM `#refreshBtn`, `postMessage`).
+   - `apps/web/test/onlyoffice-editor.test.tsx`: 13 test (başlangıçta stil yükleme, APA 7th / tr-TR varsayılanı, stil değişimi sonrası localStorage güncellenmesi).
+   - `packages/shared/test/zotero-pref.test.ts`: 11 test (XML parçalama, format tespiti).
+2. **E2E Test Paketi (`e2e/oo-zotero-compat.spec.ts`):**
+   - Requirement 3 e2e testi (`test.fixme`) eklendi: Yeni belge açılışı, varsayılan APA 7 ve `tr-TR` doğrulaması, IEEE seçimi, storage güncellenmesi, `[1]` formatında re-render doğrulaması ve tarayıcı yenilemesi sonrası kalıcılık senaryosu.
+3. **Monorepo Genel Doğrulama:**
+   - `pnpm lint`: 0 hata, 0 uyarı.
+   - `pnpm typecheck`: 0 hata.
+   - `pnpm test`: **72 test dosyası**, **697 başarılı**, 1 atlanan, 3 todo, 0 başarısız (main dalı birleştirmesi sonrası tam paket doğrulaması)!
+   - `pnpm build`: Tüm paket ve uygulamalar eksiksiz derlendi.
+   - `tsconfig.tsbuildinfo` temizlendi.
+
+### 4. Açık Konular (Open Issues)
+
+- Canlı ONLYOFFICE Document Server ve Zotero eklentisi konteynerlerinin çalıştığı tam entegrasyon ortamında Requirement 3 e2e testindeki `test.fixme` kaldırılarak canlı re-render doğrulaması yapılabilir.
+- Paralel geliştirilen ZC-01 ve ZC-02 (ODT formatındaki Zotero referans işaretleri) konuları bağımsız olarak devam etmektedir.
+
+---
+
+## Kayıt #039 — Web açılış yükünün azaltılması (17 Ekim 2026)
+
+- `App.tsx` rotaları ONLYOFFICE, Collabora, eski TipTap ve belgeler sayfasını `React.lazy` ile yükler; bekleme metni **Yükleniyor…**. Eski editör `LegacyEditorPage.tsx` içine taşındı; PDF paneli açılınca yüklenir. ONLYOFFICE sayfasının içeriği ve `deploy/` değiştirilmedi.
+- Belgeler araması 250 ms bekleyerek hızlı tuş girişlerini tek istekte birleştirir. StrictMode başlangıç tekrarı tek isteğe düşer; eski yanıtlar yeni aramayı ezmez, kaldırılan bileşenin bekleyen araması iptal edilir. Kullanıcılar arasında veri önbelleği tutulmaz.
+- Nginx gzip eklendi; mevcut `/assets/` için bir yıllık immutable ve HTML için no-cache/no-store başlıkları korundu. Vite'ın otomatik bölmesi yeterli olduğundan ölçülmemiş `manualChunks` ayarı eklenmedi.
+
+Ölçüm: üretim derlemesi, ondalık kB (1000 bayt), her dosya ayrı gzip (Node varsayılanı); kaynak haritaları toplam dışında. İlk `pnpm --filter ./apps/web build`, ortak paketlerin `dist` çıktıları eksik olduğundan başarısız oldu; `pnpm -r --filter './packages/*' build` sonrası başlangıç derlemesi alındı.
+
+| Ölçüm | Önce kB / gzip kB | Sonra kB / gzip kB |
+| --- | ---: | ---: |
+| Ana JS / giriş rotası | 2793,113 / 697,413 | 272,111 / 82,014 |
+| Tüm JS | 2793,113 / 697,413 | 2793,318 / 707,431 |
+| Tüm CSS | 43,931 / 8,117 | 43,931 / 8,117 |
+
+Giriş JS gzip yükü %88,2 azaldı. Belgeler rotası ortak bağımlılıklarıyla 320,259 kB / 96,896 kB gzip (editör kodu hariç).
+
+Başlangıç kaynak haritasında en büyük üçüncü taraf kaynakları PDF.js (1007 kB), citeproc (967 kB), React DOM (635 kB), ardından TipTap/ProseMirror/Yjs idi. Bunlar sıkıştırılmamış kaynak büyüklükleridir, minify edilmiş paket payları değildir. İlk yükleme kazancı kodun ihtiyaç anına ertelenmesidir; toplam JS gzip boyutu ayrı sıkıştırma nedeniyle yaklaşık 10 kB artar.
+
+Doğrulama: `pnpm build`, ardından `node apps/web/scripts/bundle-report.mjs` dosya/toplam/gzip ve girişin statik bağımlılıklarını raporlar. `pnpm lint`, `pnpm typecheck`, `pnpm --filter ./apps/web test`, `pnpm --filter ./apps/server test` çalıştırılır. Rota testi giriş/belgeler ekranlarında editör modüllerinin yüklenmediğini ve editör rotasında yalnız seçilen editörün yüklendiğini denetler. Belge yükleme testleri StrictMode, arama birleştirme, eski başarılı/hatalı yanıtlar ve kaldırma durumunu kapsar.
+
+Kontrol sonuçları: `pnpm lint`, `pnpm typecheck`, `pnpm build` başarılı. Tam web: **22 dosya / 180 başarılı test**. Sunucu: **32 dosya / 354 başarılı, 3 mevcut todo**. Testler yerel/sahte servislerle çalıştı; canlı servis testi, push, merge veya deploy yapılmadı.
+
+Açık konular: Bu ölçüm derleme çıktısı boyutu ve bağımlılık grafiği ölçümüdür; canlı LCP/INP veya API gecikmesi ölçülmedi. Büyük eski editör/PDF parçaları ihtiyaç anında hâlâ yüklenir ve Vite boyut uyarısı sürer. Nginx bu ortamda kurulu olmadığından `nginx -t` ve gerçek HTTP gzip/önbellek başlıkları çalıştırılarak doğrulanamadı; dağıtım yapılmadı. Sunucu performansı ayrı çalışmanın kapsamındadır.
+
+---
+
+## Zotero OAuth Bağlantı Düzeltmesi ve Manuel API Anahtarı Girişinin UI'dan Kaldırılması — Kayıt #040
+
+> **Kayıt No:** #040  
 > **Tarih:** 2026-10-17  
 > **Dal:** `cd-oauth-fix`  
 > **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
@@ -2122,6 +2227,5 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
 - **`pnpm typecheck`:** 0 hata (tüm monorepo TypeScript derlemesi başarılı).
 - **`pnpm build`:** Tüm paketler ve uygulamalar (`@citedocs/web`, `@citedocs/server`, `@citedocs/shared` vb.) başarıyla derlendi.
 - **`pnpm test` (Tam Test Paketi):**
-  - **72 test dosyası** çalıştırıldı.
-  - **692 test başarılı**, 1 atlanan, 3 yapılacak (todo). 0 başarısız!
-
+  - **74 test dosyası** çalıştırıldı.
+  - **709 test başarılı**, 1 atlanan, 3 yapılabilir/todo. 0 başarısız!

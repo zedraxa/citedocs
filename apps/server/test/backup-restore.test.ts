@@ -206,8 +206,9 @@ describe("CiteDocs Backup & Restore Tooling", () => {
           ],
           { stdio: "pipe", encoding: "utf8" },
         );
-      } catch (err: any) {
-        errorStderr = (err.stderr || "") + (err.stdout || "") + err.message;
+      } catch (err: unknown) {
+        const error = err as { stderr?: string | Buffer; stdout?: string | Buffer; message?: string };
+        errorStderr = String(error.stderr || "") + String(error.stdout || "") + String(error.message || "");
       }
 
       expect(errorStderr).toContain("Insufficient disk space on target filesystem");
@@ -252,8 +253,9 @@ describe("CiteDocs Backup & Restore Tooling", () => {
           ["--backup-dir", tempDir, "--min-free-mb", "999999999"],
           { encoding: "utf8", stdio: "pipe" },
         );
-      } catch (err: any) {
-        output = (err.stdout || "") + (err.stderr || "");
+      } catch (err: unknown) {
+        const error = err as { stderr?: string | Buffer; stdout?: string | Buffer };
+        output = String(error.stdout || "") + String(error.stderr || "");
       }
 
       // Assert stale items were detected and cleaned
@@ -304,9 +306,10 @@ exit 0
             encoding: "utf8",
           },
         );
-      } catch (err: any) {
+      } catch (err: unknown) {
         failed = true;
-        const errOut = (err.stderr || "") + (err.stdout || "");
+        const error = err as { stderr?: string | Buffer; stdout?: string | Buffer };
+        const errOut = String(error.stderr || "") + String(error.stdout || "");
         expect(errOut).toContain("Backup failed with exit code");
       }
 

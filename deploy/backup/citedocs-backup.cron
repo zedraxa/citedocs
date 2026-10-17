@@ -1,0 +1,22 @@
+# ==============================================================================
+# /etc/cron.d/citedocs-backup: CiteDocs Automated Daily Backup Cron Job
+# ------------------------------------------------------------------------------
+# Schedule: Every day at 03:30 Europe/Istanbul time (UTC+3, 00:30 UTC).
+#
+# Installation instructions on production host:
+#   1. Copy this file into /etc/cron.d/:
+#        sudo cp deploy/backup/citedocs-backup.cron /etc/cron.d/citedocs-backup
+#   2. Set root ownership and standard cron permissions:
+#        sudo chown root:root /etc/cron.d/citedocs-backup
+#        sudo chmod 0644 /etc/cron.d/citedocs-backup
+#   3. Ensure log directory and log file exist with appropriate permissions:
+#        sudo touch /var/log/citedocs-backup.log
+#        sudo chmod 0640 /var/log/citedocs-backup.log
+# ==============================================================================
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+CRON_TZ=Europe/Istanbul
+
+# Run every day at 03:30 Europe/Istanbul
+30 3 * * * root /opt/citedocs/deploy/backup/citedocs-backup.sh --env-file /opt/citedocs/.env >> /var/log/citedocs-backup.log 2>&1

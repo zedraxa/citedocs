@@ -1,0 +1,17 @@
+[Unit]
+Description=CiteDocs Automated Database and Object Storage Backup
+Documentation=file:///opt/citedocs/docs/BACKUP.md
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/citedocs
+EnvironmentFile=-/opt/citedocs/.env
+ExecStart=/opt/citedocs/deploy/backup/citedocs-backup.sh --env-file /opt/citedocs/.env
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,13 @@
+[Unit]
+Description=CiteDocs kapasite ve kaynak denetimi
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/citedocs-capacity.env
+ExecStart=/opt/citedocs/deploy/ops/check-capacity.sh
+TimeoutStartSec=240
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=citedocs-capacity

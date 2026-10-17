@@ -576,32 +576,34 @@ export function OnlyofficeEditorPage({
         </form>
       </header>
 
-      {notice && (
-        <div
-          className={`flex items-center justify-between px-3 py-1.5 text-sm ${
-            notice.ok ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"
-          }`}
-          data-testid="oo-notice"
-        >
-          <span>{notice.text}</span>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            className="ml-2 text-slate-500 hover:text-slate-800"
-            aria-label="Kapat"
+      <div id="oo-notices-wrapper" className="flex-none">
+        {notice && (
+          <div
+            className={`flex items-center justify-between px-3 py-1.5 text-sm ${
+              notice.ok ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"
+            }`}
+            data-testid="oo-notice"
           >
-            <X size={14} />
-          </button>
-        </div>
-      )}
+            <span>{notice.text}</span>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              className="ml-2 text-slate-500 hover:text-slate-800"
+              aria-label="Kapat"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
-      {error && (
-        <div className="bg-red-50 px-3 py-1 text-sm text-red-700" data-testid="oo-error">
-          {error}
-        </div>
-      )}
+        {error && (
+          <div className="bg-red-50 px-3 py-1 text-sm text-red-700" data-testid="oo-error">
+            {error}
+          </div>
+        )}
 
-      <OdtNoticeBanner documentId={documentId} documentTitle={documentTitle} />
+        <OdtNoticeBanner documentId={documentId} documentTitle={documentTitle} />
+      </div>
 
       <div className="relative flex flex-1 overflow-hidden">
         {/* Editor canvas */}

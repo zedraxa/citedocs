@@ -306,4 +306,131 @@ describe("ONLYOFFICE routes", () => {
       ).statusCode,
     ).toBe(401);
   });
+
+  it("configures editorConfig.customization with autosave: true and forcesave: true", async () => {
+    const cfg = await config();
+    expect(cfg.editorConfig.customization.autosave).toBe(true);
+    expect(cfg.editorConfig.customization.forcesave).toBe(true);
+  });
+
+  it("maintains stable document key during active session across status 6 saves, and changes key after status 2", async () => {
+    // 1. Initial session opening generates session key K1
+    const cfg1 = await config("owner");
+    const key1 = cfg1.document.key;
+    expect(key1).toBeTruthy();
+
+    // 2. Status 6 (force-save while editing) occurs
+    fetchFn.mockResolvedValueOnce(new Response("force-saved content"));
+    const saveRes = await callback(
+      { status: 6, url: "http://onlyoffice/cache/doc.docx" },
+      "owner",
+    );
+    expect(saveRes.json()).toEqual({ error: 0 });
+    expect((await storage.getFile("doc")).buffer.toString()).toBe("force-saved content");
+
+    // 3. User B joins or User A reloads during the active session -> MUST receive same key1
+    const cfg2 = await config("editor");
+    expect(cfg2.document.key).toBe(key1);
+
+    // 4. Session ends with status 2 (ready for saving / session closed)
+    fetchFn.mockResolvedValueOnce(new Response("final content"));
+    const closeRes = await callback(
+      { status: 2, url: "http://onlyoffice/cache/doc.docx" },
+      "owner",
+    );
+    expect(closeRes.json()).toEqual({ error: 0 });
+
+    // 5. Subsequent session opening starts a new session -> MUST receive a new key2 !== key1
+    const cfg3 = await config("owner");
+    const key2 = cfg3.document.key;
+    expect(key2).toBeTruthy();
+    expect(key2).not.toBe(key1);
+  });
+
+  it("deduplicates repeated status 6 saves with identical content without creating duplicate versions", async () => {
+    const putFileSpy = vi.spyOn(storage, "putFile");
+
+    // First status 6 save with new content
+    fetchFn.mockResolvedValueOnce(new Response("snapshot-alpha"));
+    const res1 = await callback(
+      { status: 6, url: "http://onlyoffice/cache/snapshot.docx", forcesavetype: 2 },
+      "owner",
+    );
+    expect(res1.json()).toEqual({ error: 0 });
+    expect(putFileSpy).toHaveBeenCalledTimes(1);
+    const version1 = (await storage.getFileInfo("doc")).version;
+
+    putFileSpy.mockClear();
+
+    // Repeated status 6 save with identical content (e.g. periodic autoAssembly with no edits)
+    fetchFn.mockResolvedValueOnce(new Response("snapshot-alpha"));
+    const res2 = await callback(
+      { status: 6, url: "http://onlyoffice/cache/snapshot.docx", forcesavetype: 2 },
+      "owner",
+    );
+    expect(res2.json()).toEqual({ error: 0 });
+    // Storage putFile was not called again; version was not incremented
+    expect(putFileSpy).not.toHaveBeenCalled();
+    const version2 = (await storage.getFileInfo("doc")).version;
+    expect(version2).toBe(version1);
+
+    // Third status 6 save with modified content -> MUST write to storage
+    fetchFn.mockResolvedValueOnce(new Response("snapshot-beta"));
+    const res3 = await callback(
+      { status: 6, url: "http://onlyoffice/cache/snapshot.docx", forcesavetype: 2 },
+      "owner",
+    );
+    expect(res3.json()).toEqual({ error: 0 });
+    expect(putFileSpy).toHaveBeenCalledTimes(1);
+    const version3 = (await storage.getFileInfo("doc")).version;
+    expect(version3).not.toBe(version1);
+  });
+
+  it("accounts for storage quota by replacement and rejects saves exceeding user quota", async () => {
+    // Stub user quota to 1000 bytes
+    vi.stubEnv("STORAGE_QUOTA_BYTES", "1000");
+
+    // Existing doc size is 600 bytes
+    const initialBuf = Buffer.alloc(600, "a");
+    await storage.putFile("doc", initialBuf);
+    await repo.update("owner", "doc", { fileSize: 600 });
+    expect(await repo.getStorageUsage("owner")).toBe(600);
+
+    // A save with 700 bytes should SUCCEED because replacement (1000 - 600 + 600 = 1000 >= 700) is used.
+    // If it was additive (double counted: 600 + 700 = 1300 > 1000), it would fail.
+    const incomingBuf = Buffer.alloc(700, "b");
+    fetchFn.mockResolvedValueOnce(new Response(incomingBuf));
+    const resSuccess = await callback(
+      { status: 6, url: "http://onlyoffice/cache/doc.docx" },
+      "owner",
+    );
+    expect(resSuccess.json()).toEqual({ error: 0 });
+    expect(await repo.getStorageUsage("owner")).toBe(700);
+
+    // A save with 1200 bytes exceeds total quota of 1000 bytes -> MUST be rejected with error 1
+    const oversizedBuf = Buffer.alloc(1200, "c");
+    fetchFn.mockResolvedValueOnce(new Response(oversizedBuf));
+    const resFail = await callback(
+      { status: 6, url: "http://onlyoffice/cache/doc.docx" },
+      "owner",
+    );
+    expect(resFail.json()).toEqual({ error: 1 });
+    // Storage content should remain the 700-byte version
+    expect((await storage.getFile("doc")).buffer.length).toBe(700);
+  });
+
+  it("closes session on status 4 (no changes) allowing next session to receive a new key", async () => {
+    const cfg1 = await config("owner");
+    const key1 = cfg1.document.key;
+
+    // Status 4: closed without changes
+    const res4 = await callback({ status: 4 }, "owner");
+    expect(res4.json()).toEqual({ error: 0 });
+    expect(fetchFn).not.toHaveBeenCalled();
+
+    // Next session receives a new key
+    const cfg2 = await config("owner");
+    expect(cfg2.document.key).not.toBe(key1);
+  });
 });
+

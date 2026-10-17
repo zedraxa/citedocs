@@ -6,7 +6,9 @@ import type { IDocumentRepository } from "../repositories/documentRepository.js"
 import { resolveExtension } from "../documents/templates.js";
 import { OwnershipError, NotFoundError } from "../repositories/errors.js";
 import { requireAuth } from "../auth/middleware.js";
+import { assertUserQuota, StorageQuotaExceededError } from "../documents/quota.js";
 import { signJwt, verifyJwt, signLink, verifyLink } from "./jwt.js";
+import { OnlyofficeSessionManager } from "./session.js";
 
 /** GUID of the official ONLYOFFICE Zotero plugin installed by our deployment. */
 export const ZOTERO_PLUGIN_GUID = "asc.{BFC5D5C6-89DE-4168-9565-ABD8D1E48711}";
@@ -14,6 +16,7 @@ export const ZOTERO_PLUGIN_GUID = "asc.{BFC5D5C6-89DE-4168-9565-ABD8D1E48711}";
 export interface OnlyofficeRoutesOptions {
   storage: WopiStorage;
   documentRepo: IDocumentRepository;
+  sessionManager?: OnlyofficeSessionManager;
   /** URL the Document Server uses to reach this API (inside the docker network). */
   internalApiUrl?: string;
   /** Internal URL of the Document Server (to download edited files). */
@@ -49,6 +52,7 @@ export function permissionsForRole(role: string) {
 
 export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): FastifyPluginAsync => {
   const { storage, documentRepo } = options;
+  const sessionManager = options.sessionManager || new OnlyofficeSessionManager();
   const internalApi = (
     options.internalApiUrl ||
     process.env.ONLYOFFICE_STORAGE_URL ||
@@ -111,11 +115,7 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
         }
 
         const { permissions, mode } = permissionsForRole(role);
-        const key = crypto
-          .createHash("sha256")
-          .update(`${fileId}:${meta.version}:${meta.size}`)
-          .digest("hex")
-          .slice(0, 40);
+        const key = sessionManager.getOrCreateSessionKey(fileId, meta.version, meta.size);
         const fileTitle = title.toLowerCase().endsWith(`.${ext}`) ? title : `${title}.${ext}`;
         const expires = String(Math.floor(Date.now() / 1000) + 12 * 3600);
         const fileSig = signLink(["file", fileId, expires]);
@@ -141,7 +141,7 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
             callbackUrl: `${internalApi}/api/onlyoffice/callback/${encodeURIComponent(fileId)}?${callbackQuery}`,
             user: { id: userId, name: userName },
             customization: {
-              forcesave: false,
+              forcesave: true,
               autosave: true,
               compactHeader: true,
               plugins: true,
@@ -215,7 +215,29 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
       if (!data || data.key !== key || ![1, 2, 3, 4, 6, 7].includes(data.status as number)) {
         return reply.status(401).send({ error: 1 });
       }
-      if (data.status !== 2 && data.status !== 6) return reply.send({ error: 0 });
+
+      // Handle Document Server save error notifications (status 3: saving error, status 7: forcesave error)
+      if (data.status === 3 || data.status === 7) {
+        req.log.warn(
+          { fileId, status: data.status, key },
+          "onlyoffice: document server reported save error (status 3/7)",
+        );
+        return reply.send({ error: 0 });
+      }
+
+      // Handle non-save status notifications
+      if (data.status === 1) {
+        req.log.info({ fileId, status: data.status }, "onlyoffice: document is being edited");
+        return reply.send({ error: 0 });
+      }
+      if (data.status === 4) {
+        req.log.info(
+          { fileId, status: data.status },
+          "onlyoffice: document closed with no changes",
+        );
+        sessionManager.closeSession(fileId);
+        return reply.send({ error: 0 });
+      }
 
       try {
         const doc = await documentRepo.getById(opener, fileId, email);
@@ -247,16 +269,60 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
         if (!res.ok) return reply.send({ error: 1 });
         const buf = Buffer.from(await res.arrayBuffer());
         if (!buf.length) return reply.send({ error: 1 });
+
+        const contentHash = crypto.createHash("sha256").update(buf).digest("hex");
+
+        // Deduplicate repeated status 6 (or status 2) saves with identical content
+        if (data.status === 6 && sessionManager.isIdenticalContent(fileId, contentHash)) {
+          req.log.info(
+            { fileId, status: data.status, forcesavetype: data.forcesavetype },
+            "onlyoffice: status 6 identical content deduplicated, skipping storage write",
+          );
+          return reply.send({ error: 0 });
+        }
+
+        if (data.status === 2 && sessionManager.isIdenticalContent(fileId, contentHash)) {
+          req.log.info(
+            { fileId, status: data.status },
+            "onlyoffice: status 2 session closed (content already persisted via force-save)",
+          );
+          sessionManager.closeSession(fileId);
+          return reply.send({ error: 0 });
+        }
+
+        // Quota accounting: must reflect replacement of the existing object, not addition.
+        await assertUserQuota(documentRepo, doc.ownerUserId, buf.length, doc.fileSize || 0);
+
         const result = await storage.putFile(fileId, buf);
         await documentRepo.update(doc.ownerUserId, fileId, {
           fileSize: result.metadata.size,
           updatedAt: new Date(),
         });
-        req.log.info({ fileId, size: buf.length, status: data.status }, "onlyoffice: saved");
+
+        sessionManager.recordSave(
+          fileId,
+          contentHash,
+          result.metadata.size,
+          result.metadata.version,
+          key,
+        );
+
+        if (data.status === 2) {
+          sessionManager.closeSession(fileId);
+        }
+
+        req.log.info(
+          { fileId, size: buf.length, status: data.status, forcesavetype: data.forcesavetype },
+          "onlyoffice: saved",
+        );
         return reply.send({ error: 0 });
-      } catch {
+      } catch (err) {
+        if (err instanceof StorageQuotaExceededError) {
+          req.log.warn({ fileId, err: err.message }, "onlyoffice: storage quota exceeded");
+          return reply.send({ error: 1 });
+        }
         // Do not log upstream URLs/tokens; DS retries saves when error is nonzero.
-        req.log.error({ fileId }, "onlyoffice: save failed");
+        req.log.error({ fileId, err }, "onlyoffice: save failed");
         return reply.send({ error: 1 });
       }
     });

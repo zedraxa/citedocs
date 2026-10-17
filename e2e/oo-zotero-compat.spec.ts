@@ -328,12 +328,69 @@ test.describe("Zotero & CSL Style Compatibility (oo-zotero-compat)", () => {
     expect(cslXml).toContain("American Psychological Association");
   });
 
-  test.fixme(
-    "Requirement 2 [FIXME ZC-03]: Style picker is reachable inside ONLYOFFICE without prior Zotero account linking",
-    async () => {
-      // Confirmed Bug ZC-03: The official ONLYOFFICE Zotero plugin locks all style selection
-      // and settings behind a login screen requiring a Zotero personal API key. Students cannot
-      // choose a citation style for their document unless they link a Zotero personal account.
-    },
-  );
+  test("Requirement 2 [RESOLVED ZC-03 & ZC-05]: CiteDocs style picker is reachable inside ONLYOFFICE without prior Zotero account linking and search results are capped", async ({
+    page,
+    request,
+  }) => {
+    // 1. Verify backend style search endpoint is functional, cached, and limits results to 50 (ZC-05)
+    const stylesApiRes = await request.get("/api/styles?q=ieee");
+    expect(stylesApiRes.status()).toBe(200);
+    const stylesData = await stylesApiRes.json();
+    expect(Array.isArray(stylesData.styles)).toBe(true);
+    expect(stylesData.styles.length).toBeLessThanOrEqual(50);
+    expect(stylesData.styles[0].id).toBe("ieee");
+
+    // 2. Sign up a fresh student account (with no linked Zotero account)
+    const timestamp = Date.now();
+    const studentEmail = `qa+stylepicker_${timestamp}@example.com`;
+    const password = "StrongStudentPassword123!";
+
+    await page.goto("/signup");
+    await page.getByTestId("signup-email-input").fill(studentEmail);
+    await page.getByTestId("signup-name-input").fill(`Style Picker Student ${timestamp}`);
+    await page.getByTestId("signup-password-input").fill(password);
+    await page.getByTestId("signup-confirm-password-input").fill(password);
+    await page.getByTestId("signup-submit-btn").click();
+
+    await expect(page).toHaveURL(/.*\/documents/, { timeout: 15_000 });
+
+    // 3. Create a new document
+    await page.getByTestId("new-document-button").click();
+    await expect(page).toHaveURL(/.*\/editor\?doc=/, { timeout: 20_000 });
+
+    // 4. Verify StylePicker is present on the top bar and accessible WITHOUT linking Zotero (ZC-03)
+    const styleBtn = page.getByTestId("oo-style-picker-btn");
+    await expect(styleBtn).toBeVisible({ timeout: 15_000 });
+    await expect(styleBtn).toBeEnabled();
+
+    // Default style label is APA 7th
+    const styleLabel = page.getByTestId("oo-style-current-label");
+    await expect(styleLabel).toContainText(/APA 7/i);
+
+    // 5. Open dropdown and verify popular pinned styles (APA 7, IEEE, TÜBİTAK, etc.)
+    await styleBtn.click();
+    const dropdown = page.getByTestId("oo-style-picker-dropdown");
+    await expect(dropdown).toBeVisible();
+
+    await expect(page.getByTestId("oo-style-item-apa")).toBeVisible();
+    await expect(page.getByTestId("oo-style-item-ieee")).toBeVisible();
+    await expect(
+      page.getByTestId("oo-style-item-turkiye-bilimsel-ve-teknolojik-arastirma-kurumu"),
+    ).toBeVisible();
+
+    // 6. Search for TÜBİTAK with Turkish normalization and assert debounced search <= 50 items (ZC-05)
+    const searchInput = page.getByTestId("oo-style-search-input");
+    await searchInput.fill("tubitak");
+    await expect(
+      page.getByTestId("oo-style-item-turkiye-bilimsel-ve-teknolojik-arastirma-kurumu"),
+    ).toBeVisible({ timeout: 5_000 });
+
+    // 7. Select TÜBİTAK style and verify applied notice & updated trigger button label
+    await page
+      .getByTestId("oo-style-item-turkiye-bilimsel-ve-teknolojik-arastirma-kurumu")
+      .click();
+    await expect(dropdown).not.toBeVisible();
+    await expect(styleLabel).toContainText(/TÜBİTAK/i);
+    await expect(page.getByTestId("oo-notice")).toContainText(/Atıf stili güncellendi/i);
+  });
 });

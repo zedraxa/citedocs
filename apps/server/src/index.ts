@@ -54,7 +54,8 @@ import {
   type IDocumentRepository,
 } from "./repositories/index.js";
 import { createDocumentRoutes } from "./documents/index.js";
-import { createOnlyofficeRoutes } from "./onlyoffice/index.js";
+import { createOnlyofficeRoutes, OnlyofficeSessionManager } from "./onlyoffice/index.js";
+import { createStyleRoutes } from "./routes/styles.js";
 
 export * from "./db/index.js";
 export * from "./repositories/index.js";
@@ -64,6 +65,8 @@ export * from "./auth/index.js";
 export * from "./pdf/index.js";
 export * from "./documents/index.js";
 export * from "./onlyoffice/index.js";
+export * from "./routes/styles.js";
+export * from "./styles/styleService.js";
 export * from "./storage/s3Client.js";
 export { createItemRoutes, itemRoutes };
 
@@ -93,7 +96,9 @@ export interface BuildAppOptions {
   enableCsrf?: boolean;
   enableRateLimit?: boolean;
   onlyofficeFetchFn?: typeof fetch;
+  onlyofficeSessionManager?: OnlyofficeSessionManager;
   zoteroFetchFn?: typeof fetch;
+  styleFetchFn?: typeof fetch;
 }
 
 
@@ -197,11 +202,23 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }),
   );
 
+  const sessionManager = options.onlyofficeSessionManager || new OnlyofficeSessionManager();
+
   await fastify.register(
     createOnlyofficeRoutes({
       storage: wopiStorage,
       documentRepo,
+      sessionManager,
       fetchFn: options.onlyofficeFetchFn,
+    }),
+  );
+
+  await fastify.register(
+    createStyleRoutes({
+      documentRepo,
+      wopiStorage,
+      sessionManager,
+      fetchFn: options.styleFetchFn,
     }),
   );
 

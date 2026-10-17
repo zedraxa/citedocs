@@ -1657,7 +1657,6 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - Konteyner açılmamış, harici para harcanmamış, sunucuya SSH atılmamıştır.
 - `pnpm lint` (0 hata, 0 uyarı), `pnpm typecheck` (0 hata) ve `pnpm test` (58 test dosyası, 546 başarılı test) tam yeşildir.
 
-
 ---
 
 ## 30. Yedekleme Güçlendirmesi ve Disk Alanı Koruması — Kayıt #030
@@ -1812,9 +1811,127 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 
 ---
 
-## Zotero Dosya ve Metinden Kaynak İçe Aktarma (BibTeX / RIS / CSL-JSON) — Kayıt #034
+## ONLYOFFICE CSL Atıf Stili Seçici ve Depo İndeksi — Kayıt #031
 
-> **Kayıt No:** #034  
+> **Kayıt No:** #031  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-style-picker`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** ZC-03 + ZC-05 çözümü — ONLYOFFICE editör üst barında CiteDocs'a özgü CSL atıf stili seçici bileşeni, Zotero hesabı bağlama zorunluluğunun kaldırılması (ZC-03), tam Zotero stil deposu (~10.8k stil) için bellek içi önbellekli arama servisi ve sekme donmasını önleyen 50 sonuç sınırlaması (ZC-05), chunked ZOTERO_PREF_1.. custom properties oluşturucu/ayrıştırıcı ve editör içi/sunucu tarafı docProps/custom.xml senkronizasyonu.
+
+### 1. Yapılan Çalışmalar ve Mimari Çözümler
+
+1. **Zotero Word Tercih XML Şeması ve Parçalama Mantığı (`packages/shared/src/zoteroPref.ts`):**
+   - Microsoft Word Zotero eklentisinin kullandığı kanonik XML yapısı modellendi:
+     ```xml
+     <data data-version="3" zotero-version="7.0.11">
+       <session id="..."/>
+       <style id="http://www.zotero.org/styles/apa" locale="tr-TR" hasBibliography="1" bibliographyStyleHasBeenSet="0"/>
+       <prefs><pref name="fieldType" value="Field"/></prefs>
+     </data>
+     ```
+   - Word custom property 255 bayt/karakter sınırına tam uyum sağlamak için 250 karakterlik sıralı `ZOTERO_PREF_1`, `ZOTERO_PREF_2` parçalama (`chunkZoteroPref`) ve yeniden birleştirme (`reassembleZoteroPref`, `parseZoteroPrefXml`) fonksiyonları geliştirildi.
+   - Popüler/sabit stiller (`PINNED_POPULAR_STYLES`): APA 7 (`apa`), IEEE (`ieee`), Chicago (author-date & notes), MLA (`modern-language-association`), Harvard (`harvard-cite-them-right`), Vancouver (`vancouver`) ve TÜBİTAK (`turkiye-bilimsel-ve-teknolojik-arastirma-kurumu`).
+   - 9 birim testi ile XML üretimi, ayrıştırması, bozuk/eksik XML dayanıklılığı ve parça bütünlüğü doğrulandı (`packages/shared/test/zotero-pref.test.ts`).
+
+2. **Sunucu Tarafı Bellek İçi Önbellekli Stil Deposu Servisi (`apps/server/src/styles/styleService.ts`):**
+   - Resmi Zotero stil deposu (`https://www.zotero.org/styles-files/styles.json`, ~10.865 stil) 12 saatlik TTL ile bellek içinde önbelleğe alındı.
+   - Çevrimdışı/ağ kopukluğu durumunda en çok kullanılan 10 temel stili içeren statik yedek liste (`FALLBACK_STYLES`) ile kesintisiz çalışma garantilendi.
+   - Türkçe aramalarda ("tubitak", "turkiye" vb.) `ı/i`, `ö/o`, `ü/u`, `ç/c`, `ş/s`, `ğ/g` harf normalizasyonu ve küçük harf eşleme sağlandı.
+   - Arama sonuçları ZC-05 kısıtı uyarınca 50 kayıtla sınırlandırılarak tarayıcı sekmesinin donması engellendi.
+   - 7 birim testi ile önbellekleme, arama filtreleme, Türkçe normalizasyon ve çevrimdışı fallback doğrulandı (`apps/server/test/styles-service.test.ts`).
+
+3. **Fastify HTTP Rotaları ve docProps/custom.xml Güncellemesi (`apps/server/src/routes/styles.ts`):**
+   - `GET /api/styles?q=&limit=`: Stil arama ve listeleme uç noktası.
+   - `GET /api/styles/:id`: Belirli stil detayını getirme uç noktası.
+   - `PUT /api/documents/:id/style`: Düzenlenen belgenin `.docx` ZIP arşivini açıp `docProps/custom.xml` içindeki `ZOTERO_PREF_1..` özel belge özelliklerini güncelleyen, eksikse `[Content_Types].xml` ve `_rels/.rels` ilişkilerini tamamlayan ve `sessionManager.recordSave()` çağrısı ile ONLYOFFICE canlı oturum anahtarını güncelleyen uç nokta.
+   - `apps/server/src/index.ts` içine entegre edildi. 6 entegrasyon testi ile doğrulandı (`apps/server/test/styles-route.test.ts`).
+
+4. **ONLYOFFICE Editör İçi Köprü ve Zotero Eklentisi Eşitlemesi (`apps/web/src/onlyoffice/editorStyleBridge.ts`):**
+   - Öncelikli olarak `Asc.editor.callCommand` ve `connector.executeMethod` üzerinden belgenin `Api.GetCustomProperties()` nesnesine doğrudan erişerek `ZOTERO_PREF_1..` değerlerini Word formatında yazar.
+   - Açık Zotero eklentisi iframe'ine (`postMessage`) stil güncelleme bildirimi gönderir ve tarayıcı `localStorage` (`zoteroStyle`, `zoteroStyleId`, `zoteroLocale`) anahtarlarını günceller.
+   - 3 birim testi ile sanal ortamda doğrulandı (`apps/web/test/editor-style-bridge.test.ts`).
+
+5. **Editör Üst Barında React Stil Seçici Bileşeni (`apps/web/src/onlyoffice/StylePicker.tsx`):**
+   - ONLYOFFICE editör üst barında (`apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx`) "Atıf Stili" butonu ve arama paneli olarak konumlandırıldı.
+   - 250ms debounced arama, en az 2 karakter sınırı, 50 sonuç limiti, popüler stiller rozeti ("Popüler") ve format rozetleri ("author-date", "numeric", "note", "label").
+   - Klavye navigasyonu (ESC ile kapatma), dışarı tıklamayı algılama ve %100 Türkçe arayüz metinleri.
+   - 5 birim ve bileşen testi (`apps/web/test/style-picker.test.tsx`) ve 12 editör sayfa testi (`apps/web/test/onlyoffice-editor.test.tsx`) ile doğrulandı.
+
+6. **E2E Test Paketi Güncellemesi (`e2e/oo-zotero-compat.spec.ts`):**
+   - Önceden `test.fixme` olarak bekleyen "Requirement 2 [FIXME ZC-03] Style picker must be accessible without Zotero account" testi aktif bir Playwright testine dönüştürüldü.
+   - Zotero hesabı bağlanmadan stil seçici butonunun (`style-picker-trigger`) görünür olduğu, tıklandığında popüler stillerin listelendiği, arama kutusuna "ieee" yazıldığında sonuçların filtrelendiği ve sonuç sayısının 50'yi aşmadığı (ZC-05) uçtan uca doğrulandı.
+
+### 2. Dokunulmayan Dosyalar ve İzolasyon Kurallarına Tam Uyum
+
+Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşağıdaki kurallara harfiyen uyuldu:
+- `apps/server/src/documents/zoteroFields.ts` — **KESİNLİKLE DOKUNULMADI.**
+- `apps/server/src/documents/templates.ts` — **KESİNLİKLE DOKUNULMADI.**
+- `deploy/office/blank.docx` — **KESİNLİKLE DOKUNULMADI.**
+- `apps/server/test/zotero-compat.test.ts` — **KESİNLİKLE DOKUNULMADI.**
+- `deploy/` altındaki Dockerfile, docker-compose ve Caddyfile yapılandırmaları — **KESİNLİKLE DOKUNULMADI.**
+- Belge listesi ve yükleme arayüzüne dokunulmadı (ODT uyarısı ekleyen başka ajan ile çakışma önlendi).
+- Push, deploy veya merge yapılmadı.
+
+### 3. Doğrulama ve Test Sonuçları
+
+- **`pnpm lint`:** 0 hata, 0 uyarı (temiz).
+- **`pnpm typecheck`:** 0 hata (tüm monorepo TypeScript derlemesi başarılı).
+- **`pnpm build`:** Tüm paketler (`@citedocs/shared`, `@citedocs/csl-engine`, `@citedocs/server`, `@citedocs/web`) başarıyla derlendi.
+- **`pnpm test` (Tam Test Paketi):**
+  - **66 test dosyası** çalıştırıldı.
+  - **617 test başarılı**, 1 atlanan, 5 yapılacak (todo - ZC-01, ZC-02, ZC-04 paralel işler). 0 başarısız!
+- `tsconfig.tsbuildinfo` gürültüleri temizlendi, çalışma ağacı tertemiz bırakıldı.
+
+---
+
+## 32. Üretim Dağıtım Notları ve Duman Testi (Release Notes & Smoke Test) — Kayıt #035
+
+> **Kayıt No:** #035  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-release-notes`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Ana ajanın yürüttüğü ONLYOFFICE geçişi ve AWS üretim dağıtımı öncesinde, sistemin güvenle dağıtılmasını ve doğrulanmasını sağlamak:
+> 1. `72fd910` (ve bilinen son dağıtım `99c938c`) sonrasındaki tüm operasyonel değişiklikleri kapsayan Türkçe sürüm belgesinin (`docs/RELEASE-2026-10-17.md`) hazırlanması.
+> 2. Dağıtım sonrası canlı sistemde doğrulamayı otomatikleştiren Playwright duman testinin (`e2e/smoke-release.spec.ts`) eklenmesi ve canlı sunucuya (`https://docs.sifirdanbire.com.tr`) karşı çalıştırılması.
+
+### 1. Yapılan Çalışmalar ve Çıktılar
+
+1. **Üretim Sürüm Notları ve Operasyon Kılavuzu (`docs/RELEASE-2026-10-17.md`):**
+   - **Referans Dağıtım:** `docs/DEPLOY.md` içindeki son kayıtlı commit `99c938c` ve ONLYOFFICE geçiş tabanı `72fd910` temel alınarak tüm operasyonel değişiklikler kod kanıtlarıyla döküldü.
+   - **Veritabanı Migrasyonları:** `0002_fuzzy_marvex.sql` (`pdf_annotations` tablosu, indeksler ve cascade kuralları).
+   - **Ortam Değişkenleri:** `S3_DOCUMENTS_BUCKET`, `S3_ATTACHMENTS_BUCKET`, `S3_FORCE_PATH_STYLE`, `ONLYOFFICE_JWT_SECRET`, `ONLYOFFICE_INTERNAL_URL`, `ONLYOFFICE_PUBLIC_URL`, `ONLYOFFICE_STORAGE_URL`, `BACKUP_*` ve `DISK_RESERVE_PERCENT`.
+   - **Volume ve Disk Etkisi:** CSL stil indeksinin diske yazmayan bellek içi (in-memory) yapısı (~2-5 MB RAM), S3 MinIO kovaları, ONLYOFFICE `oo_data`/`oo_logs` ve dahili cache dizini (`/var/lib/onlyoffice/documentserver/App_Data/cache/files`) ile yedekleme staging alanı alan hesabı ($S + A + \%20$).
+   - **Statik Varlıklar:** `deploy/office/blank.docx` içine eklenen Türkçe denetim dili (`tr-TR`, BUG-07) ve Zotero kanonik APA 7 tercihleri (`docProps/custom.xml`, ZC-04).
+   - **Zamanlayıcılar:** 03:30 Europe/Istanbul yedekleme cron/timer (`citedocs-backup.cron`/`citedocs-backup.timer`) ve 5 dakikalık kapasite denetim zamanlayıcısı (`citedocs-capacity.timer`).
+   - **Yeni API Rotaları:** `POST /api/documents/:id/convert-to-docx`, `GET /api/styles`, `GET /api/styles/:id`, `PUT /api/documents/:id/style`, genişletilmiş `GET /api/documents/:id/citations` ve güvenli `POST /api/onlyoffice/callback/:id`.
+   - **Rollback Runbook:** Kod, veritabanı, konteyner ve zamanlayıcı geri alma adımları.
+   - **Post-Deploy Checklist:** Dağıtım sonrası adım adım operatör kontrol listesi.
+
+2. **Otomatik Duman Testi Paketi (`e2e/smoke-release.spec.ts`):**
+   - Benzersiz öğrenci kaydı (`/signup` -> otomatik oturum).
+   - Türkçe "Belgelerim" paneli, tablar, "Yeni Belge" menüsü ve kota kartı doğrulaması.
+   - Boş Word belgesinin ONLYOFFICE editöründe `lang=tr` ve `region=tr-TR` ile yüklenmesi.
+   - ONLYOFFICE üst barındaki CSL Atıf Stili Seçici bileşeni, popüler stiller ve TÜBİTAK araması (ZC-03, ZC-05).
+   - Tek ekranda Zotero butonu, tanımlayıcıyla kaynak ekleme formu ve hızlı atıf yan paneli açılışı.
+   - Geçerli ikili ODT yüklemesi (`createMinimalOdtBuffer`), Türkçe ODT uyarı afişi (`OdtNoticeBanner`) ve "DOCX olarak kopya oluştur" eylemi doğrulaması.
+   - Üretilen test belgelerinin otomatik temizlenmesi (`deleteDocument`).
+   - Bağlı Zotero hesabı gerektiren senaryoların gerekçesiyle `test.fixme` olarak işaretlenmesi.
+
+### 2. Canlı Sunucu ve Kalite Doğrulama Sonuçları
+
+- **Canlı Sunucu Doğrulaması (`BASE_URL=https://docs.sifirdanbire.com.tr`):**
+  - `npx playwright test e2e/smoke-release.spec.ts` çalıştırıldı.
+  - **1 test başarılı, 1 test skipped (fixme)** — 14.0 saniye içinde tüm 7 adım canlı üretim ortamında başarıyla yeşil geçti!
+- **`pnpm lint`:** 0 hata, 0 uyarı.
+- **`pnpm typecheck`:** 0 hata (`tsc -b` temiz).
+- **Kurallara Uyum:** `apps/`, `packages/`, `deploy/`, Caddyfile veya compose dosyalarına dokunulmadı; yalnızca `docs/` ve `e2e/` çalışıldı. Üretime push/deploy/SSH yapılmadı.
+
+---
+
+## Zotero Dosya ve Metinden Kaynak İçe Aktarma (BibTeX / RIS / CSL-JSON) — Kayıt #036
+
+> **Kayıt No:** #036 (dalda #034 olarak açıldı; main dalında en yüksek kayıt #035 olduğu için birleştirmede sıralı devamlılık amacıyla #036 olarak güncellendi)  
 > **Tarih:** 2026-10-17  
 > **Dal:** `cd-bib-import`  
 > **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  

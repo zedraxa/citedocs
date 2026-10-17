@@ -1,194 +1,116 @@
+<p align="center">🇬🇧 English | <a href="README.tr.md">🇹🇷 Türkçe</a></p>
+
 # CiteDocs
 
-<p align="center">
-  <strong>The open-source, Google Docs-grade collaborative word processor with native Zotero reference management and live Citation Style Language (CSL) formatting.</strong>
-</p>
+**Write your papers with Zotero citations from any device with a browser — even if you don't have a laptop.**
 
----
+🌐 **Live:** https://docs.sifirdanbire.com.tr · Free · Open source (AGPL-3.0)
 
-## 🎯 Overview
+CiteDocs is a free web app for students: a Word / Google Docs–style editor and Zotero in one place. It runs entirely in the browser. You don't need to install Zotero desktop or Microsoft Word.
 
-**CiteDocs** is built for students, researchers, and scientific writers who need the seamless real-time collaboration and user experience of **Google Docs**, paired directly with the complete reference management and PDF annotation extraction power of **Zotero**—running ubiquitously in any browser on any operating system (desktop, tablet, mobile).
+## Why CiteDocs?
 
-> **Architectural Direction (ADR-001):** CiteDocs does not reinvent the wheel. Per [ADR-001: Integration Architecture](docs/ADR-001-integration.md), document editing is powered by **Collabora Online (CODE)** embedded via WOPI iframe + PostMessage, seamlessly integrated with the official **Zotero open-source suite** (`zotero/web-library`, `zotero/translation-server`, `citeproc-js`, `zotero/pdf-reader`, and native Zotero field codes). Purely web-based with zero client-side installation. TipTap (`packages/editor`) is maintained as a legacy component.
+Many students don't own a laptop. They write assignments on a tablet or phone. Today, citing with Zotero still needs a desktop computer:
 
-### ✨ Core Capabilities
+- Zotero's **Word and LibreOffice plugins** run only with the Zotero desktop app.
+- Zotero's **Google Docs integration** needs the Zotero Connector browser extension *and* the Zotero desktop app ([Zotero docs](https://www.zotero.org/support/google_docs)), so it works only on a computer.
+- On phones and tablets there is no real way to add Zotero citations and a bibliography to a document.
 
-- **Google Docs Parity:**
-  - Rich-text editing with full typographical controls, semantic heading hierarchy, and reactive document outline.
-  - Real-time multi-user collaboration with live colored cursors and presence via Yjs CRDT and Hocuspocus WebSocket server.
-  - Suggesting mode (Track Changes) with non-destructive insertions/deletions and collaborative review cards.
-  - Threaded inline comments with `@mentions` and resolution workflows.
-  - Paged layout mode with simulated physical sheets (Letter / A4), margins, ruler, and print simulation.
-  - Resizable interactive tables, captioned figures, KaTeX mathematical equations, and footnotes.
-  - Progressive Web App (PWA) with full offline persistence (`y-indexeddb`).
-- **Zotero Parity:**
-  - Personal and group libraries, hierarchical collections, color-coded tags, and saved smart searches.
-  - Magic identifier bar: add items instantly by **DOI**, **ISBN**, **PMID**, **arXiv ID**, or URL powered by `zotero/translation-server`.
-  - Integrated PDF.js reader with text highlighting, rectangle area notes, and one-click **"Quote to Document"** with page citations.
-  - Two-way synchronization with official `zotero.org` accounts using Web API v3 (`If-Modified-Since-Version` and optimistic concurrency).
-  - Duplicate detection, merge tools, and automated Retraction Watch notifications.
-- **CSL Citation Engine & DOCX Interoperability:**
-  - Insert multi-cite clusters with page locators, prefixes, suffixes, and author suppression.
-  - Dynamic, self-maintaining bibliography block automatically recomputed live as citations change.
-  - Live style switcher supporting over 10,000+ CSL styles (APA 7th, IEEE, Chicago, Nature, Vancouver, MLA 9th, Harvard, ACM).
-  - DOCX export embedding native `ADDIN ZOTERO_ITEM CSL_CITATION` field codes—fully recognized by Microsoft Word and LibreOffice with the Zotero desktop plugin!
+CiteDocs moves the whole workflow into the browser. You write, connect your zotero.org library, insert citations and build a bibliography on one web page. Because it's browser-based, it opens on tablets and phones too. Mobile support is a core goal; see [Known limitations](#known-limitations). CiteDocs is free and open source, so the gap between students with laptops and students without them gets a little smaller.
 
----
+## Features
 
-## 🏗️ Repository Architecture
+- **Full document editor** — ONLYOFFICE Docs Community Edition 10, with a Word-like interface (Collabora Online kept as a fallback behind a feature flag).
+- **Official Zotero web plugin** inside the editor. Connect with **zotero.org OAuth**; no API key needed.
+- **Add sources** by DOI, ISBN, PMID or URL (via Zotero `translation-server`); **import** BibTeX, RIS and CSL-JSON.
+- **All CSL styles** — APA 7 by default; IEEE, Chicago and thousands more. Switch styles in place and refresh every citation.
+- **Compatible citations** — documents are `.docx` with Zotero field codes, so you can keep working in Word or LibreOffice with the Zotero desktop plugin.
+- **Autosave** and a **fully Turkish interface**.
 
-CiteDocs is organized as a high-performance TypeScript monorepo powered by `pnpm`:
+## How to use (for students)
 
-```txt
-citedocs/
-├── apps/
-│   ├── web/                    # Vite + React 19 Frontend SPA/PWA
-│   └── server/                 # Fastify REST API & Hocuspocus Collaboration Server
-├── packages/
-│   ├── shared/                 # Universal types (Zotero, CSL, Doc) & Zod schemas
-│   ├── csl-engine/             # citeproc-js wrapper & 10,000+ CSL style registry
-│   ├── zotero-core/            # Translation-server client & 2-way sync engine
-│   └── editor/                 # TipTap ProseMirror schema, citation & suggestion specs
-├── docker-compose.yml          # Postgres, MinIO, translation-server, server, web
-├── docs/
-│   ├── SPEC.md                 # Complete Product Specification
-│   ├── ARCHITECTURE.md         # Detailed System Architecture & Design
-│   ├── ADR-001-integration.md  # Binding Integration Architecture (Collabora + Zotero)
-│   └── research.md             # Technical Research Report
-└── devir.md                    # Project Memory & Agent Handover Record
+1. Open https://docs.sifirdanbire.com.tr and **sign up** with your email.
+2. **Create a new document** (or upload a `.docx`).
+3. Click the **Zotero** button and **connect your zotero.org account** (one-click OAuth). No zotero.org account yet? Create one for free at zotero.org.
+4. **Add sources** — paste a DOI/ISBN/PMID/URL, or import a BibTeX/RIS file.
+5. **Insert citations** where you need them, then insert the **bibliography**. Pick a style (APA 7, IEEE, …); changing it later updates everything. Download as `.docx` when you're done.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  B[Browser<br/>desktop · tablet · phone] -->|HTTPS| CF[Cloudflare]
+  CF --> C[Caddy]
+  C --> W[web<br/>React + Vite]
+  C --> S[server<br/>Fastify API]
+  C --> O[ONLYOFFICE Docs CE<br/>+ Zotero web plugin]
+  S --> P[(PostgreSQL)]
+  S --> M[(MinIO / S3<br/>documents)]
+  S --> T[Zotero translation-server]
+  O <-->|JWT · load/save| S
+  S -->|OAuth · Web API| Z[zotero.org]
 ```
 
----
+TypeScript monorepo (pnpm):
 
-## 🚀 Quickstart
+| Path | What it is |
+|---|---|
+| `apps/web` | Vite + React frontend |
+| `apps/server` | Fastify REST API, auth, document storage, ONLYOFFICE callbacks, Zotero proxy |
+| `packages/csl-engine` | `citeproc-js` wrapper and CSL style registry |
+| `packages/zotero-core` | translation-server client and Zotero Web API sync |
+| `packages/docx-exporter` | DOCX export with Zotero field codes |
+| `packages/shared`, `editor`, `pdf-reader`, `collabora-cite` | shared types, legacy TipTap editor, PDF reader, Collabora integration |
+| `deploy/` | production Compose files, Caddyfiles, ONLYOFFICE image, backups |
 
-### Prerequisites
+Production runs on AWS (eu-central-1) with Docker Compose (caddy, server, web, postgres, minio, translation-server, onlyoffice) behind Cloudflare, with nightly S3 backups. More detail: [ARCHITECTURE.md](ARCHITECTURE.md), [docs/ADR-001-integration.md](docs/ADR-001-integration.md).
 
-- **Node.js:** v22.x LTS (tested on Node v22.22.3)
-- **pnpm:** v12.x or v11.x (`corepack enable && corepack prepare pnpm@12.11.2 --activate`)
-- **Docker & Docker Compose** (for PostgreSQL, MinIO, and `zotero/translation-server`)
+## Self-hosting
 
-### 1. Installation
-
-Clone the repository and install all workspace dependencies:
+Short version (Docker + a domain):
 
 ```bash
-git clone https://github.com/zedraxa/citedocs.git
-cd citedocs
+git clone https://github.com/zedraxa/citedocs.git && cd citedocs
+# create deploy/.env with PUBLIC_HOST, POSTGRES_PASSWORD, MINIO_ROOT_USER,
+# MINIO_ROOT_PASSWORD, ENCRYPTION_KEY, ONLYOFFICE_JWT_SECRET (+ optional Zotero OAuth keys)
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.onlyoffice.yml up -d --build
+```
+
+Full guide: [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
+
+## Development and tests
+
+Requirements: Node.js 22, pnpm (`corepack enable`), Docker.
+
+```bash
 pnpm install
-```
-
-### 2. Environment Setup
-
-Copy the example environment file:
-
-```bash
 cp .env.example .env
+docker compose up -d postgres minio translation-server   # local services
+pnpm dev            # server + web
+pnpm lint && pnpm typecheck && pnpm build
+pnpm test           # Vitest unit/integration tests
+pnpm test:e2e       # Playwright (BASE_URL defaults to http://localhost:5173)
 ```
 
-### 3. Start Full End-to-End Containerized Stack
+## Known limitations
 
-To run the complete production-grade integration stack (Collabora Online CODE, WOPI Server, PostgreSQL, MinIO S3, Zotero Translation Server, Web Frontend) with Docker Compose:
+- **Mobile / tablet:** CiteDocs opens in mobile browsers because it is web-based, but phones and tablets have **not been officially tested yet**. Mobile testing is in progress, and feedback is very welcome: please [open an issue](https://github.com/zedraxa/citedocs/issues) with your device and browser.
+- **ONLYOFFICE Docs CE** allows at most **20 simultaneous editors** per server.
+- You need a (free) zotero.org account to use your Zotero library.
 
-```bash
-docker compose -p citedocs-e2e up -d --build
-```
+## Contributing
 
-- **CiteDocs Collabora Editor:** [`http://localhost:5173/?editor=collabora`](http://localhost:5173/?editor=collabora)
-- **Collabora Online (CODE):** `http://localhost:9982` (`http://localhost:9982/hosting/discovery`)
-- **CiteDocs REST API & WOPI Host:** `http://localhost:3000` (`http://localhost:3000/health`)
-- **Upstream Zotero Translation Server:** `http://localhost:1969`
-- **MinIO S3 Console:** `http://localhost:9001` (login: `citedocs_minio` / `citedocs_minio_password`)
-- **PostgreSQL Database:** `localhost:5432` (`citedocs`)
+Contributions, bug reports and translations are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-To stop the stack when finished (preserving data volumes):
-```bash
-docker compose -p citedocs-e2e down
-```
+## License
 
-### 4. Run Automated E2E Smoke Test
+[GNU AGPL-3.0](LICENSE). If you run a modified version as a public service, you must share your source code.
 
-Verify the entire integration pipeline end-to-end (API health, translation-server DOI lookup, postgres storage, Collabora discovery, session generation, WOPI CheckFileInfo/GetFile/Lock/PutFile, web delivery, and headless browser rendering):
+## Acknowledgements
 
-```bash
-./tools/e2e-smoke.sh
-```
-
-### 5. Run Development Servers (Bare Metal)
-
-Alternatively, start only the backing services and run Node/Vite locally:
-
-```bash
-docker compose up -d postgres minio translation-server
-pnpm dev
-```
-
----
-
-## 🧪 Testing, Linting & Build
-
-```bash
-# Run all functional tests across packages and apps with Vitest
-pnpm test
-
-# Run the same tests through each package (also uses shared timeouts)
-pnpm -r test
-
-# Run strict timing checks sequentially on an otherwise idle machine
-pnpm test:perf
-
-# Run TypeScript typechecks across the monorepo
-pnpm typecheck
-
-# Run ESLint across all packages and apps
-pnpm lint
-
-# Format codebase with Prettier
-pnpm format
-
-# Build all packages and applications for production
-pnpm build
-
-# Run Playwright End-to-End student flow tests (configurable with BASE_URL)
-BASE_URL=https://docs.sifirdanbire.com.tr pnpm test:e2e
-```
-
-### ONLYOFFICE Docs CE Production Deployment
-
-CiteDocs includes a standalone production Compose variant powered by **ONLYOFFICE Docs Community Edition (AGPL v3)**, completely removing Collabora CODE and WOPI containers:
-
-```bash
-# Run the pure ONLYOFFICE production stack
-sudo docker compose -f deploy/docker-compose.prod.onlyoffice.yml up -d --build
-```
-See the full [ONLYOFFICE Deployment & E2E Testing Guide (`docs/onlyoffice-production-and-e2e.md`)](docs/onlyoffice-production-and-e2e.md) for architecture details, Caddy reverse-proxy configuration, and Playwright verification.
-
-Tests use 60-second test/hook limits and one Vitest worker per invocation to
-avoid CPU contention. CSL integration files warm citeproc once before tests;
-normal runs retain all citation, bibliography, and editor assertions. The optional
-`test:perf` command enables the original CSL <300 ms and editor <450 ms budgets
-with `CITEDOCS_TEST_PERF=1`, using the median of five warm APA→IEEE switches.
-It runs only the two timing cases, sequentially; hardware/load can still affect
-these strict budgets. CI runs the functional suite, without relaxing timing limits.
-The existing live translation-server test stays opt-in.
-
-GitHub Actions uses Node 22, Corepack's pinned pnpm, a frozen lockfile install,
-and lint → typecheck → build → test. No services or secrets are required.
-
----
-
-## 📄 Documentation
-
-- [Product Specification (`docs/SPEC.md`)](docs/SPEC.md)
-- [System Architecture (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)
-- [Binding Integration Architecture (`docs/ADR-001-integration.md`)](docs/ADR-001-integration.md)
-- [Technical Research Report (`docs/research.md`)](docs/research.md)
-- [Project Memory & Handover (`devir.md`)](devir.md)
-
----
-
-## 📜 License
-
-Licensed under the [GNU AGPL-3.0-or-later](LICENSE), required because CiteDocs bundles AGPL-licensed Zotero components (web-library, pdf-reader).  
-*(Note: As analyzed in [ADR-001](docs/ADR-001-integration.md), relicensing CiteDocs to GNU AGPL-3.0 is recommended for complete legal compliance with integrated Zotero AGPL-3.0 components; pending final approval).*
+CiteDocs is built on great open-source work:
+[Zotero](https://www.zotero.org/) (web library, translation-server, ONLYOFFICE Zotero plugin, PDF reader),
+[ONLYOFFICE Docs](https://github.com/ONLYOFFICE/DocumentServer),
+[citeproc-js](https://github.com/Juris-M/citeproc-js) and the [CSL style repository](https://github.com/citation-style-language/styles),
+[Collabora Online](https://www.collaboraonline.com/),
+Fastify, React, Vite, PostgreSQL, MinIO and Caddy.

@@ -1882,3 +1882,48 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
   - **66 test dosyası** çalıştırıldı.
   - **617 test başarılı**, 1 atlanan, 5 yapılacak (todo - ZC-01, ZC-02, ZC-04 paralel işler). 0 başarısız!
 - `tsconfig.tsbuildinfo` gürültüleri temizlendi, çalışma ağacı tertemiz bırakıldı.
+
+---
+
+## 32. Üretim Dağıtım Notları ve Duman Testi (Release Notes & Smoke Test) — Kayıt #035
+
+> **Kayıt No:** #035  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-release-notes`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Ana ajanın yürüttüğü ONLYOFFICE geçişi ve AWS üretim dağıtımı öncesinde, sistemin güvenle dağıtılmasını ve doğrulanmasını sağlamak:
+> 1. `72fd910` (ve bilinen son dağıtım `99c938c`) sonrasındaki tüm operasyonel değişiklikleri kapsayan Türkçe sürüm belgesinin (`docs/RELEASE-2026-10-17.md`) hazırlanması.
+> 2. Dağıtım sonrası canlı sistemde doğrulamayı otomatikleştiren Playwright duman testinin (`e2e/smoke-release.spec.ts`) eklenmesi ve canlı sunucuya (`https://docs.sifirdanbire.com.tr`) karşı çalıştırılması.
+
+### 1. Yapılan Çalışmalar ve Çıktılar
+
+1. **Üretim Sürüm Notları ve Operasyon Kılavuzu (`docs/RELEASE-2026-10-17.md`):**
+   - **Referans Dağıtım:** `docs/DEPLOY.md` içindeki son kayıtlı commit `99c938c` ve ONLYOFFICE geçiş tabanı `72fd910` temel alınarak tüm operasyonel değişiklikler kod kanıtlarıyla döküldü.
+   - **Veritabanı Migrasyonları:** `0002_fuzzy_marvex.sql` (`pdf_annotations` tablosu, indeksler ve cascade kuralları).
+   - **Ortam Değişkenleri:** `S3_DOCUMENTS_BUCKET`, `S3_ATTACHMENTS_BUCKET`, `S3_FORCE_PATH_STYLE`, `ONLYOFFICE_JWT_SECRET`, `ONLYOFFICE_INTERNAL_URL`, `ONLYOFFICE_PUBLIC_URL`, `ONLYOFFICE_STORAGE_URL`, `BACKUP_*` ve `DISK_RESERVE_PERCENT`.
+   - **Volume ve Disk Etkisi:** CSL stil indeksinin diske yazmayan bellek içi (in-memory) yapısı (~2-5 MB RAM), S3 MinIO kovaları, ONLYOFFICE `oo_data`/`oo_logs` ve dahili cache dizini (`/var/lib/onlyoffice/documentserver/App_Data/cache/files`) ile yedekleme staging alanı alan hesabı ($S + A + \%20$).
+   - **Statik Varlıklar:** `deploy/office/blank.docx` içine eklenen Türkçe denetim dili (`tr-TR`, BUG-07) ve Zotero kanonik APA 7 tercihleri (`docProps/custom.xml`, ZC-04).
+   - **Zamanlayıcılar:** 03:30 Europe/Istanbul yedekleme cron/timer (`citedocs-backup.cron`/`citedocs-backup.timer`) ve 5 dakikalık kapasite denetim zamanlayıcısı (`citedocs-capacity.timer`).
+   - **Yeni API Rotaları:** `POST /api/documents/:id/convert-to-docx`, `GET /api/styles`, `GET /api/styles/:id`, `PUT /api/documents/:id/style`, genişletilmiş `GET /api/documents/:id/citations` ve güvenli `POST /api/onlyoffice/callback/:id`.
+   - **Rollback Runbook:** Kod, veritabanı, konteyner ve zamanlayıcı geri alma adımları.
+   - **Post-Deploy Checklist:** Dağıtım sonrası adım adım operatör kontrol listesi.
+
+2. **Otomatik Duman Testi Paketi (`e2e/smoke-release.spec.ts`):**
+   - Benzersiz öğrenci kaydı (`/signup` -> otomatik oturum).
+   - Türkçe "Belgelerim" paneli, tablar, "Yeni Belge" menüsü ve kota kartı doğrulaması.
+   - Boş Word belgesinin ONLYOFFICE editöründe `lang=tr` ve `region=tr-TR` ile yüklenmesi.
+   - ONLYOFFICE üst barındaki CSL Atıf Stili Seçici bileşeni, popüler stiller ve TÜBİTAK araması (ZC-03, ZC-05).
+   - Tek ekranda Zotero butonu, tanımlayıcıyla kaynak ekleme formu ve hızlı atıf yan paneli açılışı.
+   - Geçerli ikili ODT yüklemesi (`createMinimalOdtBuffer`), Türkçe ODT uyarı afişi (`OdtNoticeBanner`) ve "DOCX olarak kopya oluştur" eylemi doğrulaması.
+   - Üretilen test belgelerinin otomatik temizlenmesi (`deleteDocument`).
+   - Bağlı Zotero hesabı gerektiren senaryoların gerekçesiyle `test.fixme` olarak işaretlenmesi.
+
+### 2. Canlı Sunucu ve Kalite Doğrulama Sonuçları
+
+- **Canlı Sunucu Doğrulaması (`BASE_URL=https://docs.sifirdanbire.com.tr`):**
+  - `npx playwright test e2e/smoke-release.spec.ts` çalıştırıldı.
+  - **1 test başarılı, 1 test skipped (fixme)** — 14.0 saniye içinde tüm 7 adım canlı üretim ortamında başarıyla yeşil geçti!
+- **`pnpm lint`:** 0 hata, 0 uyarı.
+- **`pnpm typecheck`:** 0 hata (`tsc -b` temiz).
+- **Kurallara Uyum:** `apps/`, `packages/`, `deploy/`, Caddyfile veya compose dosyalarına dokunulmadı; yalnızca `docs/` ve `e2e/` çalışıldı. Üretime push/deploy/SSH yapılmadı.
+

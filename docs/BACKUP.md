@@ -84,15 +84,25 @@ Systemd timer kullanmak isterseniz:
    ```
 
 ### 2.4 Ortam Değişkenleri ve Konfigürasyon
-`/opt/citedocs/.env` dosyasında şu değişkenler yapılandırılabilir:
+`/opt/citedocs/.env` dosyasında (veya CLI parametreleriyle) şu değişkenler yapılandırılabilir:
 
-| Değişken | Varsayılan | Açıklama |
-|---|---|---|
-| `BACKUP_DIR` | `/opt/citedocs/backups` | Yedek arşivlerinin yazılacağı yerel dizin. |
-| `MIN_FREE_DISK_MB` | `2048` | Yedek öncesi gereken minimum boş disk alanı (MB). Altına düşerse işlem reddedilir. |
-| `RETENTION_DAILY` | `7` | Saklanacak günlük yedek sayısı. |
-| `RETENTION_WEEKLY` | `4` | Saklanacak haftalık yedek sayısı. |
-| `BACKUP_S3_URI` | *(boş)* | İsteğe bağlı uzak S3 hedefi (örn. `s3://citedocs-offsite-backup/production/`). Boşsa atlanır. |
+| Değişken | CLI Parametresi | Varsayılan | Açıklama |
+|---|---|---|---|
+| `BACKUP_DIR` | `--backup-dir` | `/opt/citedocs/backups` | Yedek arşivlerinin yazılacağı yerel dizin. |
+| `BACKUP_STAGING_DIR` | `--staging-dir` | *(boş / BACKUP_DIR)* | Geçici staging çalışma dizininin üst konumu (ayrı bir mount noktası seçilebilir). |
+| `MIN_FREE_DISK_MB` | `--min-free-mb` | `2048` | Yedek öncesi gereken minimum boş disk alanı taban eşiği (floor, MB). Altına düşerse işlem reddedilir. |
+| `DISK_RESERVE_PERCENT` | `--disk-reserve-percent` | `20` | Yedek (staging + arşiv) sonrasında diskte bırakılması zorunlu güvenlik rezerv yüzdesi (%). |
+| `RETENTION_DAILY` | `--retention-daily` | `7` | Saklanacak günlük yedek sayısı. |
+| `RETENTION_WEEKLY` | `--retention-weekly` | `4` | Saklanacak haftalık yedek sayısı. |
+| `KEEP_LOCAL_AFTER_UPLOAD` | `--keep-local-after-upload` | *(boş)* | `BACKUP_S3_URI` yüklemesi başarılı olduğunda saklanacak yerel arşiv sayısı (örn. `1` veya `2`). Boşsa günlük+haftalık politika geçerlidir. |
+| `BACKUP_S3_URI` | `--s3-uri` | *(boş)* | İsteğe bağlı uzak S3 hedefi (örn. `s3://citedocs-offsite-backup/production/`). Boşsa atlanır. |
+
+### 2.5 Disk Güvenliği ve Alan Yönetimi (Harden Altyapısı)
+Yedekleme betiği (`citedocs-backup.sh`), diskin dolmasını kesin olarak önlemek üzere dörtlü koruma kalkanına sahiptir:
+1. **Staging Öncesi Alan Tahmini:** Staging başlamadan önce canlı nesneler ve PostgreSQL veritabanı boyutu taranarak staging $S$ ve arşiv $A$ ($A \approx S$) boyutları hesaplanır. Staging ve arşiv dosya sistemlerinde $S + A + \text{Disk Rezervi}$ ($\%20$) alan olup olmadığı kontrol edilir; `MIN_FREE_DISK_MB=2048` taban (floor) koruması olarak uygulanır. Yetersiz alanda işlem net hata mesajıyla abort eder ve diski doldurmaz.
+2. **Sınırlı (Bounded) Staging ve Sinyal Tuzakları (Trap):** Staging alanı yalnız veri toplama ve sıkıştırma süresince yaşar; arşiv tamamlanır tamamlanmaz derhal silinir. Başarısızlık veya sinyallerde (`EXIT`, `INT`, `TERM`, `HUP`, `QUIT`) trap mekanizması geçici dizini ve yarım/bozuk arşivleri otomatik temizler.
+3. **Eski/Yarım Kalan Kalıntıların Başlangıçta Temizlenmesi:** Betik başlarken önceki kesintilerden kalan `.staging_*` dizinlerini, `*.tmp` / `*.part` dosyalarını ve bozuk/kesik arşivleri yalnız yedekleme dizini sınırında güvenle temizler.
+4. **Çalışma Süresi ve Arşiv Boyutu Takibi:** Her yedeklemede arşiv boyutu (insan okunabilir ve bayt olarak) ile toplam işlem süresi (saniye) loglanır; büyüme eğilimi operatör tarafından kolayca izlenir.
 
 ---
 
@@ -192,10 +202,15 @@ CiteDocs başlangıçta yaklaşık 20 öğrenci (Scientific Writing dersi) taraf
 - **Tek Bir Günlük Arşiv Boyutu:** Yaklaşık **150 - 350 MB**.
 
 ### 5.3 Yerel Disk Tüketimi (EC2 100 GB gp3)
-Saklama politikası: **7 Günlük + 4 Haftalık = En fazla 11 Arşiv**:
-$$\text{Toplam Yerel Depolama} = 11 \times 250\text{ MB} \approx 2.75\text{ GB}$$
-- 100 GB gp3 diskin yalnızca **%2.75**'i yedekler için kullanılır.
-- `MIN_FREE_DISK_MB=2048` koruması sayesinde boş alan 2 GB altına inerse sistem yedeklemeyi reddederek ana uygulamanın disk yetersizliği nedeniyle çökmesini önler.
+- **Standart Saklama Politikası (7 Günlük + 4 Haftalık = En fazla 11 Arşiv):**
+  $$\text{Toplam Yerel Depolama} = 11 \times 250\text{ MB} \approx 2.75\text{ GB}$$
+  100 GB gp3 diskin yalnızca **%2.75**'i yedekler için kullanılır.
+- **S3 Yüklemesi Sonrası İsteğe Bağlı Azaltılmış Yerel Saklama (`KEEP_LOCAL_AFTER_UPLOAD`):**
+  `BACKUP_S3_URI` başarıyla yüklendiğinde `KEEP_LOCAL_AFTER_UPLOAD=1` veya `2` yapılandırılarak yerelde yalnızca en son 1-2 arşiv saklanabilir:
+  $$\text{Azaltılmış Yerel Depolama} = 2 \times 250\text{ MB} \approx 500\text{ MB}$$
+  Böylece 11 arşivlik yerel kopyalama zorunluluğu kalkar ve disk yükü %80'den fazla azalır.
+- **Dinamik Alan ve Taban Koruması:**
+  Yedekleme öncesinde $S + A + \%20\text{ disk rezervi}$ serbest alan kontrolü yapılır ve `MIN_FREE_DISK_MB=2048` taban eşik (floor) olarak gözetilir; bu sayede büyük yedeklerin diski doldurarak sistemi kilitlemesi kesin olarak önlenir.
 
 ### 5.4 AWS S3 Off-Site Yedekleme Maliyeti (eu-central-1 Frankfurt)
 Uzak kova (`BACKUP_S3_URI`) tanımlandığında AWS faturasına etkisi:

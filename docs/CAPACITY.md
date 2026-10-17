@@ -28,7 +28,13 @@ Yedek kodu her seferinde nesneleri staging'e kopyalıyor, ardından tam `.tar.gz
 
 `kullanım ≈ B + D + 11A + S + A = B + D + 12A + S`
 
-`D`: canlı nesneler; `S`: staging (nesneler + DB dump); `A`: bir tam arşiv. DOCX ve PDF zaten sıkışık olduğundan **A≈S≈D** varsayın: `B + 14D`. Eski/yarım staging veya restore doğrulaması için ek alan gerekir. `BACKUP_S3_URI` yükleme yapması yerel arşivleri kaldırmaz. S3'e canlı nesneleri taşımak da mevcut yedek betiğinin staging ihtiyacını kaldırmaz. `MIN_FREE_DISK_MB=2048` yalnız başlangıç kontrolüdür; büyük bir yedeğin diski doldurmasını engellemez. Yedek öncesi serbest alan en az `S + A + %20 disk rezervi` olmalı; mevcut betiğin bu hesapla güçlendirilmesi ayrı iştir.
+`D`: canlı nesneler; `S`: staging (nesneler + DB dump); `A`: bir tam arşiv. DOCX ve PDF zaten sıkışık olduğundan **A≈S≈D** varsayın: `B + 14D`. Eski/yarım staging veya restore doğrulaması için ek alan gerekir.
+
+**Uygulanan Yedekleme Güçlendirmesi (`deploy/backup/citedocs-backup.sh`):**
+1. **Ön Alan Kontrolü:** Staging öncesinde canlı nesneler ve DB dump boyutu taranarak staging $S$ ve arşiv $A$ boyutları tahmin edilir; dosya sisteminde en az $S + A + \%20\text{ disk rezervi}$ (yapılandırılabilir `DISK_RESERVE_PERCENT`) bulunması zorunlu tutulur. `MIN_FREE_DISK_MB=2048` başlangıç tabanı (floor) olarak korunur; alan yetersizse işlem temizce durdurulur (abort).
+2. **Sınırlı (Bounded) Staging ve Trap:** Staging dizini arşiv biter bitmez hemen silinir; hata ve sinyallerde (`EXIT`, `INT`, `TERM`, `HUP`, `QUIT`) trap ile temizlenir. Başlangıçta ise önceki kesintilerden kalan `.staging_*` dizinleri ve kısmi `*.tmp` arşivleri otomatik temizlenir.
+3. **Esnek Yerel Saklama (`KEEP_LOCAL_AFTER_UPLOAD`):** Uzak S3 yüklemesi (`BACKUP_S3_URI`) başarılı olduğunda yerelde 11 arşiv yerine isteğe bağlı olarak yalnız son 1 veya 2 arşiv tutulabilir; böylece yerel disk tüketimi $2.75\text{ GB}$'dan $\sim 500\text{ MB}$ seviyesine iner.
+4. **Büyüme İzleme:** Her çalıştırmada arşiv boyutu ve işlem süresi loglanır; disk büyüme eğilimi takip edilebilir.
 
 | Öğrenci | 5 GiB kota toplamı D | Mevcut tam yerel yedekle zirve B+14D | %80 altında kalmak için disk alt hesabı |
 |---|---:|---:|---:|
@@ -136,7 +142,7 @@ Sonra servisleri operatör yeniden başlatır, kaydetme/tekrar açma kontrolü y
 4. **EBS:** yedek doğrulama → yeni boyut hesabı → yetkili operatörün volume büyütmesi → partition ve dosya sistemi büyütmesi → `df -h`/`df -i` teyidi. Volume büyümek dosya sistemini otomatik büyütmeyebilir. Bu çalışma AWS çağrısı yapmadı.
 5. **S3:** uygulamanın endpoint/region/kimlik bilgisi ve bucket varsayımlarını doğrulayın; iki kovayı kopyalayın, nesne sayısı/boyut/checksum ile doğrulayın, kısa yazma duraklamasında son farkı aktarın, endpoint'i değiştirin ve kaydetme/indirme/restore test edin. Eski MinIO'yu doğrulama ve geri dönüş süresi bitmeden kaldırmayın. Mevcut compose MinIO endpoint'ini sabitliyor; uygulama ve deploy sahibi ayrı değişiklik yapmalı.
 
-Açık işler: üretim gerçek disk/mount/RAM ölçümü; 21. bağlantı davranışı; otomatik bağlantı/CPU/kredi ve disk büyüme metriği; büyük yedek için ön alan kontrolü ve yerel retention/staging tasarımı; alarm teslimi ve dış uptime; cache yolunun imaj sürümüyle doğrulanması. [BACKUP.md](BACKUP.md) kurtarma prosedürü korunur; bu plan oradaki küçük veri/sıkıştırma varsayımını tam kota için kullanmaz.
+Açık işler: üretim gerçek disk/mount/RAM ölçümü; 21. bağlantı davranışı; otomatik bağlantı/CPU/kredi ve disk büyüme metriği; alarm teslimi ve dış uptime; cache yolunun imaj sürümüyle doğrulanması (büyük yedekler için ön alan kontrolü, bounded staging ve yerel retention güçlendirmesi `deploy/backup/citedocs-backup.sh` üzerinde tamamlanmıştır). [BACKUP.md](BACKUP.md) kurtarma prosedürü korunur; bu plan oradaki küçük veri/sıkıştırma varsayımını tam kota için kullanmaz.
 
 ## Test
 

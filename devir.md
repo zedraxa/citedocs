@@ -2469,3 +2469,91 @@ Node 22 (v22.22.3), 30 ölçüm örneği, Fastify `inject`, 5 ms bellek içi dep
   - **76 test dosyası** çalıştırıldı.
   - **733 test başarılı**, 1 atlanan, 3 todo, 0 başarısız!
 
+
+
+---
+
+## 51. ONLYOFFICE Eklenti ve Statik Başlıklarının Uzun Ömürlü Önbelleğe (Immutable) Alınmasının Engellenmesi (Kayıt #046)
+
+> **Kayıt No:** #046  
+> **Tarih:** 2026-10-17  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Dal:** `cd-oo-cache-headers`  
+> **İlgili Görev:** Canlı ortamda (prod) ONLYOFFICE eklenti HTML'i (`https://docs.sifirdanbire.com.tr/oo/sdkjs-plugins/zotero/index.html`), eklenti yapılandırmaları (`config.json`), senkronizasyon kancası (`zotero-sync-hook.js`), çeviriler (`translations/*`) ve başlatıcı `api.js` dosyalarının 1 yıllık immutable önbelleğe (`Cache-Control: public, max-age=31536000, immutable`) alınmasının engellenmesi ve `Cache-Control: no-cache` olarak yapılandırılması.
+
+---
+
+### 1. Kök Neden Tespiti ve Araştırma Bulguları
+
+Kullanıcı talebi doğrultusunda canlı ortamda bu başlığın üretildiği 3 potansiyel nokta incelenmiştir:
+1. `apps/web/nginx.conf`: Vite SPA frontend varlıklarını barındırır. Yalnızca `/assets/` altındaki hash'li dosyaları immutable yapar ve `index.html` ile `sw.js` dosyalarını `no-cache, no-store, must-revalidate` ile sunar. `/oo/` yolları buraya yönlendirilmez.
+2. `deploy/Caddyfile`: `/oo/*` yollarını `reverse_proxy onlyoffice:80` ile Document Server'a iletir; önceden downstream yanıt başlıklarında herhangi bir `Cache-Control` kuralı bulunmuyordu.
+3. **ONLYOFFICE Document Server Dahili Nginx Yapılandırması (`/etc/onlyoffice/documentserver/nginx/includes/ds-docservice.conf`):**
+   - Dahili yapılandırmada:
+     ```nginx
+     location ~ ^(\/[\d]+\.[\d]+\.[\d]+[\.|-][\w]+)?\/(sdkjs-plugins)(\/.*\.json)$ {
+       add_header Cache-Control "public, max-age=31536000, immutable" always;
+       alias /var/www/onlyoffice/documentserver/$2$3;
+     }
+
+     location ~ ^(\/[\d]+\.[\d]+\.[\d]+[\.|-][\w]+)?\/(web-apps|sdkjs|sdkjs-plugins|fonts|dictionaries)(\/.*)$ {
+       add_header Cache-Control "public, max-age=31536000, immutable" always;
+       alias /var/www/onlyoffice/documentserver/$2$3;
+     }
+     ```
+   - Kuraldaki sürüm öneki `(\/[\d]+\.[\d]+\.[\d]+[\.|-][\w]+)?` opsiyonel (`?`) tanımlandığından, sürüm hash'i taşımayan `/sdkjs-plugins/zotero/index.html`, `/config.json`, `/zotero-sync-hook.js` gibi dinamik/güncellenebilir dosyalar da 1 yıllık immutable önbelleğe alınmaktaydı. Tarayıcılar hatalı index.html dosyasını önbelleğe aldığında yapılan düzeltmeler 1 yıl boyunca kullanıcılara yansımıyordu.
+
+---
+
+### 2. Uygulanan Mimari Çözüm (Caddyfile /oo Rotası)
+
+Canlı ortamda istemci isteklerini karşılayan Caddy ağ geçidinde (`deploy/Caddyfile` ve `deploy/Caddyfile.onlyoffice`) `/oo/*` yönlendirmesi katmanlı `handle` blokları ile güncellendi:
+
+```caddyfile
+# ONLYOFFICE Docs (main editor); X-Forwarded-Host carries the /oo prefix.
+handle_path /oo/* {
+	@versioned path_regexp ^/[0-9]+
+	handle @versioned {
+		reverse_proxy onlyoffice:80 {
+			header_up X-Forwarded-Host {host}/oo
+			header_up X-Forwarded-Proto https
+		}
+	}
+	@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js
+	handle @no_cache {
+		reverse_proxy onlyoffice:80 {
+			header_up X-Forwarded-Host {host}/oo
+			header_up X-Forwarded-Proto https
+			header_down Cache-Control "no-cache"
+		}
+	}
+	handle {
+		reverse_proxy onlyoffice:80 {
+			header_up X-Forwarded-Host {host}/oo
+			header_up X-Forwarded-Proto https
+		}
+	}
+}
+```
+
+#### Kural Davranışları:
+1. **Gerçek Sürüm Hash'li Dosyalar (`@versioned path_regexp ^/[0-9]+`):**
+   - `/oo/10.0.0-123/web-apps/...` veya `/oo/10.0.0-123/sdkjs/...` gibi gerçekten sürüm hash'i içeren yollar Document Server'ın sağladığı `public, max-age=31536000, immutable` başlığını korur.
+2. **Eklenti ve Giriş Betikleri (`@no_cache`):**
+   - `*.html`, `*.json`, `config.json`, `zotero-sync-hook.js`, `translations/*`, ve `api.js` (örneğin `/oo/sdkjs-plugins/zotero/index.html`, `/oo/web-apps/apps/api/documents/api.js`) isteklerinde Caddy `header_down Cache-Control "no-cache"` yanıt başlığı uygular.
+   - Upstream `ETag` ve `Last-Modified` başlıkları korunur. Tarayıcı koşullu istek (`If-None-Match`, `If-Modified-Since`) attığında sunucu `304 Not Modified` dönerek ağ yükünü minimize eder; dosya güncellendiğinde ise `200 OK` ile taze içerik hemen çekilir.
+3. **Web Uygulaması Varlıklarının Korunması:**
+   - `apps/web/nginx.conf` içindeki `/assets/` (1 yıl immutable) ve `index.html` (no-cache) kuralları değiştirilmeden korunmuştur.
+
+---
+
+### 3. Eklenen Testler ve Doğrulama
+
+1. **`apps/server/test/cache-headers-config.test.ts`:**
+   - `deploy/Caddyfile` ve `deploy/Caddyfile.onlyoffice` dosyalarının `/oo/*` kuralları, `@versioned` ve `@no_cache` eşleşmeleri doğrulandı.
+   - Docker/host `caddy validate` çalıştırılarak Caddy sözdiziminin geçerliliği test edildi.
+   - Simüle edilmiş URL eşleşmeleriyle plugin HTML, JSON, JS dosyalarının `no-cache` grubuna, sürüm hash'li dosyaların `versioned` grubuna düştüğü doğrulandı.
+   - `apps/web/nginx.conf` kuralları regresyona karşı kontrol edildi.
+2. **Kısıtlar:**
+   - `docker-compose.prod.yml` dosyasına kesinlikle dokunulmadı.
+   - Dağıtım (deploy) yapılmadı.

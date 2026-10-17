@@ -112,3 +112,83 @@ export async function fetchZoteroConfig(userId: string): Promise<ZoteroConfigInf
     return null;
   }
 }
+
+export interface ImportReferencesRequest {
+  data?: string;
+  filename?: string;
+  format?: string;
+  save?: boolean;
+  items?: Record<string, unknown>[];
+}
+
+export interface ItemPreviewData {
+  title: string;
+  authors?: string;
+  year?: string;
+  doi?: string;
+  itemType?: string;
+  publicationTitle?: string;
+  key?: string;
+}
+
+export interface FailedItemData {
+  index: number;
+  title: string;
+  reason: string;
+  code?: number;
+}
+
+export interface ImportReferencesResponse {
+  success: boolean;
+  saved: boolean;
+  total: number;
+  savedCount: number;
+  failedCount: number;
+  savedItems?: ItemPreviewData[];
+  failedItems?: FailedItemData[];
+  items?: ItemPreviewData[];
+  rawItems?: Record<string, unknown>[];
+  message: string;
+  error?: string;
+}
+
+export async function importZoteroReferences(
+  payload: ImportReferencesRequest,
+  customApiUrl?: string,
+  userId?: string,
+): Promise<{ ok: boolean; status: number; data: ImportReferencesResponse }> {
+  const base = (customApiUrl || API_BASE).replace(/\/+$/, "");
+  const headers = getHeaders(userId || "");
+
+  try {
+    const res = await fetch(`${base}/api/zotero/import`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+
+    const data = (await res.json().catch(() => ({}))) as ImportReferencesResponse;
+    return { ok: res.ok, status: res.status, data };
+  } catch (err: unknown) {
+    const isNet = isNetworkError(err);
+    return {
+      ok: false,
+      status: isNet ? 0 : 500,
+      data: {
+        success: false,
+        saved: false,
+        total: 0,
+        savedCount: 0,
+        failedCount: 0,
+        message: isNet
+          ? "Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin."
+          : err instanceof Error
+            ? err.message
+            : "İçe aktarma sırasında beklenmeyen bir hata oluştu.",
+        error: isNet ? "Network Error" : "Unknown Error",
+      },
+    };
+  }
+}
+

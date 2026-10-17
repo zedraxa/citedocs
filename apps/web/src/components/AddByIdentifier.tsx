@@ -1,6 +1,7 @@
 import { useState, useId } from "react";
-import { Sparkles, Loader2, AlertCircle, Check, BookMarked } from "lucide-react";
+import { Sparkles, Loader2, AlertCircle, Check, BookMarked, Hash, FileCode } from "lucide-react";
 import { isNetworkError } from "../auth/api.js";
+import { ImportReferences } from "./ImportReferences.js";
 
 export interface AddByIdentifierItem {
   id: string;
@@ -18,6 +19,8 @@ export interface AddByIdentifierItem {
 export interface AddByIdentifierProps {
   apiUrl?: string;
   userId?: string;
+  documentId?: string;
+  linked?: boolean;
   onItemAdded?: (item: AddByIdentifierItem, rawData: unknown) => void;
   onCiteItem?: (item: AddByIdentifierItem) => void;
   onClose?: () => void;
@@ -149,10 +152,13 @@ export function extractItemDetails(data: unknown): AddByIdentifierItem {
 export function AddByIdentifier({
   apiUrl,
   userId,
+  documentId,
+  linked,
   onItemAdded,
   onCiteItem,
   className = "",
 }: AddByIdentifierProps) {
+  const [activeMode, setActiveMode] = useState<"identifier" | "import">("identifier");
   const [identifier, setIdentifier] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -247,7 +253,58 @@ export function AddByIdentifier({
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} data-testid="identifier-form" className="space-y-2">
+      {/* Mode Switch Tabs */}
+      <div className="flex rounded-md bg-gray-100 p-0.5 text-xs font-medium">
+        <button
+          type="button"
+          onClick={() => setActiveMode("identifier")}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded py-1 transition cursor-pointer ${
+            activeMode === "identifier"
+              ? "bg-white text-blue-700 shadow-2xs"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+          data-testid="mode-tab-identifier"
+        >
+          <Hash size={13} />
+          <span>Tanımlayıcı (DOI / ISBN / URL)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveMode("import")}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded py-1 transition cursor-pointer ${
+            activeMode === "import"
+              ? "bg-white text-blue-700 shadow-2xs"
+              : "text-gray-600 hover:text-gray-900"
+          }`}
+          data-testid="mode-tab-import"
+        >
+          <FileCode size={13} />
+          <span>Dosya veya Metinden Aktar</span>
+        </button>
+      </div>
+
+      {activeMode === "import" ? (
+        <ImportReferences
+          documentId={documentId}
+          linked={linked}
+          apiUrl={apiUrl}
+          userId={userId}
+          onItemsImported={(items, raw) => {
+            if (items.length > 0) {
+              const first = items[0];
+              const extracted = extractItemDetails(
+                (raw as { rawItems?: unknown[] })?.rawItems?.[0] || first,
+              );
+              setResult(extracted);
+              if (onItemAdded) {
+                onItemAdded(extracted, raw);
+              }
+            }
+          }}
+        />
+      ) : (
+        <>
+          <form onSubmit={handleSubmit} data-testid="identifier-form" className="space-y-2">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <input
@@ -379,6 +436,8 @@ export function AddByIdentifier({
             </button>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

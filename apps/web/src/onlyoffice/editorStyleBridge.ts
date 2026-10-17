@@ -195,38 +195,60 @@ export async function applyStyleInOnlyoffice(
       }
     }
 
-    // 4. Trigger Zotero plugin refresh/re-render cleanly without duplicate/premature button clicks
-    if (pluginWindow || pluginDoc) {
-      try {
-        const pWin = pluginWindow as unknown as {
-          __citedocsSyncStyle?: (s: string, l: string, f?: string) => Promise<boolean | void> | boolean | void;
-          __zoteroSettings?: {
-            getStyleManager?: () => {
-              getStyle?: (s: string, b: boolean) => Promise<unknown>;
-              saveLastUsedNotesStyle?: (s: string) => void;
-              getLastUsedNotesStyle?: () => string;
-              getLastUsedFormat?: () => string;
-            };
-            getLocalesManager?: () => {
-              loadLocale?: (l: string) => Promise<unknown>;
-              saveLastUsedLanguage?: (l: string) => void;
-            };
-          };
-          __zoteroCitationService?: {
-            updateCslItems?: (bHardRefresh?: boolean) => Promise<unknown>;
-            updateCslItemsInNotes?: (notesStyle: string) => Promise<unknown>;
-          };
-        } | null;
+    // 4. Trigger Zotero plugin refresh/re-render cleanly across all candidate windows
+    const candidateWindows = [
+      pluginWindow,
+      editorWindow,
+      typeof window !== "undefined" ? window : null,
+    ];
 
-        // A. Direct hook if available on pluginWindow (primary & most reliable)
-        if (typeof pWin?.__citedocsSyncStyle === "function") {
-          await pWin.__citedocsSyncStyle(cleanId, locale, format);
+    let directTriggered = false;
+
+    // A. Direct hook if available on ANY candidate window (primary & most reliable)
+    for (const win of candidateWindows) {
+      if (!win) continue;
+      try {
+        const w = win as unknown as {
+          __citedocsSyncStyle?: (s: string, l: string, f?: string) => Promise<boolean | void> | boolean | void;
+        };
+        if (typeof w.__citedocsSyncStyle === "function") {
+          await w.__citedocsSyncStyle(cleanId, locale, format);
+          directTriggered = true;
           pluginRefreshed = true;
-        } else if (pWin?.__zoteroSettings && pWin?.__zoteroCitationService) {
-          // B. Direct services invocation if hook wrapper not attached
-          try {
-            const styleMgr = pWin.__zoteroSettings.getStyleManager?.();
-            const locMgr = pWin.__zoteroSettings.getLocalesManager?.();
+          break;
+        }
+      } catch (err) {
+        console.error("[CiteDocs] Error calling __citedocsSyncStyle on window:", err);
+      }
+    }
+
+    // B. Direct services invocation if hook wrapper not attached
+    if (!directTriggered) {
+      for (const win of candidateWindows) {
+        if (!win) continue;
+        try {
+          const w = win as unknown as {
+            __zoteroSettings?: {
+              getStyleManager?: () => {
+                getStyle?: (s: string, b: boolean) => Promise<unknown>;
+                saveLastUsedNotesStyle?: (s: string) => void;
+                getLastUsedNotesStyle?: () => string;
+                getLastUsedFormat?: () => string;
+              };
+              getLocalesManager?: () => {
+                loadLocale?: (l: string) => Promise<unknown>;
+                saveLastUsedLanguage?: (l: string) => void;
+              };
+            };
+            __zoteroCitationService?: {
+              updateCslItems?: (bHardRefresh?: boolean) => Promise<unknown>;
+              updateCslItemsInNotes?: (notesStyle: string) => Promise<unknown>;
+            };
+          };
+
+          if (w.__zoteroSettings && w.__zoteroCitationService) {
+            const styleMgr = w.__zoteroSettings.getStyleManager?.();
+            const locMgr = w.__zoteroSettings.getLocalesManager?.();
             if (locMgr) {
               await locMgr.loadLocale?.(locale);
               locMgr.saveLastUsedLanguage?.(locale);
@@ -236,45 +258,61 @@ export async function applyStyleInOnlyoffice(
             }
             const notesStyle = styleMgr?.getLastUsedNotesStyle?.() || "footnotes";
             if (format === "note") {
-              await pWin.__zoteroCitationService.updateCslItemsInNotes?.(notesStyle);
+              await w.__zoteroCitationService.updateCslItemsInNotes?.(notesStyle);
             } else {
-              await pWin.__zoteroCitationService.updateCslItems?.(true);
+              await w.__zoteroCitationService.updateCslItems?.(true);
             }
+            directTriggered = true;
             pluginRefreshed = true;
-          } catch {
-            /* ignore */
+            break;
           }
-        } else if (pluginDoc) {
-          // C. DOM refresh button trigger ONLY as a fallback if direct JS hooks are absent
-          const refreshBtn = (pluginDoc.getElementById("refreshBtn") ||
-            pluginDoc.querySelector(
+        } catch (err) {
+          console.error("[CiteDocs] Error invoking __zoteroCitationService on window:", err);
+        }
+      }
+    }
+
+    // C. DOM refresh button trigger if direct JS hooks were absent
+    if (!directTriggered) {
+      const doc = pluginDoc || editorDoc;
+      if (doc) {
+        try {
+          const refreshBtn = (doc.getElementById("refreshBtn") ||
+            doc.querySelector(
               "button#refreshBtn, #refreshBtn, button#refresh, .btn-refresh, [data-action='refresh'], button[title*='Refresh'], button[title*='Yenile']",
             )) as HTMLElement | null;
 
           if (refreshBtn && typeof refreshBtn.click === "function") {
             refreshBtn.click();
+            directTriggered = true;
             pluginRefreshed = true;
           }
+        } catch {
+          /* ignore */
         }
+      }
+    }
 
-        // D. PostMessage as cross-origin fallback only if direct invocation wasn't possible
-        if (!pluginRefreshed && pluginWindow && typeof pluginWindow.postMessage === "function") {
-          pluginWindow.postMessage(
+    // D. PostMessage to any accessible iframe
+    for (const win of [pluginWindow, editorWindow]) {
+      if (win && typeof win.postMessage === "function") {
+        try {
+          win.postMessage(
             { type: "zotero:refreshStyle", styleId: cleanId, locale, format },
             "*",
           );
-          pluginWindow.postMessage(
+          win.postMessage(
             { type: "zotero:setStyle", styleId: cleanId, locale, format },
             "*",
           );
-          pluginWindow.postMessage(
+          win.postMessage(
             { type: "citedocs:styleChange", styleId: cleanId, locale, format },
             "*",
           );
           pluginRefreshed = true;
+        } catch {
+          /* cross-origin */
         }
-      } catch (err) {
-        console.error("[CiteDocs] Error applying style in plugin frame:", err);
       }
     }
   } catch (err) {

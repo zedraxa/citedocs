@@ -353,6 +353,33 @@ describe("editorStyleBridge", () => {
       );
       expect(result.pluginRefreshed).toBe(true);
     });
+    it("discovers and triggers __citedocsSyncStyle when exposed on host/top window even without pluginFrame", async () => {
+      const syncStyleFn = vi.fn();
+      // @ts-expect-error test mock on window
+      window.__citedocsSyncStyle = syncStyleFn;
+
+      try {
+        const mockEditorDoc = {
+          getElementById: vi.fn().mockReturnValue(null),
+          querySelectorAll: vi.fn().mockReturnValue([]),
+        };
+
+        const container = {
+          querySelector: vi.fn().mockReturnValue({
+            contentWindow: { document: mockEditorDoc },
+            contentDocument: mockEditorDoc,
+          }),
+        } as unknown as HTMLElement;
+
+        const result = await applyStyleInOnlyoffice(container, undefined, "ieee", "tr-TR");
+
+        expect(syncStyleFn).toHaveBeenCalledWith("ieee", "tr-TR", "numeric");
+        expect(result.pluginRefreshed).toBe(true);
+      } finally {
+        // @ts-expect-error clean up mock
+        delete window.__citedocsSyncStyle;
+      }
+    });
   });
 });
 

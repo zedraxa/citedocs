@@ -2927,5 +2927,102 @@ Canlı ortamdaki hata izlerinin yerel e2e testlerinde (`e2e/oo-style-switch.spec
 - Canlı ortama dağıtım (deploy) yapılmadı; `main` dalına push yapılmadı.
 - Yalnızca `cd-style-refresh` çalışma dalında scoped ve temiz değişiklikler yapıldı.
 
+---
+
+## 56. ONLYOFFICE Zotero Eklentisinde IEEE Stil Seçiminde CSL.setupXml / Null getAttribute Çökmesinin Çözülmesi ve Önceden Önbelleklenmiş (Pre-cached) CSL Mimarisi (Kayıt #051)
+
+> **Kayıt No:** #051  
+> **Tarih:** 2026-10-17  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Dal:** `cd-ieee-csl-null`  
+> **İlgili Görev:** Canlı prod ortamında (Chrome DevTools, 22:07 İstanbul) APA formatındaki belgede üst bar Atıf Stili Seçici'den ("StylePicker") IEEE seçildiğinde `/api/documents/<id>/style` başarılı (200 OK) dönmesine rağmen Zotero yan panelinde *"Yenileme başarısız oldu"* uyarısı çıkması ve konsolda `TypeError: Cannot read properties of null (reading 'getAttribute') at CSL.setupXml (citeproc_commonjs.js:2700:53) at new CSL.Engine (citeproc_commonjs.js:3777:23) at zt.Y (locales-manager.js:110:69)` çökmesi alınması; sayfa açılışında da aynı hatanın tetiklenmesi, `window.__zoteroCitationService` nesnesinin üst pencere bağlamında bulunamaması sorununun kök nedeninin bulunup kökten çözülmesi; CSL XML ve tr-TR yerelleştirmelerinin önceden önbelleğe alınması (pre-caching), API üzerinden ham CSL XML sunulması, köprünün çok pencereli taranması, anlaşılır Türkçe hata fırlatılması ve prod-benzeri stack üzerinde uçtan uca doğrulanması.
+
+---
+
+### 1. Kök Neden Analizi (Root Cause Analysis)
+
+Canlı ortamdaki Chrome DevTools logları ve ONLYOFFICE Zotero eklenti çalışma zamanı üzerinde yapılan derinlemesine incelemede 4 kritik kök neden belirlenmiştir:
+
+1. **`new CSL.Engine` Başlatılırken Null XML ve `CSL.setupXml` Çökmesi:**
+   - Eklenti açılışında veya `Y()` (CitationService) fonksiyonunda motor şu şekilde başlatılmaktaydı:
+     `this._formatter = new CSL.Engine(n, this._cslStylesManager.cached(this._cslStylesManager.getLastUsedStyleIdOrDefault()), ...)`
+   - `CslStylesManager` kurucusunda `this._cache = {}` şeklinde boş başlatılıyordu. Belge IEEE ile açıldığında veya üst bardan IEEE seçildiğinde `cached("ieee")` çağrısı `null` döndürüyordu.
+   - `citeproc_commonjs.js` içindeki `CSL.setupXml(xmlObject)` fonksiyonunda:
+     `else if ("undefined" !== typeof xmlObject.getAttribute)`
+     şeklinde bir denetim yer alıyordu. JavaScript'te `typeof null === "object"` olduğundan `"undefined" !== "object"` koşulu `true` vermekte, bu da `null.getAttribute` çağrısına yol açarak doğrudan `TypeError: Cannot read properties of null (reading 'getAttribute')` ile çökmeye neden olmaktaydı.
+
+2. **CSL Stil ve Yerelleştirme API Yanıt Formatı Uyuşmazlığı:**
+   - Eklentinin uzak stil getirme mekanizması (`X.prototype.getStyle`) veya zotero-sync-hook, CiteDocs sunucusunun `/api/csl/styles/:id` rotasına istek attığında; sunucu yalnızca JSON `{ id, title, xml, ... }` formatında yanıt dönüyordu.
+   - Eklenti ham `<style ...>` XML'i beklediğinden, JSON yanıtını doğrudan `citeproc` motoruna beslemeye çalışıyor veya XML doğrulamasından geçemeyip başarısız oluyordu.
+
+3. **Üst Pencere (Top Context) ve İframe Bağlam İzolasyonu:**
+   - Prod ortamında ONLYOFFICE eklentisi bazı durumlarda iframe yerine üst sayfa bağlamında (`top context`) veya doğrudan gömülü DOM'da çalışıyordu. Eklenti nesneleri (`r = new Z()`, `i = new zt()`) yalnızca yerel iframe'in `window` nesnesine yazıldığında, üst penceredeki `window.__zoteroCitationService` tanımsız (`undefined`) kalıyor ve `#050` ile kurulan köprü servise ulaşamıyordu.
+
+4. **Karakter Kaçırma (Escaping) Kaynaklı Sözdizimi Hatası:**
+   - `patch-zotero-plugin.py` içerisinde `_PRELOADED_STYLES` ve `_PRELOADED_LOCALES` dizgeleri JavaScript içine enjekte edilirken Python f-string içerisinde çift ters eğik çizgi (`\\n\\t`) kullanılmış; bu durum JavaScript koduna literal `\n\t` harflerinin yazılmasına ve tarayıcıda `SyntaxError: Invalid or unexpected token` hatasına yol açmıştı.
+
+---
+
+### 2. Uygulanan Mimari Çözüm ve Yapılan Değişiklikler
+
+1. **Önceden Önbelleklenmiş (Pre-cached) CSL ve Yerelleştirme Mimarisi (`deploy/onlyoffice/patch-zotero-plugin.py`):**
+   - **Pre-caching:** `CslStylesManager` (`X`) kurucusunda `ieee`, `apa`, `chicago-author-date` CSL XML'leri ve `LocalesManager` (`en`) kurucusunda `tr-TR`, `tr`, `en-US`, `en` XML'leri eklenti derleme aşamasında doğrudan `this._cache` içerisine pre-cache edildi. Bu sayede ilk açılışta ve ağ gecikmelerinde `cached("ieee")` asla `null` dönmez.
+   - **`function Y()` Sertleştirilmesi:** CSL XML dizesinin varlığı ve `<style` etiketi kontrol edildi. Eksiklik durumunda `cached("ieee") || cached("apa")` fallback'ine başvuruldu. Hâlâ bulunamazsa sessizce çökmek yerine `[CiteDocs Zotero Plugin] CSL XML not found for style: <styleId>` logu basılarak açık ve net Türkçe hata (`throw new Error("Atıf stili XML verisi bulunamadı: " + _styleId)`) fırlatıldı.
+   - **`retrieveLocale` Güvenliği:** `getLocale(t) || getLocale() || getLocale("tr-TR") || getLocale("en-US")` zinciri ile dil yerelleştirmesi garantiye alındı.
+   - **Global Nesne İhracı:** `window.__zoteroSettings` ve `window.__zoteroCitationService` nesneleri `window`, `window.parent` ve `window.top` pencerelerinin tamamına yansıtıldı.
+   - **Hata Mesajlarını Yüzeye Çıkarma:** `refreshBtn.click()` ve `r.onChangeState` bloklarındaki her iki hata yakalayıcı da güncellenerek gerçek hata mesajı UI kutusuna ve `window.top.console.error`'a aktarıldı.
+   - **JSON / Ham XML Ayrıştırma:** `tryFetch` fonksiyonu `Accept: application/vnd.citationstyles.style+xml, application/xml, text/xml` başlığı gönderecek ve dönen yanıt JSON ise `{ xml }` alanını çıkaracak şekilde yükseltildi.
+
+2. **CiteDocs API Ham CSL XML Uç Noktası (`apps/server/src/routes/csl.ts`):**
+   - `/api/csl/styles/:id` rotasına `.csl` ve `.xml` dosya uzantısı desteği eklendi.
+   - İstek başlığında `Accept: application/vnd.citationstyles.style+xml`, `application/xml` veya URL'de `?format=xml` parametresi bulunduğunda; rota HTTP 200, ETag başlığı ve `content-type: application/vnd.citationstyles.style+xml; charset=utf-8` ile doğrudan ham CSL XML döndürür.
+   - Web arayüzü ve diğer JSON tüketicileri için mevcut `{ id, title, xml, ... }` formatı geriye dönük tam uyumlulukla korundu.
+
+3. **Çok Pencereli Dayanıklı Editör Köprüsü (`deploy/onlyoffice/zotero-sync-hook.js` & `apps/web/src/onlyoffice/editorStyleBridge.ts`):**
+   - `zotero-sync-hook.js` içinde `findZoteroObjects()` yardımcı fonksiyonu yazılarak `[window, window.parent, window.top]` hiyerarşisi tarandı.
+   - `__citedocsSyncStyle` kancası `window`, `window.parent` ve `window.top` pencerelerine güvenle iliştirildi.
+   - `editorStyleBridge.ts` içerisinde `candidateWindows = [pluginWindow, editorWindow, window]` dizisi oluşturularak eklenti nesnelerinin çerçeve sınırlarını aşarak bulunması sağlandı.
+
+4. **CSL ve Yerelleştirme Doğrulama Betiği (`deploy/onlyoffice/verify-styles.sh`):**
+   - 16 aşamalı bağımsız bir bash doğrulama betiği yazıldı.
+   - ONLYOFFICE Document Server üzerindeki sürümsüz (`/sdkjs-plugins/zotero/resources/...`) ve sürümlü (`/10.0.0-169/...`) yolların IEEE, APA, Chicago CSL ve tr-TR, en-US yerelleştirmelerini HTTP 200 ve geçerli XML kök etiketleriyle (`<style`, `<locale`) sunduğunu;
+   - CiteDocs API'nin `.csl`, `?format=xml` ve `Accept` başlıklarıyla ham XML ile JSON yanıtlarını doğru ETag ile döndürdüğünü denetler.
+
+---
+
+### 3. Test ve Kalite Güvencesi Sonuçları
+
+- **`deploy/onlyoffice/verify-styles.sh`:** 16/16 denetimin tamamı başarılı!
+  - ONLYOFFICE IEEE CSL (Sürümsüz & Sürümlü 10.0.0-169): HTTP 200, `<style`
+  - ONLYOFFICE APA & Chicago CSL: HTTP 200, `<style`
+  - ONLYOFFICE tr-TR & en-US Locales: HTTP 200, `<locale`
+  - CiteDocs API IEEE Ham CSL (.csl, ?format=xml, Accept header): HTTP 200, `<style`
+  - CiteDocs API IEEE & APA JSON (`xml` alanı): HTTP 200
+  - CiteDocs API Stil Arama (`/api/csl/styles?q=ieee`): HTTP 200
+- **`apps/server/test/csl-routes.test.ts`:** 6 yeni birim testi başarıyla geçti.
+- **`apps/web/test/editor-style-bridge.test.ts`:** 13 birim testi başarıyla geçti.
+- **`e2e/oo-style-switch.spec.ts` (Playwright E2E Gerçek Chromium Tarayıcı Testi):**
+  - **1 passed (1.6m)** - `citedocs-onlyoffice-test:latest` Docker konteyneri ve yerel stack üzerinde:
+    - Başlangıçta APA atıfı `(LeCun vd., 2015)` ve APA kaynakçası doğrulandı.
+    - Üst bardan IEEE seçildiğinde eklenti hata kutusunda **0 hata** (`errText === ""`) oluştuğu;
+    - Eklenti `plainCitation` değerinin anında `[1]`'e dönüştüğü;
+    - Belge içi gerçek metnin `[1]\n [1]\tY. LeCun, Y. Bengio, ve G. Hinton, “Deep Learning”, Nature, c. 521, sy. 7553, ss. 436-444, 2015.` şeklinde numaralandığı;
+    - Tekrar APA'ya dönüldüğünde `(LeCun vd., 2015)` ve yazar-yıl kaynakçasına dönüştüğü;
+    - Sayfa yenilendiğinde (F5) seçimin korunduğu ve indirilen `.docx` dosyasının `docProps/custom.xml` içindeki `ZOTERO_PREF` alanında `ieee` değerinin atomik olarak saklandığı kanıtlandı.
+- **`pnpm test` (Tam Test Paketi):**
+  - **79 test dosyası** çalıştırıldı.
+  - **749 test başarılı**, 1 atlanan, 3 todo, 0 başarısız! (486.5s)
+- **`pnpm lint`:** 0 hata, 0 uyarı (tamamen temiz).
+- **`pnpm typecheck`:** 0 hata (`tsc -b` tüm projelerde hatasız geçti).
+
+---
+
+### 4. Dokunulmayan Dosyalar ve İzolasyon Kurallarına Uyum
+
+- Canlı sunucuya (`63.186.117.58` / `docs.sifirdanbire.com.tr`), Caddy prod veya AWS altyapısına **KESİNLİKLE DOKUNULMADI.**
+- Canlı ortama dağıtım (deploy) yapılmadı; `main` dalına push yapılmadı.
+- Yalnızca `cd-ieee-csl-null` çalışma dalında scoped ve temiz değişiklikler yapıldı.
+
+
 
 

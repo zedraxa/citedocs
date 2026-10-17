@@ -95,31 +95,135 @@ def main():
                 f.write(idx_c)
         make_gz(index_file)
 
-    # 5. Patch bundle.modern.js: expose settings & citation service, surface errors, add resilient fallbacks
+    # 5. Patch bundle.modern.js: expose settings & citation service, preload styles & locales, surface errors, add resilient fallbacks
     if os.path.isfile(bundle_file):
         with open(bundle_file, "r", encoding="utf-8") as f:
             b_c = f.read()
 
+        styles_dir = os.path.join(base, "resources", "csl", "styles")
+        locales_dir = os.path.join(base, "resources", "csl", "locales")
+
+        preloaded_styles = {}
+        preloaded_locales = {}
+
+        if os.path.isdir(styles_dir):
+            for s_id in ["ieee", "apa", "chicago-author-date", "modern-language-association", "vancouver"]:
+                s_path = os.path.join(styles_dir, s_id + ".csl")
+                if os.path.isfile(s_path):
+                    with open(s_path, "r", encoding="utf-8") as sf:
+                        preloaded_styles[s_id] = sf.read()
+
+        if os.path.isdir(locales_dir):
+            for l_id in ["tr-TR", "en-US"]:
+                l_path = os.path.join(locales_dir, "locales-" + l_id + ".xml")
+                if os.path.isfile(l_path):
+                    with open(l_path, "r", encoding="utf-8") as lf:
+                        content = lf.read()
+                        preloaded_locales[l_id] = content
+                        if l_id == "tr-TR":
+                            preloaded_locales["tr"] = content
+                        elif l_id == "en-US":
+                            preloaded_locales["en"] = content
+
+        if not preloaded_styles:
+            preloaded_styles["ieee"] = '<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0"><info><id>http://www.zotero.org/styles/ieee</id><title>IEEE</title><category citation-format="numeric"/></info><citation><layout prefix="[" suffix="]"><text variable="citation-number"/></layout></citation></style>'
+            preloaded_styles["apa"] = '<style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0"><info><id>http://www.zotero.org/styles/apa</id><title>APA</title><category citation-format="author-date"/></info><citation><layout prefix="(" suffix=")"><text variable="title"/></layout></citation></style>'
+        if not preloaded_locales:
+            tr_min = '<locale xmlns="http://purl.org/net/xbiblio/csl" version="1.0" xml:lang="tr-TR"><terms><term name="and">ve</term><term name="et-al">vd.</term></terms></locale>'
+            en_min = '<locale xmlns="http://purl.org/net/xbiblio/csl" version="1.0" xml:lang="en-US"><terms><term name="and">and</term><term name="et-al">et al.</term></terms></locale>'
+            preloaded_locales["tr-TR"] = tr_min
+            preloaded_locales["tr"] = tr_min
+            preloaded_locales["en-US"] = en_min
+            preloaded_locales["en"] = en_min
+
+        styles_json_str = json.dumps(preloaded_styles, ensure_ascii=False)
+        locales_json_str = json.dumps(preloaded_locales, ensure_ascii=False)
+
+        # 5a. Expose settings & citation service across window, parent, and top
         if "window.__zoteroSettings" not in b_c:
             b_c = b_c.replace(
                 "r = new Z(t, e), i = new zt(",
                 "window.__zoteroSettings = r = new Z(t, e), window.__zoteroCitationService = i = new zt("
             )
 
-        # 5a. Surface real error text and forward to top-level window console
-        old_err = """console.error(e);
-							var t = D("Failed to refresh");
-							typeof e == "string" && (t += ". " + D(e)), b(t);"""
-        new_err = """var _topC = (window.top && window.top.console) || (window.parent && window.parent.console) || window.console;
+        # Ensure window.parent and window.top also receive references in full bundle
+        full_init_target = "window.__zoteroSettings = r = new Z(t, e), window.__zoteroCitationService = i = new zt(r.getLocalesManager(), r.getStyleManager(), n, r.getAbbreviationsManager());"
+        full_init_repl = """window.__zoteroSettings = r = new Z(t, e), window.__zoteroCitationService = i = new zt(r.getLocalesManager(), r.getStyleManager(), n, r.getAbbreviationsManager());
+		try { if (window.parent) { window.parent.__zoteroSettings = r; window.parent.__zoteroCitationService = i; } } catch (_) {}
+		try { if (window.top) { window.top.__zoteroSettings = r; window.top.__zoteroCitationService = i; } } catch (_) {}"""
+        if full_init_target in b_c and "window.top.__zoteroSettings = r" not in b_c:
+            b_c = b_c.replace(full_init_target, full_init_repl)
+
+        # 5b. Preload CSL styles directly in X (CslStylesManager) constructor
+        if "_PRELOADED_STYLES" not in b_c:
+            x_cache_target = '"nature"\n\t], this._cache = {};'
+            if x_cache_target in b_c:
+                b_c = b_c.replace(
+                    x_cache_target,
+                    f'"nature"\n\t];\nvar _PRELOADED_STYLES = {styles_json_str};\nthis._cache = Object.assign({{}}, _PRELOADED_STYLES);'
+                )
+
+        # 5c. Preload CSL locales directly in en (LocalesManager) constructor
+        if "_PRELOADED_LOCALES" not in b_c:
+            en_cache_target = 'this._selectedLanguage = null, this._cache = {};'
+            if en_cache_target in b_c:
+                b_c = b_c.replace(
+                    en_cache_target,
+                    f'this._selectedLanguage = null;\nvar _PRELOADED_LOCALES = {locales_json_str};\nthis._cache = Object.assign({{}}, _PRELOADED_LOCALES);'
+                )
+
+        # 5d. Harden function Y() in CitationService: protect CSL.Engine against null style and retrieveLocale against null locale
+        old_y = """	var n = {
+		retrieveLocale: function(t) {
+			return e._localesManager.getLocale(t) ? e._localesManager.getLocale(t) : e._localesManager.getLocale();
+		},
+		retrieveItem: function(t) {
+			var n = e._storage.getItem(t), r = e._storage.getItemIndex(t);
+			return n ? n.toFlatJSON(r, s(Lt, e)) : null;
+		}
+	};
+	s(Rt, this).isLoaded() && this._cslStylesManager.getAbbreviateJournalTitles() && (n.getAbbreviation = s(Rt, this).createCiteprocHook()), this._formatter = new CSL.Engine(n, this._cslStylesManager.cached(this._cslStylesManager.getLastUsedStyleIdOrDefault()), this._localesManager.getLastUsedLanguage(), !0), t.length && this._formatter.updateItems(t);"""
+        new_y = """	var n = {
+		retrieveLocale: function(t) {
+			return e._localesManager.getLocale(t) || e._localesManager.getLocale() || e._localesManager.getLocale("tr-TR") || e._localesManager.getLocale("en-US");
+		},
+		retrieveItem: function(t) {
+			var n = e._storage.getItem(t), r = e._storage.getItemIndex(t);
+			return n ? n.toFlatJSON(r, s(Lt, e)) : null;
+		}
+	};
+	s(Rt, this).isLoaded() && this._cslStylesManager.getAbbreviateJournalTitles() && (n.getAbbreviation = s(Rt, this).createCiteprocHook());
+	var _styleId = this._cslStylesManager.getLastUsedStyleIdOrDefault() || "ieee";
+	var _styleXml = this._cslStylesManager.cached(_styleId);
+	if (!_styleXml || typeof _styleXml !== "string" || _styleXml.indexOf("<style") === -1) {
+		_styleXml = this._cslStylesManager.cached("ieee") || this._cslStylesManager.cached("apa");
+	}
+	if (!_styleXml || typeof _styleXml !== "string" || _styleXml.indexOf("<style") === -1) {
+		var _topCons = (window.top && window.top.console) || (window.parent && window.parent.console) || window.console;
+		try { _topCons.error("[CiteDocs Zotero Plugin] CSL XML not found for style:", _styleId); } catch (_) {}
+		throw new Error("Atıf stili XML verisi bulunamadı: " + _styleId);
+	}
+	var _lang = this._localesManager.getLastUsedLanguage() || "tr-TR";
+	this._formatter = new CSL.Engine(n, _styleXml, _lang, !0), t.length && this._formatter.updateItems(t);"""
+        if old_y in b_c:
+            b_c = b_c.replace(old_y, new_y)
+
+        # 5e. Surface real error text and forward to top-level window console in ALL refresh error handlers (refreshBtn + onChangeState)
+        import re
+        err_pattern = re.compile(
+            r'console\.error\(e\);\s*var t = D\("Failed to refresh"\);\s*typeof e == "string" && \(t \+= "\. " \+ D\(e\)\), b\(t\);'
+        )
+        b_c = err_pattern.sub(
+            """var _topC = (window.top && window.top.console) || (window.parent && window.parent.console) || window.console;
 							try { _topC.error("[CiteDocs Zotero Plugin] Refresh error:", e); } catch (_) {}
 							console.error(e);
 							var t = D("Failed to refresh"), _msg = (e && (e.message || e.stack)) ? String(e.message) : (typeof e == "string" ? e : "");
 							_msg && (t += ": " + (D(_msg) || _msg));
-							b(t);"""
-        if old_err in b_c:
-            b_c = b_c.replace(old_err, new_err)
+							b(t);""",
+            b_c
+        )
 
-        # 5b. Ut error forwarding in makeBibliography
+        # 5f. Ut error forwarding in makeBibliography
         old_ut = 'else throw console.error(e), "Failed to apply this style.";'
         new_ut = """else {
 		try { ((window.top && window.top.console) || (window.parent && window.parent.console) || window.console).error("[CiteDocs Zotero Plugin] Ut error:", e); } catch (_) {}
@@ -128,13 +232,13 @@ def main():
         if old_ut in b_c:
             b_c = b_c.replace(old_ut, new_ut)
 
-        # 5c. Prevent bibStyle undefined throw in gt
+        # 5g. Prevent bibStyle undefined throw in gt
         old_bs = '!Asc.scope.bibStyle) throw "Bibliography style is not defined";'
         new_bs = '!Asc.scope.bibStyle && (Asc.scope.bibStyle = {}), !Asc.scope.bibStyle) throw "Bibliography style is not defined";'
         if old_bs in b_c:
             b_c = b_c.replace(old_bs, new_bs)
 
-        # 5d. Prevent getCurrentField null throw after paste in gt
+        # 5h. Prevent getCurrentField null throw after paste in gt
         old_cf = 'if (!s) throw Error("Failed to get current field after paste");'
         new_cf = """if (!s) {
 			var allF = yield this.getAddinZoteroFields().catch(() => []);
@@ -144,7 +248,7 @@ def main():
         if old_cf in b_c:
             b_c = b_c.replace(old_cf, new_cf)
 
-        # 5e. Resilient style loading: fallback to bundled local style and backend proxy
+        # 5i. Resilient style loading: fallback to bundled local style and backend proxy (handling JSON or raw XML)
         old_gs = """var t = r._STYLES_LOCAL + e + ".csl";
 		if (r._isOnlineAvailable) t = r._STYLES_URL + e;
 		else if (r._defaultStyles.indexOf(e) === -1) throw "The style is not available in the local version of the plugin.";
@@ -153,10 +257,20 @@ def main():
 		});"""
         new_gs = """var localUrl = r._STYLES_LOCAL + e + ".csl";
 		function tryFetch(url) {
-			return fetch(url).then(function(res) {
+			return fetch(url, { headers: { Accept: "application/vnd.citationstyles.style+xml, application/xml, text/xml;q=0.9, text/plain;q=0.8, application/json;q=0.5" } }).then(function(res) {
 				if (!res.ok) throw new Error("HTTP " + res.status + " fetching " + url);
+				var ctype = res.headers.get("content-type") || "";
+				if (ctype.includes("json")) {
+					return res.json().then(function(j) { return (j && j.xml) ? j.xml : ""; });
+				}
 				return res.text();
 			}).then(function(txt) {
+				if (typeof txt === "string" && txt.trim().startsWith("{")) {
+					try {
+						var parsed = JSON.parse(txt);
+						if (parsed && parsed.xml) txt = parsed.xml;
+					} catch (_) {}
+				}
 				if (!txt || !txt.includes("<style")) throw new Error("Invalid CSL from " + url);
 				return txt;
 			});
@@ -174,8 +288,42 @@ def main():
 		});"""
         if old_gs in b_c:
             b_c = b_c.replace(old_gs, new_gs)
+        elif "Remote style fetch failed" in b_c and 'Accept: "application/vnd.citationstyles.style+xml' not in b_c:
+            # Upgrade earlier patched tryFetch to JSON-aware version
+            earlier_gs = """var localUrl = r._STYLES_LOCAL + e + ".csl";
+		function tryFetch(url) {
+			return fetch(url).then(function(res) {
+				if (!res.ok) throw new Error("HTTP " + res.status + " fetching " + url);
+				return res.text();
+			}).then(function(txt) {
+				if (!txt || !txt.includes("<style")) throw new Error("Invalid CSL from " + url);
+				return txt;
+			});
+		}"""
+            earlier_gs_repl = """var localUrl = r._STYLES_LOCAL + e + ".csl";
+		function tryFetch(url) {
+			return fetch(url, { headers: { Accept: "application/vnd.citationstyles.style+xml, application/xml, text/xml;q=0.9, text/plain;q=0.8, application/json;q=0.5" } }).then(function(res) {
+				if (!res.ok) throw new Error("HTTP " + res.status + " fetching " + url);
+				var ctype = res.headers.get("content-type") || "";
+				if (ctype.includes("json")) {
+					return res.json().then(function(j) { return (j && j.xml) ? j.xml : ""; });
+				}
+				return res.text();
+			}).then(function(txt) {
+				if (typeof txt === "string" && txt.trim().startsWith("{")) {
+					try {
+						var parsed = JSON.parse(txt);
+						if (parsed && parsed.xml) txt = parsed.xml;
+					} catch (_) {}
+				}
+				if (!txt || !txt.includes("<style")) throw new Error("Invalid CSL from " + url);
+				return txt;
+			});
+		}"""
+            if earlier_gs in b_c:
+                b_c = b_c.replace(earlier_gs, earlier_gs_repl)
 
-        # 5f. Resilient locale loading: validate XML and fallback to bundled tr-TR and en-US
+        # 5j. Resilient locale loading: validate XML and fallback to bundled tr-TR and en-US
         old_ll = """en.prototype.loadLocale = function(e) {
 	var t = this;
 	if (this._selectedLanguage = e, this._cache[e]) return Promise.resolve(this._cache[e]);
@@ -280,6 +428,13 @@ def main():
             assert "ADDIN ZOTERO_BIBL" in b_check, "bundle.modern.js missing getCurrentField fallback patch"
             assert "Remote style fetch failed" in b_check, "bundle.modern.js missing getStyle fallback patch"
             assert "fallbackUrl = t._LOCALES_PATH + \"locales-en-US.xml\"" in b_check, "bundle.modern.js missing loadLocale fallback patch"
+            assert "window.parent.__zoteroSettings = r" in b_check, "bundle.modern.js missing parent __zoteroSettings patch"
+            assert "window.top.__zoteroSettings = r" in b_check, "bundle.modern.js missing top __zoteroSettings patch"
+            assert "window.parent.__zoteroCitationService = i" in b_check, "bundle.modern.js missing parent __zoteroCitationService patch"
+            assert "window.top.__zoteroCitationService = i" in b_check, "bundle.modern.js missing top __zoteroCitationService patch"
+            assert "Atıf stili XML verisi bulunamadı:" in b_check, "bundle.modern.js missing Turkish CSL missing error patch"
+            assert "_PRELOADED_STYLES" in b_check, "bundle.modern.js missing _PRELOADED_STYLES patch"
+            assert "_PRELOADED_LOCALES" in b_check, "bundle.modern.js missing _PRELOADED_LOCALES patch"
         assert os.path.isfile(bundle_file + ".gz"), "bundle.modern.js.gz missing"
         with gzip.open(bundle_file + ".gz", "rt", encoding="utf-8") as f:
             b_gz = f.read()

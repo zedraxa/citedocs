@@ -1632,7 +1632,7 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - Açık işler: operatörün alarmı kurup teslimini denemesi, üretim ölçümü ve staging yük testi, 21. bağlantı davranışı, CPU/kredi/bağlantı metrikleri, büyük yedeklerde alan kontrolü ve staging/retention iyileştirmesi. Bunlar üretimde uygulanmış gibi raporlanmadı.
 - Commitler: `947e570` araçlar ve testler; `2c12343` kapasite planı; bu devir kaydı son commit'tedir.
 
-## Zotero Word & LibreOffice Uyumluluğu ve CSL Stil Deposu Doğrulaması — Kayıt #027
+## Zotero Word & LibreOffice Uyumluluğu ve CSL Stil Deposu Doğrulaması — Kayıt #029
 
 > **Kayıt No:** #029 (birleştirmede #027/#028 çakışması nedeniyle yeniden numaralandı)  
 > **Tarih:** 2026-10-17  

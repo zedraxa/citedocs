@@ -21,9 +21,26 @@ http://docs.sifirdanbire.com.tr, https://docs.sifirdanbire.com.tr {
 		reverse_proxy @office wopi:8080
 		# ONLYOFFICE Docs (main editor); X-Forwarded-Host carries the /oo prefix.
 		handle_path /oo/* {
-			reverse_proxy onlyoffice:80 {
-				header_up X-Forwarded-Host {host}/oo
-				header_up X-Forwarded-Proto https
+			@versioned path_regexp ^/[0-9]+
+			handle @versioned {
+				reverse_proxy onlyoffice:80 {
+					header_up X-Forwarded-Host {host}/oo
+					header_up X-Forwarded-Proto https
+				}
+			}
+			@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js
+			handle @no_cache {
+				reverse_proxy onlyoffice:80 {
+					header_up X-Forwarded-Host {host}/oo
+					header_up X-Forwarded-Proto https
+					header_down Cache-Control "no-cache"
+				}
+			}
+			handle {
+				reverse_proxy onlyoffice:80 {
+					header_up X-Forwarded-Host {host}/oo
+					header_up X-Forwarded-Proto https
+				}
 			}
 		}
 		reverse_proxy /api/* server:3000

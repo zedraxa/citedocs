@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { StrictMode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, waitFor, screen, act, fireEvent } from "@testing-library/react";
 import { OnlyofficeEditorPage } from "../src/onlyoffice/OnlyofficeEditorPage.js";
@@ -8,6 +9,8 @@ afterEach(() => {
   cleanup();
   delete window.DocsAPI;
   localStorage.clear();
+  sessionStorage.clear();
+  window.history.replaceState({}, "", "/");
   vi.unstubAllGlobals();
 });
 
@@ -137,5 +140,124 @@ describe("ONLYOFFICE document editor", () => {
     );
     await waitFor(() => expect(screen.getByTestId("oo-error").textContent).toBe("Access denied"));
     expect(DocEditor).not.toHaveBeenCalled();
+  });
+});
+
+describe("pending Zotero identifier", () => {
+  const pendingKey = "citedocs.pendingZoteroAdd";
+  function setup(
+    linked: boolean,
+    result: "success" | "http" | "network" = "success",
+    oauthAvailable = true,
+  ) {
+    const add = vi.fn(async () => {
+      if (result === "network") throw new Error("Failed to fetch");
+      return new Response(
+        JSON.stringify(
+          result === "success"
+            ? { saved: true, key: "item", item: { title: "Test source" } }
+            : { error: "Upstream service failed" },
+        ),
+        { status: result === "http" ? 502 : 200 },
+      );
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.includes("add-by-identifier")) return add();
+        return new Response(
+          JSON.stringify(
+            url.includes("plugin-credentials")
+              ? { linked, oauthAvailable }
+              : { documentServerUrl: "/oo", config: {} },
+          ),
+        );
+      }),
+    );
+    window.DocsAPI = { DocEditor: vi.fn().mockImplementation(() => ({ destroyEditor: vi.fn() })) };
+    const view = render(
+      <StrictMode>
+        <OnlyofficeEditorPage documentId="doc" documentTitle="Paper" onBackToDocuments={vi.fn()} />
+      </StrictMode>,
+    );
+    return { add, ...view };
+  }
+
+  it("keeps connect next to the input, stores the identifier and returns to this document", async () => {
+    window.history.replaceState({}, "", "/editor?doc=doc");
+    setup(false);
+    const connect = await screen.findByRole("button", { name: "Zotero'yu bağla" });
+    await waitFor(() => expect(window.DocsAPI!.DocEditor).toHaveBeenCalled());
+    expect(screen.getByTestId("oo-add-form").contains(connect)).toBe(true);
+    fireEvent.change(screen.getByTestId("oo-add-input"), {
+      target: { value: "10.1038/nature14539" },
+    });
+    fireEvent.click(connect);
+    expect(JSON.parse(sessionStorage.getItem(pendingKey)!)).toEqual({
+      documentId: "doc",
+      identifier: "10.1038/nature14539",
+    });
+    expect(window.location.pathname).toBe("/api/zotero/oauth/start");
+    expect(new URLSearchParams(window.location.search).get("returnTo")).toBe("/editor?doc=doc");
+  });
+
+  it("explains unavailable OAuth without redirecting", async () => {
+    setup(false, "success", false);
+    await waitFor(() => expect(window.DocsAPI!.DocEditor).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId("oo-zotero-connect"));
+    expect(screen.getByTestId("oo-notice").textContent).toContain("yapılandırılmamış");
+    expect(window.location.pathname).toBe("/");
+    expect(sessionStorage.getItem(pendingKey)).toBeNull();
+  });
+
+  it.each(["success", "http", "network"] as const)(
+    "consumes the pending add once on %s",
+    async (result) => {
+      sessionStorage.setItem(
+        pendingKey,
+        JSON.stringify({ documentId: "doc", identifier: "9780262033848" }),
+      );
+      const { add, unmount } = setup(true, result);
+      await waitFor(() => expect(add).toHaveBeenCalledOnce());
+      expect(sessionStorage.getItem(pendingKey)).toBeNull();
+      await waitFor(() =>
+        expect(screen.getByTestId("oo-notice").textContent).toContain(
+          result === "success"
+            ? "Zotero kütüphanene eklendi"
+            : result === "http"
+              ? "Kaynak eklenemedi"
+              : "Kaynak eklenemedi",
+        ),
+      );
+      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+        "/api/zotero/add-by-identifier",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ identifier: "9780262033848" }),
+        }),
+      );
+      unmount();
+      const next = setup(true);
+      await waitFor(() => expect(window.DocsAPI!.DocEditor).toHaveBeenCalled());
+      expect(next.add).not.toHaveBeenCalled();
+    },
+  );
+
+  it("does not consume another document's pending identifier", async () => {
+    const raw = JSON.stringify({ documentId: "other", identifier: "123" });
+    sessionStorage.setItem(pendingKey, raw);
+    const { add } = setup(true);
+    await waitFor(() => expect(window.DocsAPI!.DocEditor).toHaveBeenCalled());
+    expect(add).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(pendingKey)).toBe(raw);
+  });
+
+  it("restores typed input after a cancelled connection without adding", async () => {
+    sessionStorage.setItem(pendingKey, JSON.stringify({ documentId: "doc", identifier: "123" }));
+    const { add } = setup(false);
+    await waitFor(() =>
+      expect((screen.getByTestId("oo-add-input") as HTMLInputElement).value).toBe("123"),
+    );
+    expect(add).not.toHaveBeenCalled();
   });
 });

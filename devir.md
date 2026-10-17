@@ -1485,3 +1485,17 @@ Detaylı rapor `docs/qa-report-2026-10-17.md` dosyasına kaydedilmiş olup, en k
 
 
 
+
+## Editör OAuth Akışı ve Türkçe Boş Belge — Kayıt #026
+
+> **Kayıt No:** #026
+> **Tarih:** 2026-10-17
+> **Dal:** `cd-editor-fixes`
+
+- **BUG-02:** Tanımlayıcı alanının yanına açıklamalı “Zotero'yu bağla” düğmesi taşındı. Mevcut OAuth akışı aynı belgeye döner; tanımlayıcı ve belge kimliği `sessionStorage/citedocs.pendingZoteroAdd` içinde korunur. Bağlı hesapla dönüşte kayıt istekten önce tüketilir ve kaynak bir kez eklenir; HTTP/ağ hataları Türkçe bildirilir, otomatik tekrar döngüsü oluşmaz. OAuth yapılandırılmamışsa yönlendirme yerine Türkçe açıklama ve mevcut API anahtarı seçeneği gösterilir. Yerel kaynak deposu veya `save:false` eklenmedi.
+- **BUG-07:** Üretilen DOCX ve eski office yolunun kullandığı `deploy/office/blank.docx` varlığına `styles.xml/docDefaults` ve `settings.xml/themeFontLang` içinde `tr-TR` eklendi; paket ilişkileri ve içerik türleri tanımlandı. Mevcut sunucu `editorConfig.lang=tr`, `region=tr-TR`, `spellcheck=true` ayarları korundu; farklı Accept-Language değerleriyle test kapsamı genişletildi.
+- **Kapsam:** Oturum anahtarı mantığı, compose/Caddy dosyaları ve üretim sunucusu değiştirilmedi. Container oluşturulmadı; push veya deploy yapılmadı.
+- **Odaklı doğrulama:** 4 dosyada 78 Vitest testi geçti; StrictMode altında tek ekleme, HTTP/ağ hatası, farklı belge, iptal sonrası girdi korunması, OAuth kapalı durumu, varsayılan/açık DOCX oluşturma yolları ve iki şablon doğrulandı. DOCX varlığının altı XML parçası ayrıştırıldı. Güncellenen iki Playwright dosyası `--list` ile doğrulandı (12 test); canlı E2E çalıştırılmadı.
+- **Açık kontrol:** Gerçek Zotero OAuth dönüşü ve ONLYOFFICE durum çubuğunun ilk açılışta Türkçe görünmesi dağıtım sonrası tarayıcıda doğrulanmalı. Önceden oluşturulmuş belgeler dönüştürülmez.
+- **Genel doğrulama (Node v22.22.3):** `pnpm install`, `pnpm lint`, `pnpm typecheck`, `pnpm build` ve `pnpm test` başarılı. Tam pakette 56 dosya, 528 başarılı / 1 atlanan test (529 toplam). Son kod değişikliklerinden sonra lint/typecheck yeniden geçti. Vite büyük paket ve Vitest workspace kullanımdan kaldırma uyarıları engelleyici değil.
+- **Commitler:** `59ec9a7` OAuth sonrası bekleyen kaynak ekleme; `a65a0fc` Türkçe boş DOCX ve dil testleri; bu kayıt son dokümantasyon commit'inde.

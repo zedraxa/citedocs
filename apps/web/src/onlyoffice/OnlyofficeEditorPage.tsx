@@ -44,7 +44,10 @@ export interface AddedCiteItem {
   itemType?: string;
 }
 
+const PENDING_ADD = "citedocs.pendingZoteroAdd";
+
 /** localStorage keys used by the official ONLYOFFICE Zotero plugin (same origin as /oo). */
+
 const ZK_USER = "zoteroUserId";
 const ZK_KEY = "zoteroApiKey";
 
@@ -252,50 +255,102 @@ export function OnlyofficeEditorPage({
     setReloadKey((k) => k + 1);
   };
 
-  const connectZotero = () => {
-    if (creds?.oauthAvailable) {
-      const back = window.location.pathname + window.location.search;
-      window.location.href = `${getApiBaseUrl()}/api/zotero/oauth/start?returnTo=${encodeURIComponent(back)}`;
-    } else {
+  const connectZotero = (pendingIdentifier = identifier) => {
+    if (!creds?.oauthAvailable) {
+      setNotice({
+        ok: false,
+        text: "Zotero bağlantısı şu anda yapılandırılmamış. Lütfen daha sonra tekrar deneyin veya API anahtarıyla bağlanın.",
+      });
       setShowKeyModal(true);
+      return;
     }
+    try {
+      sessionStorage.setItem(
+        PENDING_ADD,
+        JSON.stringify({ documentId, identifier: pendingIdentifier }),
+      );
+    } catch {
+      setNotice({
+        ok: false,
+        text: "Tanımlayıcı saklanamadı. Lütfen tarayıcınızda oturum depolamasına izin verip tekrar deneyin.",
+      });
+      return;
+    }
+    const back = window.location.pathname + window.location.search;
+    window.location.href = `${getApiBaseUrl()}/api/zotero/oauth/start?returnTo=${encodeURIComponent(back)}`;
   };
 
-  const performAdd = async (rawIdentifier: string): Promise<boolean> => {
-    const id = rawIdentifier.trim();
-    if (!id) return false;
-    if (!creds?.linked) {
-      setNotice({ ok: false, text: "Önce Zotero hesabını bağla." });
-      setIsPanelOpen(true);
-      return false;
-    }
-    setAdding(true);
-    setNotice(null);
-    const r = await api<{
-      saved?: boolean;
-      item?: Record<string, unknown>;
-      key?: string;
-      error?: string;
-    }>("/api/zotero/add-by-identifier", {
-      method: "POST",
-      body: JSON.stringify({ identifier: id }),
-    });
-    setAdding(false);
-    if (r.ok && r.data.saved) {
-      const preview = extractItemPreview(r.data.item);
-      const added: AddedCiteItem = { ...preview, key: r.data.key };
-      setLastAdded(added);
-      setRecentItems((prev) => [added, ...prev.filter((p) => p.key !== added.key)]);
-      setNotice({
-        ok: true,
-        text: `Zotero kütüphanene eklendi: “${preview.title}”. ONLYOFFICE Zotero panelinde aratıp atıf ekleyebilirsin.`,
+  const performAdd = useCallback(
+    async (rawIdentifier: string): Promise<boolean> => {
+      const id = rawIdentifier.trim();
+      if (!id) return false;
+      if (!creds?.linked) {
+        setNotice({
+          ok: false,
+          text: "Kaynağı kütüphanene eklemek için Zotero’yu bağla düğmesini kullan.",
+        });
+        setIsPanelOpen(true);
+        return false;
+      }
+      setAdding(true);
+      setNotice(null);
+      try {
+        const r = await api<{
+          saved?: boolean;
+          item?: Record<string, unknown>;
+          key?: string;
+          error?: string;
+        }>("/api/zotero/add-by-identifier", {
+          method: "POST",
+          body: JSON.stringify({ identifier: id }),
+        });
+        if (r.ok && r.data.saved) {
+          const preview = extractItemPreview(r.data.item);
+          const added: AddedCiteItem = { ...preview, key: r.data.key };
+          setLastAdded(added);
+          setRecentItems((prev) => [added, ...prev.filter((p) => p.key !== added.key)]);
+          setNotice({
+            ok: true,
+            text: `Zotero kütüphanene eklendi: “${preview.title}”. ONLYOFFICE Zotero panelinde aratıp atıf ekleyebilirsin.`,
+          });
+          return true;
+        } else {
+          setNotice({
+            ok: false,
+            text: "Kaynak eklenemedi. Tanımlayıcıyı ve Zotero bağlantınızı kontrol edip tekrar deneyin.",
+          });
+          return false;
+        }
+      } catch {
+        setNotice({
+          ok: false,
+          text: "Kaynak eklenemedi. Lütfen bağlantınızı kontrol edip tekrar deneyin.",
+        });
+        return false;
+      } finally {
+        setAdding(false);
+      }
+    },
+    [creds?.linked],
+  );
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(PENDING_ADD);
+      if (!raw) return;
+      const pending = JSON.parse(raw);
+      if (pending.documentId !== documentId || typeof pending.identifier !== "string") return;
+      setIdentifier(pending.identifier);
+      if (!creds?.linked) return;
+      // Consume before the request: rerenders/StrictMode and failures must never retry it.
+      sessionStorage.removeItem(PENDING_ADD);
+      void performAdd(pending.identifier).then((ok) => {
+        if (ok) setIdentifier("");
       });
-      return true;
-    } else {
-      setNotice({ ok: false, text: r.data.error || "Kaynak bulunamadı" });
-      return false;
+    } catch {
+      // Unavailable storage or malformed data must not prevent opening the editor.
     }
-  };
+  }, [documentId, creds?.linked, performAdd]);
 
   const addByIdentifier = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -365,7 +420,7 @@ export function OnlyofficeEditorPage({
           <span>Kaynak Paneli</span>
         </button>
 
-        {/* Header inline add form (kept for backward-compatibility with existing tests) */}
+        {/* Header identifier and Zotero connection form */}
         <form
           onSubmit={addByIdentifier}
           className="ml-auto flex items-center gap-1"
@@ -387,26 +442,30 @@ export function OnlyofficeEditorPage({
           >
             {adding ? <Loader2 size={14} className="animate-spin" /> : "Ekle"}
           </button>
+          {creds?.linked ? (
+            <span
+              className="flex items-center gap-1 text-emerald-700"
+              data-testid="oo-zotero-linked"
+              title={creds.zoteroUserId ? `Zotero ID: ${creds.zoteroUserId}` : "Zotero bağlı"}
+            >
+              <CheckCircle2 size={16} /> Zotero bağlı
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => connectZotero()}
+              className="flex items-center gap-1 rounded border border-red-300 px-2 py-1 text-red-700 hover:bg-red-50"
+              data-testid="oo-zotero-connect"
+            >
+              <Link2 size={14} /> Zotero'yu bağla
+            </button>
+          )}
+          {creds && !creds.linked && (
+            <span className="text-xs text-slate-600">
+              Kaynak eklemek için Zotero hesabını bağla; tanımlayıcın korunur.
+            </span>
+          )}
         </form>
-
-        {creds?.linked ? (
-          <span
-            className="flex items-center gap-1 text-emerald-700"
-            data-testid="oo-zotero-linked"
-            title={creds.zoteroUserId ? `Zotero ID: ${creds.zoteroUserId}` : "Zotero bağlı"}
-          >
-            <CheckCircle2 size={16} /> Zotero bağlı
-          </span>
-        ) : (
-          <button
-            type="button"
-            onClick={connectZotero}
-            className="flex items-center gap-1 rounded border border-red-300 px-2 py-1 text-red-700 hover:bg-red-50"
-            data-testid="oo-zotero-connect"
-          >
-            <Link2 size={14} /> Zotero’yu bağla
-          </button>
-        )}
       </header>
 
       {notice && (
@@ -483,7 +542,7 @@ export function OnlyofficeEditorPage({
                   </p>
                   <button
                     type="button"
-                    onClick={connectZotero}
+                    onClick={() => connectZotero(panelIdentifier || identifier)}
                     className="w-full flex items-center justify-center gap-1.5 rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 shadow-sm"
                     data-testid="oo-panel-connect"
                   >

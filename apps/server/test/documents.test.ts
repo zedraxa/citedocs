@@ -64,7 +64,7 @@ describe("Per-User Cloud Document Storage & Explicit Sharing (apps/server)", () 
   });
 
   describe("1. Document Creation (Blank .docx & .odt)", () => {
-    it("creates a blank .docx document with standard OpenXML structure and stores it in S3/WOPI", async () => {
+    it.each(["docx", undefined])("creates a Turkish blank DOCX with format %s and stores it in S3/WOPI", async (format) => {
       const res = await app.inject({
         method: "POST",
         url: "/api/documents",
@@ -73,7 +73,7 @@ describe("Per-User Cloud Document Storage & Explicit Sharing (apps/server)", () 
         },
         payload: {
           title: "Quantum Gravity Manuscript",
-          format: "docx",
+          format,
         },
       });
 
@@ -92,6 +92,7 @@ describe("Per-User Cloud Document Storage & Explicit Sharing (apps/server)", () 
       const zip = await JSZip.loadAsync(file.buffer);
       expect(zip.file("[Content_Types].xml")).not.toBeNull();
       expect(zip.file("word/document.xml")).not.toBeNull();
+      expect(await zip.file("word/styles.xml")!.async("string")).toContain('<w:lang w:val="tr-TR"');
     });
 
     it("creates a blank .odt document with OpenDocument structure", async () => {

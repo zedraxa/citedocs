@@ -1605,3 +1605,16 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - **Açık kontrol:** Gerçek Zotero OAuth dönüşü ve ONLYOFFICE durum çubuğunun ilk açılışta Türkçe görünmesi dağıtım sonrası tarayıcıda doğrulanmalı. Önceden oluşturulmuş belgeler dönüştürülmez.
 - **Genel doğrulama (Node v22.22.3):** `pnpm install`, `pnpm lint`, `pnpm typecheck`, `pnpm build` ve `pnpm test` başarılı. Tam pakette 56 dosya, 528 başarılı / 1 atlanan test (529 toplam). Son kod değişikliklerinden sonra lint/typecheck yeniden geçti. Vite büyük paket ve Vitest workspace kullanımdan kaldırma uyarıları engelleyici değil.
 - **Commitler:** `59ec9a7` OAuth sonrası bekleyen kaynak ekleme; `a65a0fc` Türkçe boş DOCX ve dil testleri; bu kayıt son dokümantasyon commit'inde.
+
+## Kapasite Planı ve Operasyon Araçları — Kayıt #028
+
+> **Kayıt No:** #028 (#027 başka dal için ayrılmıştır)
+> **Tarih:** 2026-10-17
+> **Dal:** `cd-ops-capacity` (taban `f722528`)
+
+- `docs/CAPACITY.md`: 20/50/100 öğrenci için Türkçe disk, RAM, swap, CPU ve CE bağlantı planı; repo kanıtları ile tahminler ayrıldı. 20 × 5 GiB kota mevcut 100 GB diske güvenle sığmaz; 11 tam yedek + staging ile zirve yaklaşık `30 + 14D GiB`. 4 GiB RAM dar; 8 GiB RAM ve S3/yerel yedek stratejisi değişikliği önerildi.
+- `deploy/ops/`: POSIX kapasite denetimi, 5 dakikalık systemd timer, JSON log rotasyonu örneği ve varsayılan dry-run temizlik. Disk/inode %80/%90, kullanılabilir RAM 768/384 MiB, swap %25/%50, cache 5/10 GiB; isteğe bağlı webhook. Cleanup aktif belge servisleri durmadan silmez; forgotten için ayrıca kurtarma doğrulaması gerekir.
+- 9 sahte girdili Vitest testi: eşikler, Docker ölçüm hatası, webhook hatası, dry-run, bakım koruması, yeni dosya ve symlink koruması. Shell sözdizimi `sh -n` ile doğrulandı; ShellCheck yerelde kurulu değil.
+- Üretime SSH, push, deploy veya ücretli işlem yapılmadı; konteyner oluşturulmadı. Compose, Caddy, `deploy/onlyoffice*` ve uygulama kaynakları değiştirilmedi. Yerelde çalışan CiteDocs/ONLYOFFICE yok; başka projelerin kaynak kullanımı kapasite kanıtı sayılmadı.
+- Açık işler: operatörün alarmı kurup teslimini denemesi, üretim ölçümü ve staging yük testi, 21. bağlantı davranışı, CPU/kredi/bağlantı metrikleri, büyük yedeklerde alan kontrolü ve staging/retention iyileştirmesi. Bunlar üretimde uygulanmış gibi raporlanmadı.
+- Commitler: `947e570` araçlar ve testler; `2c12343` kapasite planı; bu devir kaydı son commit'tedir.

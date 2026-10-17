@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, waitFor, screen, act } from "@testing-library/react";
+import { cleanup, render, waitFor, screen, act, fireEvent } from "@testing-library/react";
 import { OnlyofficeEditorPage } from "../src/onlyoffice/OnlyofficeEditorPage.js";
 
 vi.mock("../src/auth/api.js", () => ({ getApiBaseUrl: () => "", getCsrfToken: () => "csrf" }));
@@ -54,6 +54,67 @@ describe("ONLYOFFICE document editor", () => {
     view.unmount();
     expect(destroyEditor).toHaveBeenCalledOnce();
   });
+  it.each(["en", "tr"])(
+    "enables Zotero after readiness, opens the panel, and handles failure (%s)",
+    async (lang) => {
+      localStorage.setItem("citedocs_lang", lang);
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockImplementation(
+            async (url: string) =>
+              new Response(
+                JSON.stringify(
+                  url.includes("plugin-credentials")
+                    ? { linked: false }
+                    : { documentServerUrl: "/oo", config: {} },
+                ),
+              ),
+          ),
+      );
+      const DocEditor = vi.fn().mockImplementation(() => ({ destroyEditor: vi.fn() }));
+      window.DocsAPI = { DocEditor };
+      render(
+        <OnlyofficeEditorPage documentId="doc" documentTitle="Paper" onBackToDocuments={vi.fn()} />,
+      );
+      const button = screen.getByTestId("oo-zotero-open") as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      await waitFor(() => expect(DocEditor).toHaveBeenCalledOnce());
+      const events = DocEditor.mock.calls[0][1].events;
+      act(() => events.onAppReady());
+      expect(button.disabled).toBe(true);
+      act(() => events.onDocumentReady());
+      expect(button.disabled).toBe(false);
+      fireEvent.click(button);
+      expect(screen.getByTestId("oo-notice").textContent).toContain(
+        lang === "tr" ? "Eklentiler" : "Plugins tab",
+      );
+      expect(button.getAttribute("aria-label")).toBe(
+        lang === "tr" ? "Zotero panelini aç" : "Open Zotero panel",
+      );
+      const frame = document.createElement("iframe");
+      Object.defineProperty(frame, "contentWindow", { value: {} });
+      vi.spyOn(
+        document.getElementById("oo-editor")!.parentElement!,
+        "querySelector",
+      ).mockReturnValue(frame);
+      const openUIPlugin = vi.fn();
+      Object.assign(frame.contentWindow!, {
+        DE: {
+          getController: () => ({
+            api: { pluginsManager: { getPluginByGuid: () => ({}), isRunned: () => true } },
+            openUIPlugin,
+          }),
+        },
+      });
+      fireEvent.click(button);
+      expect(openUIPlugin).toHaveBeenCalledOnce();
+      expect(screen.queryByTestId("oo-notice")).toBeNull();
+      act(() => events.onError({}));
+      expect(button.disabled).toBe(true);
+    },
+  );
   it("shows denied document access without constructing an editor", async () => {
     vi.stubGlobal(
       "fetch",

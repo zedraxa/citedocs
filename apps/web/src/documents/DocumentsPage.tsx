@@ -111,7 +111,7 @@ export function DocumentsPage({
         used: prev.used + res.document.fileSize,
         percentage: Math.min(100, Math.round(((prev.used + res.document.fileSize) / prev.total) * 10000) / 100),
       }));
-      // Automatically open in Collabora Online
+      // Automatically open in the configured editor
       handleOpen(res.document);
     } catch (err: unknown) {
       setError((err as Error).message || "Failed to create document");
@@ -186,7 +186,7 @@ export function DocumentsPage({
     if (onOpenDocument) {
       onOpenDocument(doc);
     } else if (typeof window !== "undefined") {
-      window.location.href = `/editor?doc=${doc.id}&title=${encodeURIComponent(doc.title)}`;
+      window.location.href = `/editor?doc=${encodeURIComponent(doc.id)}&title=${encodeURIComponent(doc.title)}`;
     }
   };
 
@@ -249,7 +249,7 @@ export function DocumentsPage({
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
-                Collabora Online &bull; Zotero Ecosystem
+                {t.editorTagline}
               </p>
             </div>
           </div>
@@ -549,7 +549,7 @@ export function DocumentsPage({
                           className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
                           data-testid={`open-doc-${doc.id}`}
                         >
-                          <span>{t.openInCollabora}</span>
+                          <span>{t.open}</span>
                           <ExternalLink className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -611,7 +611,7 @@ export function DocumentsPage({
                           onClick={() => handleOpen(item.document)}
                           className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
                         >
-                          <span>{t.openInCollabora}</span>
+                          <span>{t.open}</span>
                           <ExternalLink className="w-3.5 h-3.5" />
                         </button>
                       </div>

@@ -37,12 +37,7 @@ import { ZoteroSidebar } from "./zotero/index.js";
 import { CollaboraEditorPage } from "./collabora/index.js";
 import { OnlyofficeEditorPage } from "./onlyoffice/index.js";
 
-/** Editor backend flag: ONLYOFFICE by default; Collabora kept behind VITE_EDITOR_BACKEND=collabora or ?editor=collabora. */
-function isCollaboraBackend(): boolean {
-  const env = (import.meta as unknown as { env?: { VITE_EDITOR_BACKEND?: string } }).env?.VITE_EDITOR_BACKEND;
-  const q = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("editor") : null;
-  return (q || env || "onlyoffice") === "collabora";
-}
+import { isCollaboraBackend } from "./editorBackend.js";
 import { DocumentsPage } from "./documents/index.js";
 import {
   AuthProvider,
@@ -93,7 +88,7 @@ function AppEditor() {
   const [activeEditor, setActiveEditor] = useState<"tiptap" | "collabora">(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("editor") === "collabora") {
+      if (isCollaboraBackend() && params.get("editor") === "collabora") {
         return "collabora";
       }
     }
@@ -365,15 +360,17 @@ function AppEditor() {
           </a>
 
           {/* Collabora Online Toggle */}
-          <button
-            onClick={() => setActiveEditor("collabora")}
-            className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 cursor-pointer transition-colors"
-            title="Open in Collabora Online (CODE) editor via WOPI"
-            data-testid="open-collabora-btn"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-            <span>Collabora Online</span>
-          </button>
+          {isCollaboraBackend() && (
+            <button
+              onClick={() => setActiveEditor("collabora")}
+              className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 cursor-pointer transition-colors"
+              title="Open in Collabora Online (CODE) editor via WOPI"
+              data-testid="open-collabora-btn"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+              <span>Collabora Online</span>
+            </button>
+          )}
 
           {/* Mode Switcher */}
           <div className="relative">
@@ -791,7 +788,6 @@ function AppEditor() {
         )}
       </div>
 
-
       {/* ZOTERO MODAL: QUICK CITATION & ADD BY IDENTIFIER */}
       {citationSearchOpen && (
         <div
@@ -976,7 +972,9 @@ function HomeRedirect() {
 
 function goNext() {
   const next = new URLSearchParams(window.location.search).get("next");
-  window.location.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/documents");
+  window.location.replace(
+    next && next.startsWith("/") && !next.startsWith("//") ? next : "/documents",
+  );
 }
 
 function LoginRedirect() {
@@ -987,7 +985,7 @@ function LoginRedirect() {
   return null;
 }
 
-function EditorRoute() {
+export function EditorRoute() {
   const params = new URLSearchParams(window.location.search);
   const doc = params.get("doc");
   if (!doc) {
@@ -1054,7 +1052,7 @@ export function App() {
         gate(
           <DocumentsPage
             onOpenDocument={(doc) => {
-              window.location.href = `/editor?doc=${doc.id}&title=${encodeURIComponent(doc.title)}`;
+              window.location.href = `/editor?doc=${encodeURIComponent(doc.id)}&title=${encodeURIComponent(doc.title)}`;
             }}
             onNavigateToEditor={() => {
               window.location.href = "/documents";

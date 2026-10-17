@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, BookPlus, Loader2, Link2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, BookPlus, Loader2, Link2, CheckCircle2, BookOpen } from "lucide-react";
 import { getApiBaseUrl, getCsrfToken } from "../auth/api.js";
+
+import { getDocumentLanguage } from "../documents/i18n.js";
+import { openZoteroPanel } from "./zoteroPanel.js";
 
 declare global {
   interface Window {
@@ -63,6 +66,10 @@ export function OnlyofficeEditorPage({
   documentTitle,
   onBackToDocuments,
 }: OnlyofficeEditorPageProps) {
+  const editorContainerRef = useRef<HTMLDivElement>(null);
+  const lang = getDocumentLanguage();
+  const zoteroLabel = lang === "tr" ? "Zotero panelini aç" : "Open Zotero panel";
+  const [documentReady, setDocumentReady] = useState(false);
   const editorRef = useRef<{ destroyEditor?: () => void } | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +105,7 @@ export function OnlyofficeEditorPage({
     let cancelled = false;
     (async () => {
       setStatus("loading");
+      setDocumentReady(false);
       setError(null);
       try {
         await syncPluginCredentials();
@@ -120,7 +128,11 @@ export function OnlyofficeEditorPage({
               setStatus("ready");
               (window as unknown as { __ooReady?: boolean }).__ooReady = true;
             },
+            onDocumentReady: () => {
+              if (!cancelled) setDocumentReady(true);
+            },
             onError: (e: { data?: { errorDescription?: string } }) => {
+              setDocumentReady(false);
               setStatus("error");
               setError(e?.data?.errorDescription || "Editör hatası");
             },
@@ -211,6 +223,29 @@ export function OnlyofficeEditorPage({
         <span className="truncate font-medium text-slate-800" title={documentTitle}>
           {documentTitle}
         </span>
+        <button
+          type="button"
+          disabled={!documentReady || status === "error"}
+          title={zoteroLabel}
+          aria-label={zoteroLabel}
+          data-testid="oo-zotero-open"
+          className="flex items-center gap-1.5 rounded bg-red-700 px-4 py-1.5 font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+          onClick={() => {
+            if (openZoteroPanel(editorContainerRef.current)) {
+              setNotice(null);
+            } else {
+              setNotice({
+                ok: false,
+                text:
+                  lang === "tr"
+                    ? "Zotero paneli açılamadı. Editörün Eklentiler sekmesinden Zotero’yu açmayı deneyin."
+                    : "Could not open Zotero. Try opening Zotero from the editor’s Plugins tab.",
+              });
+            }
+          }}
+        >
+          <BookOpen size={16} /> Zotero
+        </button>
         <form
           onSubmit={addByIdentifier}
           className="ml-auto flex items-center gap-1"
@@ -261,7 +296,7 @@ export function OnlyofficeEditorPage({
           {error}
         </div>
       )}
-      <div className="relative flex-1">
+      <div ref={editorContainerRef} className="relative flex-1">
         {status === "loading" && (
           <div className="absolute inset-0 flex items-center justify-center text-slate-500">
             <Loader2 className="mr-2 animate-spin" /> Editör yükleniyor…

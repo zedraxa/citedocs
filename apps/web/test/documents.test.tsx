@@ -52,6 +52,12 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
       expect(trKeys).toEqual(enKeys);
       expect(docTranslations.en.myDocuments).toBe("My Documents");
       expect(docTranslations.tr.myDocuments).toBe("Belgelerim");
+      expect(docTranslations.en.open).toBe("Open");
+      expect(docTranslations.tr.open).toBe("Aç");
+      for (const translations of Object.values(docTranslations)) {
+        expect(translations.editorTagline).toContain("ONLYOFFICE");
+        expect(Object.values(translations).join(" ")).not.toMatch(/Collabora/);
+      }
     });
 
     it("getDocumentLanguage safely defaults to browser or english language", () => {
@@ -675,6 +681,28 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
       expect(onOpen).toHaveBeenCalledWith(
         expect.objectContaining({ id: "doc-owned-1", title: "Quantum Physics Paper.docx" })
       );
+    });
+
+    it("opens a document at the default editor route without a Collabora override", async () => {
+      const originalUrl = window.location.href;
+      try {
+        await act(async () => {
+          root.render(createElement(AuthProvider, { autoFetch: false }, createElement(DocumentsPage)));
+          await new Promise((r) => setTimeout(r, 20));
+        });
+        const button = container.querySelector("[data-testid='open-doc-doc-owned-1']") as HTMLElement;
+        expect(["Open", "Aç"]).toContain(button.textContent);
+        expect(container.textContent).toContain("ONLYOFFICE");
+        expect(container.textContent).not.toContain("Collabora");
+        fireEvent.click(button);
+        expect(window.location.pathname).toBe("/editor");
+        const params = new URLSearchParams(window.location.search);
+        expect(params.get("doc")).toBe("doc-owned-1");
+        expect(params.get("title")).toBe("Quantum Physics Paper.docx");
+        expect(params.has("editor")).toBe(false);
+      } finally {
+        window.history.replaceState({}, "", originalUrl);
+      }
     });
 
     it("deletes document after confirmation", async () => {

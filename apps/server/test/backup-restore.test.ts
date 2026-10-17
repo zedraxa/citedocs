@@ -185,4 +185,330 @@ describe("CiteDocs Backup & Restore Tooling", () => {
     expect(timerContent).toContain("OnCalendar=*-*-* 03:30:00 Europe/Istanbul");
     expect(timerContent).toContain("Persistent=true");
   });
+
+  it("aborts cleanly when estimated backup space exceeds available disk space", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cd-est-space-abort-"));
+    try {
+      // Simulate estimated 500 GB database on local disk
+      let errorStderr = "";
+      try {
+        execFileSync(
+          backupScript,
+          [
+            "--backup-dir",
+            tempDir,
+            "--estimated-db-mb",
+            "500000",
+            "--estimated-objects-mb",
+            "100000",
+            "--disk-reserve-percent",
+            "20",
+          ],
+          { stdio: "pipe", encoding: "utf8" },
+        );
+      } catch (err: any) {
+        errorStderr = (err.stderr || "") + (err.stdout || "") + err.message;
+      }
+
+      expect(errorStderr).toContain("Insufficient disk space on target filesystem");
+      expect(errorStderr).toContain("Calculation breakdown: staging S=");
+      expect(errorStderr).toContain("archive A=");
+      expect(errorStderr).toContain("disk reserve=");
+      expect(errorStderr).toContain("Refusing to proceed with backup to protect system stability");
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("detects and cleans stale staging directories and partial archives on start", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cd-stale-cleanup-"));
+    try {
+      // Create stale staging dir
+      const staleStage = path.join(tempDir, ".staging_stale123");
+      fs.mkdirSync(staleStage, { recursive: true });
+      fs.writeFileSync(path.join(staleStage, "postgres.dump"), "old dump");
+
+      // Create stale partial archive
+      const stalePartial = path.join(tempDir, "citedocs-backup-broken.tar.gz.tmp");
+      fs.writeFileSync(stalePartial, "partial tar content");
+
+      // Create corrupted 0-byte or non-tar archive
+      const corruptArchive = path.join(tempDir, "citedocs-backup-corrupt.tar.gz");
+      fs.writeFileSync(corruptArchive, "not a valid gzip tarball");
+
+      // Create a valid archive that should NOT be cleaned
+      const validArchive = path.join(tempDir, "citedocs-backup-20261017_010000.tar.gz");
+      const validStage = path.join(tempDir, "valid_stage");
+      fs.mkdirSync(validStage);
+      fs.writeFileSync(path.join(validStage, "postgres.dump"), "valid");
+      execFileSync("tar", ["-czf", validArchive, "-C", validStage, "."]);
+      fs.rmSync(validStage, { recursive: true, force: true });
+
+      // Run backup script with high min-free-mb so it cleans stale files on start then aborts
+      let output = "";
+      try {
+        output = execFileSync(
+          backupScript,
+          ["--backup-dir", tempDir, "--min-free-mb", "999999999"],
+          { encoding: "utf8", stdio: "pipe" },
+        );
+      } catch (err: any) {
+        output = (err.stdout || "") + (err.stderr || "");
+      }
+
+      // Assert stale items were detected and cleaned
+      expect(output).toContain("Cleaning stale staging workspace from earlier run: .staging_stale123");
+      expect(output).toContain("Cleaning stale partial archive file from earlier run: citedocs-backup-broken.tar.gz.tmp");
+      expect(output).toContain("Cleaning corrupted/truncated archive from earlier run: citedocs-backup-corrupt.tar.gz");
+
+      expect(fs.existsSync(staleStage)).toBe(false);
+      expect(fs.existsSync(stalePartial)).toBe(false);
+      expect(fs.existsSync(corruptArchive)).toBe(false);
+
+      // Valid archive must be preserved
+      expect(fs.existsSync(validArchive)).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("cleans staging workspace on failure via exit trap without leaving partial artifacts", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cd-trap-fail-"));
+    const mockBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "cd-mock-bin-"));
+    try {
+      // Mock docker command that deliberately fails on pg_dump
+      const mockDocker = path.join(mockBinDir, "docker");
+      fs.writeFileSync(
+        mockDocker,
+        `#!/bin/sh
+if echo "$*" | grep -q "pg_dump"; then
+  echo "Simulated pg_dump database crash" >&2
+  exit 137
+fi
+exit 0
+`,
+        { mode: 0o755 },
+      );
+
+      let failed = false;
+      try {
+        execFileSync(
+          backupScript,
+          ["--backup-dir", tempDir, "--min-free-mb", "10", "--disk-reserve-percent", "0"],
+          {
+            env: {
+              ...process.env,
+              PATH: `${mockBinDir}:${process.env.PATH}`,
+            },
+            stdio: "pipe",
+            encoding: "utf8",
+          },
+        );
+      } catch (err: any) {
+        failed = true;
+        const errOut = (err.stderr || "") + (err.stdout || "");
+        expect(errOut).toContain("Backup failed with exit code");
+      }
+
+      expect(failed).toBe(true);
+
+      // Verify no staging directory was left behind in tempDir
+      const remainingFiles = fs.readdirSync(tempDir);
+      const stagingDirs = remainingFiles.filter((f) => f.startsWith(".staging_"));
+      expect(stagingDirs.length).toBe(0);
+
+      // Verify no partial tar archive was left behind
+      const partialArchives = remainingFiles.filter((f) => f.endsWith(".tar.gz"));
+      expect(partialArchives.length).toBe(0);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      fs.rmSync(mockBinDir, { recursive: true, force: true });
+    }
+  });
+
+  it("successfully creates backup, logs archive size and duration, and cleans staging on success", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cd-success-run-"));
+    const mockBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "cd-mock-bin-"));
+    try {
+      // Mock docker: returns valid pg_dump bytes
+      const mockDocker = path.join(mockBinDir, "docker");
+      fs.writeFileSync(
+        mockDocker,
+        `#!/bin/sh
+if echo "$*" | grep -q "pg_dump"; then
+  printf "MOCK_CUSTOM_PG_DUMP_HEADER_AND_RECORDS"
+  exit 0
+fi
+exit 0
+`,
+        { mode: 0o755 },
+      );
+
+      // Mock aws: handles s3 sync
+      const mockAws = path.join(mockBinDir, "aws");
+      fs.writeFileSync(
+        mockAws,
+        `#!/bin/sh
+if [ "$1" = "s3" ] && [ "$2" = "sync" ]; then
+  dest="$4"
+  mkdir -p "$dest"
+  echo "thesis doc content" > "$dest/tez.docx"
+  exit 0
+fi
+exit 0
+`,
+        { mode: 0o755 },
+      );
+
+      const output = execFileSync(
+        backupScript,
+        [
+          "--backup-dir",
+          tempDir,
+          "--min-free-mb",
+          "10",
+          "--disk-reserve-percent",
+          "0",
+          "--estimated-db-mb",
+          "1",
+          "--estimated-objects-mb",
+          "1",
+        ],
+        {
+          env: {
+            ...process.env,
+            PATH: `${mockBinDir}:${process.env.PATH}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      // Check log output for size, bytes and duration
+      expect(output).toContain("Backup archive successfully created:");
+      expect(output).toMatch(/Backup archive successfully created: citedocs-backup-.* \(\d+.* \/ \d+ bytes\)/);
+      expect(output).toMatch(/CiteDocs backup process finished successfully in \d+s/);
+      expect(output).toContain("Staging workspace cleaned up.");
+
+      // Check produced files
+      const files = fs.readdirSync(tempDir);
+      const archives = files.filter((f) => f.endsWith(".tar.gz"));
+      expect(archives.length).toBe(1);
+      const shaFiles = files.filter((f) => f.endsWith(".tar.gz.sha256"));
+      expect(shaFiles.length).toBe(1);
+
+      // Verify no staging dir remained
+      const stagingDirs = files.filter((f) => f.startsWith(".staging_"));
+      expect(stagingDirs.length).toBe(0);
+
+      // Verify restore --dry-run works on the produced archive!
+      const archivePath = path.join(tempDir, archives[0]);
+      const restoreOutput = execFileSync(
+        restoreScript,
+        ["--archive", archivePath, "--dry-run"],
+        { encoding: "utf8" },
+      );
+      expect(restoreOutput).toContain("CITEDOCS RESTORE PLAN (DRY-RUN)");
+      expect(restoreOutput).toContain(archives[0]);
+      expect(restoreOutput).toContain("DRY-RUN COMPLETE. No data was modified on the database or storage.");
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      fs.rmSync(mockBinDir, { recursive: true, force: true });
+    }
+  });
+
+  it("enforces retention counts and KEEP_LOCAL_AFTER_UPLOAD post-upload policy", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cd-retention-test-"));
+    const mockBinDir = fs.mkdtempSync(path.join(os.tmpdir(), "cd-mock-bin-"));
+    try {
+      // Create 5 fake archives with distinct timestamps
+      const timestamps = [
+        "20261010_033000",
+        "20261011_033000",
+        "20261012_033000",
+        "20261013_033000",
+        "20261014_033000",
+      ];
+      for (const ts of timestamps) {
+        const arch = path.join(tempDir, `citedocs-backup-${ts}.tar.gz`);
+        const st = path.join(tempDir, `st_${ts}`);
+        fs.mkdirSync(st, { recursive: true });
+        fs.writeFileSync(path.join(st, "postgres.dump"), `dump-${ts}`);
+        execFileSync("tar", ["-czf", arch, "-C", st, "."]);
+        fs.writeFileSync(`${arch}.sha256`, `fake-sha256-${ts} ${arch}\n`);
+        fs.rmSync(st, { recursive: true, force: true });
+      }
+
+      // Mock docker and aws
+      const mockDocker = path.join(mockBinDir, "docker");
+      fs.writeFileSync(
+        mockDocker,
+        `#!/bin/sh
+if echo "$*" | grep -q "pg_dump"; then
+  printf "NEW_DUMP_BYTES"
+  exit 0
+fi
+exit 0
+`,
+        { mode: 0o755 },
+      );
+
+      const mockAws = path.join(mockBinDir, "aws");
+      fs.writeFileSync(
+        mockAws,
+        `#!/bin/sh
+if [ "$1" = "s3" ] && [ "$2" = "sync" ]; then
+  dest="$4"
+  mkdir -p "$dest"
+  echo "doc" > "$dest/file.docx"
+  exit 0
+fi
+if [ "$1" = "s3" ] && [ "$2" = "cp" ]; then
+  # S3 upload succeeds!
+  exit 0
+fi
+exit 0
+`,
+        { mode: 0o755 },
+      );
+
+      // Run backup with S3 upload and KEEP_LOCAL_AFTER_UPLOAD=2
+      const output = execFileSync(
+        backupScript,
+        [
+          "--backup-dir",
+          tempDir,
+          "--s3-uri",
+          "s3://fake-remote-bucket/backups",
+          "--keep-local-after-upload",
+          "2",
+          "--min-free-mb",
+          "10",
+          "--disk-reserve-percent",
+          "0",
+          "--estimated-db-mb",
+          "1",
+          "--estimated-objects-mb",
+          "1",
+        ],
+        {
+          env: {
+            ...process.env,
+            PATH: `${mockBinDir}:${process.env.PATH}`,
+          },
+          encoding: "utf8",
+        },
+      );
+
+      expect(output).toContain("Off-server S3 upload completed successfully.");
+      expect(output).toContain("Applying post-upload local retention (keeping 2 most recent local archives)...");
+      expect(output).toContain("Post-upload retention complete");
+
+      // Verify that exactly 2 archives remain locally
+      const remainingArchives = fs.readdirSync(tempDir).filter((f) => f.endsWith(".tar.gz"));
+      expect(remainingArchives.length).toBe(2);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+      fs.rmSync(mockBinDir, { recursive: true, force: true });
+    }
+  });
 });

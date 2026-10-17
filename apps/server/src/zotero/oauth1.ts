@@ -14,7 +14,7 @@ export function zoteroOAuthConfigured(): boolean {
   return Boolean(process.env.ZOTERO_OAUTH_CLIENT_KEY && process.env.ZOTERO_OAUTH_CLIENT_SECRET);
 }
 
-function authHeader(url: string, extra: Record<string, string>, tokenSecret = ""): string {
+export function authHeader(url: string, extra: Record<string, string>, tokenSecret = ""): string {
   const key = process.env.ZOTERO_OAUTH_CLIENT_KEY || "";
   const secret = process.env.ZOTERO_OAUTH_CLIENT_SECRET || "";
   const params: Record<string, string> = {
@@ -34,7 +34,16 @@ function authHeader(url: string, extra: Record<string, string>, tokenSecret = ""
 interface Pending { userId: string; secret: string; returnTo: string; at: number }
 const pending = new Map<string, Pending>();
 
+export function getPendingOAuth(token: string): Pending | undefined {
+  return pending.get(token);
+}
+
+export function _clearPendingOAuthState(): void {
+  pending.clear();
+}
+
 export async function startZoteroOAuth(userId: string, callbackUrl: string, returnTo: string, fetchFn = fetch) {
+  if (!userId) throw new Error("userId is required to start Zotero OAuth");
   const url = `${BASE}/request`;
   const res = await fetchFn(url, { method: "POST", headers: { Authorization: authHeader(url, { oauth_callback: callbackUrl }) } });
   const text = await res.text();

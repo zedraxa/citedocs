@@ -55,8 +55,10 @@ export function signLink(parts: string[], secret = getOnlyofficeSecret()): strin
     .slice(0, 32);
 }
 
-export function verifyLink(sig: string | undefined, parts: string[]): boolean {
+export function verifyLink(sig: string | undefined, parts: string[], secret = getOnlyofficeSecret()): boolean {
   if (!sig) return false;
-  const exp = signLink(parts);
-  return exp.length === sig.length && crypto.timingSafeEqual(Buffer.from(exp), Buffer.from(sig));
+  const exp = signLink(parts, secret);
+  const bExp = Buffer.from(exp);
+  const bSig = Buffer.from(sig);
+  return bExp.length === bSig.length && crypto.timingSafeEqual(bExp, bSig);
 }

@@ -87,6 +87,8 @@ export interface BuildAppOptions {
   oauthService?: OAuthService;
   enableCsrf?: boolean;
   enableRateLimit?: boolean;
+  onlyofficeFetchFn?: typeof fetch;
+  zoteroFetchFn?: typeof fetch;
 }
 
 
@@ -150,6 +152,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     proxyService: options.zoteroProxyService,
     oauthService: options.zoteroOAuthService,
     credentialRepo,
+    fetchFn: options.zoteroFetchFn,
   });
 
   const documentRepo =
@@ -180,7 +183,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     }),
   );
 
-  await fastify.register(createOnlyofficeRoutes({ storage: wopiStorage, documentRepo }));
+  await fastify.register(
+    createOnlyofficeRoutes({
+      storage: wopiStorage,
+      documentRepo,
+      fetchFn: options.onlyofficeFetchFn,
+    }),
+  );
 
   const attachmentRepo =
     options.attachmentRepo ||

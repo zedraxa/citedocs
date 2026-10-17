@@ -2,7 +2,13 @@ import crypto from "node:crypto";
 import Fastify from "fastify";
 import cookie from "@fastify/cookie";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { signJwt, verifyJwt, signLink } from "../src/onlyoffice/jwt.js";
+import {
+  signJwt,
+  verifyJwt,
+  signLink,
+  verifyLink,
+  getOnlyofficeSecret,
+} from "../src/onlyoffice/jwt.js";
 import {
   createOnlyofficeRoutes,
   permissionsForRole,
@@ -42,6 +48,21 @@ describe("ONLYOFFICE JWT", () => {
     ].join(".");
     const token = `${parts}.${crypto.createHmac("sha256", secret).update(parts).digest("base64url")}`;
     expect(verifyJwt(token, secret)).toBeNull();
+  });
+  it("signs and verifies link parameters with constant-time HMAC", () => {
+    const parts = ["doc-456", "user-789"];
+    const sig = signLink(parts, secret);
+    expect(typeof sig).toBe("string");
+    expect(sig.length).toBeGreaterThan(10);
+
+    expect(verifyLink(sig, parts, secret)).toBe(true);
+    expect(verifyLink(sig, ["doc-456", "user-different"], secret)).toBe(false);
+    expect(verifyLink("tampered-signature", parts, secret)).toBe(false);
+    expect(verifyLink(undefined, parts, secret)).toBe(false);
+  });
+  it("resolves default secret in dev/test environment", () => {
+    const s = getOnlyofficeSecret();
+    expect(s).toBeTruthy();
   });
   it("requires a configured production secret", () => {
     vi.stubEnv("NODE_ENV", "production");

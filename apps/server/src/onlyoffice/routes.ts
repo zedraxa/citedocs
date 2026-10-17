@@ -201,11 +201,17 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
       if (!key || !verifyLink(signature, ["callback", fileId, opener, email, key])) {
         return reply.status(401).send({ error: 1 });
       }
-      const headerToken = (req.headers.authorization || "").replace(/^Bearer /i, "");
-      const data =
+      const bodyData =
         req.body?.token !== undefined
           ? verifyJwt<Record<string, unknown>>(req.body.token)
-          : verifyJwt<{ payload?: Record<string, unknown> }>(headerToken)?.payload;
+          : null;
+      const headerToken = (req.headers.authorization || "").replace(/^Bearer /i, "");
+      const headerData = headerToken ? verifyJwt<Record<string, unknown>>(headerToken) : null;
+      const rawData = bodyData || headerData;
+      const data =
+        rawData?.payload && typeof rawData.payload === "object"
+          ? (rawData.payload as Record<string, unknown>)
+          : rawData;
       if (!data || data.key !== key || ![1, 2, 3, 4, 6, 7].includes(data.status as number)) {
         return reply.status(401).send({ error: 1 });
       }

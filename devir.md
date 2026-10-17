@@ -1605,3 +1605,15 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - **Açık kontrol:** Gerçek Zotero OAuth dönüşü ve ONLYOFFICE durum çubuğunun ilk açılışta Türkçe görünmesi dağıtım sonrası tarayıcıda doğrulanmalı. Önceden oluşturulmuş belgeler dönüştürülmez.
 - **Genel doğrulama (Node v22.22.3):** `pnpm install`, `pnpm lint`, `pnpm typecheck`, `pnpm build` ve `pnpm test` başarılı. Tam pakette 56 dosya, 528 başarılı / 1 atlanan test (529 toplam). Son kod değişikliklerinden sonra lint/typecheck yeniden geçti. Vite büyük paket ve Vitest workspace kullanımdan kaldırma uyarıları engelleyici değil.
 - **Commitler:** `59ec9a7` OAuth sonrası bekleyen kaynak ekleme; `a65a0fc` Türkçe boş DOCX ve dil testleri; bu kayıt son dokümantasyon commit'inde.
+
+## S3 Türkçe Dosya Adı ve ONLYOFFICE Forcesave — Kayıt #027
+
+> **Kayıt No:** #027
+> **Tarih:** 2026-10-17
+> **Dal:** `cd-hotfix-s3-filename`
+
+- **P0 kök neden:** Türkçe dosya adları S3 HTTP metadata başlığına ham yazıldığı için belge oluşturma 500 hatası veriyordu. Ortak `encodeS3MetaValue` / `decodeS3MetaValue` yardımcılarıyla `filename` ve `owner-id` yazımları ASCII olarak kodlanır, okumalar insan tarafından okunabilir metne döner. Bozuk yüzde dizisi içeren eski metadata ham haliyle korunur. Sunucunun diğer S3 yazımlarında kullanıcı metni taşıyan ek metadata bulunmadı.
+- **P1 kök neden:** Her kayıtta anahtar yenilenmesi forcesave sonrası katılan editörleri ayrı oturuma yönlendiriyordu. Status 6 artık anahtarı koruyarak sürüm, hash ve boyutu günceller. Status 2 ve 4 oturumu kapatır; sonraki açılış yeni anahtar üretir. Aynı içerik deduplikasyonu ve BUG-01 kapanış/yeniden açılış davranışı korunur.
+- **Regresyon kapsamı:** Türkçe iki başlık ve varsayılan POST yolu; ASCII metadata, oluşturma/kaydetme/okuma, legacy ve bozuk `%`, çift kodlamama; eşzamanlı editörler, forcesave sonrası katılım, aynı içerikle kapanış, status 4 ve bellekte oturum olmadan gelen callback. Autosave E2E dosyasında anahtar rotasyonu beklentisi yoktu.
+- **Commitler:** `42aade9` S3 metadata; `1bdca4b` ONLYOFFICE oturum anahtarı.
+- **Açık kontrol:** Gerçek S3/ONLYOFFICE ile canlı tarayıcı kontrolü dağıtım sonrası yapılmalı; bu çalışmada üretime erişilmedi, push/deploy yapılmadı. Web, compose, Caddy ve container yapılandırmaları değiştirilmedi.

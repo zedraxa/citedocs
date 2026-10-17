@@ -28,6 +28,26 @@
   let isSyncing = false;
   let pendingSync = null;
 
+  const _expose = function (k, v) {
+    try { window[k] = v; } catch (_) {}
+    try { if (window.parent) window.parent[k] = v; } catch (_) {}
+    try { if (window.top) window.top[k] = v; } catch (_) {}
+  };
+
+  function findZoteroObjects() {
+    const list = [window];
+    try { if (window.parent && !list.includes(window.parent)) list.push(window.parent); } catch (_) {}
+    try { if (window.top && !list.includes(window.top)) list.push(window.top); } catch (_) {}
+    for (const w of list) {
+      try {
+        if (w && w.__zoteroSettings && w.__zoteroCitationService) {
+          return { settings: w.__zoteroSettings, service: w.__zoteroCitationService, win: w };
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
   // 2. Core sync & refresh logic
   async function syncAndRefresh(styleId, locale, format) {
     if (!styleId) return false;
@@ -52,21 +72,22 @@
         /* ignore */
       }
 
-      const win = window;
-
-      // If plugin is still initializing, wait briefly for settings & citation service
-      if (!win.__zoteroSettings || !win.__zoteroCitationService) {
-        for (let i = 0; i < 20; i++) {
+      // If plugin is still initializing, wait briefly for settings & citation service across accessible windows
+      let zObjs = findZoteroObjects();
+      if (!zObjs) {
+        for (let i = 0; i < 25; i++) {
           await new Promise(function (resolve) { setTimeout(resolve, 100); });
-          if (win.__zoteroSettings && win.__zoteroCitationService) break;
+          zObjs = findZoteroObjects();
+          if (zObjs) break;
         }
       }
 
       // A. Use exposed settings & citationService if available
-      if (win.__zoteroSettings && win.__zoteroCitationService) {
+      if (zObjs) {
         try {
-          const styleMgr = win.__zoteroSettings.getStyleManager ? win.__zoteroSettings.getStyleManager() : null;
-          const locMgr = win.__zoteroSettings.getLocalesManager ? win.__zoteroSettings.getLocalesManager() : null;
+          const { settings, service, win: targetWin } = zObjs;
+          const styleMgr = settings.getStyleManager ? settings.getStyleManager() : null;
+          const locMgr = settings.getLocalesManager ? settings.getLocalesManager() : null;
 
           if (locMgr && typeof locMgr.loadLocale === "function") {
             await locMgr.loadLocale(cleanLocale).catch(function () {});
@@ -111,11 +132,26 @@
               // Try 3: CiteDocs backend CSL endpoint
               if (!sXml || !sXml.includes("<style")) {
                 try {
-                  const sRes = await fetch("/api/csl/styles/" + cleanId);
+                  const sRes = await fetch("/api/csl/styles/" + cleanId, {
+                    headers: { Accept: "application/vnd.citationstyles.style+xml, application/xml, text/xml;q=0.9, text/plain;q=0.8, application/json;q=0.5" },
+                  });
                   if (sRes.ok) {
-                    const sJson = await sRes.json().catch(function () { return null; });
-                    if (sJson && typeof sJson.xml === "string") {
-                      sXml = sJson.xml;
+                    const ctype = sRes.headers.get("content-type") || "";
+                    if (ctype.includes("json")) {
+                      const sJson = await sRes.json().catch(function () { return null; });
+                      if (sJson && typeof sJson.xml === "string") {
+                        sXml = sJson.xml;
+                      }
+                    } else {
+                      const txt = await sRes.text().catch(function () { return null; });
+                      if (txt && txt.trim().startsWith("{")) {
+                        try {
+                          const parsed = JSON.parse(txt);
+                          if (parsed && parsed.xml) sXml = parsed.xml;
+                        } catch (_) {}
+                      } else if (txt) {
+                        sXml = txt;
+                      }
                     }
                   }
                 } catch (e) {}
@@ -136,9 +172,11 @@
 
           // Ensure Asc.scope.bibStyle is never undefined
           try {
-            win.Asc = win.Asc || {};
-            win.Asc.scope = win.Asc.scope || {};
-            win.Asc.scope.bibStyle = win.Asc.scope.bibStyle || {};
+            const ascObj = targetWin.Asc || window.Asc || {};
+            ascObj.scope = ascObj.scope || {};
+            ascObj.scope.bibStyle = ascObj.scope.bibStyle || {};
+            targetWin.Asc = ascObj;
+            window.Asc = ascObj;
           } catch (_) {}
 
           const targetFormat = cleanFormat || (styleMgr && styleMgr.getLastUsedFormat ? styleMgr.getLastUsedFormat() : defaultFormat);
@@ -153,20 +191,20 @@
             abbreviateJournalTitles: styleMgr && typeof styleMgr.getAbbreviateJournalTitles === "function" ? styleMgr.getAbbreviateJournalTitles() : false,
           };
 
-          if (win.__zoteroSettings._stateSettings) {
-            win.__zoteroSettings._stateSettings = newState;
+          if (settings._stateSettings) {
+            settings._stateSettings = newState;
           }
 
           const isNote = targetFormat === "note";
-          if (isNote && typeof win.__zoteroCitationService.updateCslItemsInNotes === "function") {
-            await win.__zoteroCitationService.updateCslItemsInNotes(notesStyle);
-          } else if (typeof win.__zoteroCitationService.updateCslItems === "function") {
-            await win.__zoteroCitationService.updateCslItems(true);
+          if (isNote && typeof service.updateCslItemsInNotes === "function") {
+            await service.updateCslItemsInNotes(notesStyle);
+          } else if (typeof service.updateCslItems === "function") {
+            await service.updateCslItems(true);
           }
 
           return true;
         } catch (err) {
-          const topCons = (win.top && win.top.console) || (win.parent && win.parent.console) || win.console;
+          const topCons = (window.top && window.top.console) || (window.parent && window.parent.console) || window.console;
           try {
             topCons.error("[CiteDocs] Error applying style via Zotero plugin service:", err);
           } catch (_) {
@@ -179,6 +217,11 @@
       // B. Fallback: Trigger refresh button in DOM ONLY if direct service was not available at all
       const refreshBtn = document.getElementById("refreshBtn") || document.querySelector("button#refreshBtn, .btn-refresh");
       if (refreshBtn && typeof refreshBtn.click === "function") {
+        try {
+          window.Asc = window.Asc || {};
+          window.Asc.scope = window.Asc.scope || {};
+          window.Asc.scope.bibStyle = window.Asc.scope.bibStyle || {};
+        } catch (_) {}
         refreshBtn.click();
         return true;
       }
@@ -193,8 +236,8 @@
     }
   }
 
-  // Expose on window for direct invocation
-  window.__citedocsSyncStyle = syncAndRefresh;
+  // Expose on window, parent, and top for direct invocation across frames
+  _expose("__citedocsSyncStyle", syncAndRefresh);
 
   // 3. Listen for postMessage from parent editor page
   window.addEventListener("message", function (event) {

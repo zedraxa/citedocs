@@ -26,16 +26,23 @@ const SESSION_TTL_MS = 24 * 3600 * 1000;
 export class OnlyofficeSessionManager {
   private sessions = new Map<string, OnlyofficeSession>();
   private documentSequences = new Map<string, number>();
+  private lastSavedHashes = new Map<string, string>();
 
   /**
    * Returns the active session key, or generates a new session key for the document.
-   * If a session is already active, returns the existing key to keep the live session intact.
+   * If a session is already active AND the storage version matches, returns the
+   * existing key so concurrent editors join the same co-editing session.
+   * If the storage version changed (or session expired/closed), generates a new key.
    */
   getOrCreateSessionKey(fileId: string, currentStorageVersion: string, currentStorageSize: number): string {
     const existing = this.sessions.get(fileId);
     const now = Date.now();
 
-    if (existing && now - existing.lastActiveAt < SESSION_TTL_MS) {
+    if (
+      existing &&
+      existing.version === currentStorageVersion &&
+      now - existing.lastActiveAt < SESSION_TTL_MS
+    ) {
       existing.lastActiveAt = now;
       return existing.key;
     }
@@ -53,6 +60,8 @@ export class OnlyofficeSessionManager {
       key,
       version: currentStorageVersion,
       sessionSeq: nextSeq,
+      lastSavedHash: existing?.lastSavedHash ?? this.lastSavedHashes.get(fileId),
+      lastSavedSize: existing?.lastSavedSize,
       startedAt: now,
       lastActiveAt: now,
     });
@@ -72,29 +81,44 @@ export class OnlyofficeSessionManager {
    */
   isIdenticalContent(fileId: string, contentHash: string): boolean {
     const session = this.sessions.get(fileId);
-    return Boolean(session?.lastSavedHash && session.lastSavedHash === contentHash);
+    if (session?.lastSavedHash && session.lastSavedHash === contentHash) {
+      return true;
+    }
+    const lastHash = this.lastSavedHashes.get(fileId);
+    return Boolean(lastHash && lastHash === contentHash);
   }
 
   /**
    * Records a save event (status 2 or 6) with content hash, size and version.
+   * Whenever the stored file changes, generates a new session key according to
+   * ONLYOFFICE key rules so subsequent joins/reopens get the new key.
    */
-  recordSave(fileId: string, contentHash: string, size: number, newVersion: string, key?: string): void {
-    let session = this.sessions.get(fileId);
+  recordSave(fileId: string, contentHash: string, size: number, newVersion: string, _oldKey?: string): string {
     const now = Date.now();
-    if (!session) {
-      session = {
-        key: key || `saved_${fileId}_${now}`,
-        version: newVersion,
-        sessionSeq: this.documentSequences.get(fileId) || 1,
-        startedAt: now,
-        lastActiveAt: now,
-      };
-      this.sessions.set(fileId, session);
-    }
-    session.lastSavedHash = contentHash;
-    session.lastSavedSize = size;
-    session.version = newVersion;
-    session.lastActiveAt = now;
+    const existing = this.sessions.get(fileId);
+    const nextSeq = (this.documentSequences.get(fileId) || 0) + 1;
+    this.documentSequences.set(fileId, nextSeq);
+
+    const newKey = crypto
+      .createHash("sha256")
+      .update(`${fileId}:${newVersion}:${size}:seq_${nextSeq}`)
+      .digest("hex")
+      .slice(0, 40);
+
+    this.lastSavedHashes.set(fileId, contentHash);
+
+    const session: OnlyofficeSession = {
+      key: newKey,
+      version: newVersion,
+      sessionSeq: nextSeq,
+      lastSavedHash: contentHash,
+      lastSavedSize: size,
+      startedAt: existing?.startedAt || now,
+      lastActiveAt: now,
+    };
+    this.sessions.set(fileId, session);
+
+    return newKey;
   }
 
   /**
@@ -111,5 +135,6 @@ export class OnlyofficeSessionManager {
   clear(): void {
     this.sessions.clear();
     this.documentSequences.clear();
+    this.lastSavedHashes.clear();
   }
 }

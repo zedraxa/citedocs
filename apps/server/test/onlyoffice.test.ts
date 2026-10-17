@@ -327,13 +327,17 @@ describe("ONLYOFFICE routes", () => {
     expect(cfg.editorConfig.customization.forcesave).toBe(true);
   });
 
-  it("maintains stable document key during active session across status 6 saves, and changes key after status 2", async () => {
+  it("keeps key stable during editing session, shares key among concurrent editors, changes key after save callback updates file, and reopens with new key", async () => {
     // 1. Initial session opening generates session key K1
     const cfg1 = await config("owner");
     const key1 = cfg1.document.key;
     expect(key1).toBeTruthy();
 
-    // 2. Status 6 (force-save while editing) occurs
+    // 2. Concurrent editor joins before save -> MUST receive same key1 (co-editing)
+    const cfgConcurrent = await config("editor");
+    expect(cfgConcurrent.document.key).toBe(key1);
+
+    // 3. Status 6 (force-save while editing) occurs and updates the stored file
     fetchFn.mockResolvedValueOnce(new Response("force-saved content"));
     const saveRes = await callback(
       { status: 6, url: "http://onlyoffice/cache/doc.docx" },
@@ -342,11 +346,17 @@ describe("ONLYOFFICE routes", () => {
     expect(saveRes.json()).toEqual({ error: 0 });
     expect((await storage.getFile("doc")).buffer.toString()).toBe("force-saved content");
 
-    // 3. User B joins or User A reloads during the active session -> MUST receive same key1
-    const cfg2 = await config("editor");
-    expect(cfg2.document.key).toBe(key1);
+    // 4. Reopen after save callback -> MUST receive the new key K2 (!== K1)
+    const cfgReopened = await config("owner");
+    const key2 = cfgReopened.document.key;
+    expect(key2).toBeTruthy();
+    expect(key2).not.toBe(key1);
 
-    // 4. Session ends with status 2 (ready for saving / session closed)
+    // 5. Concurrent editors opening after save share the new key K2
+    const cfgEditorAfterSave = await config("editor");
+    expect(cfgEditorAfterSave.document.key).toBe(key2);
+
+    // 6. Session ends with status 2 (ready for saving / session closed)
     fetchFn.mockResolvedValueOnce(new Response("final content"));
     const closeRes = await callback(
       { status: 2, url: "http://onlyoffice/cache/doc.docx" },
@@ -354,11 +364,12 @@ describe("ONLYOFFICE routes", () => {
     );
     expect(closeRes.json()).toEqual({ error: 0 });
 
-    // 5. Subsequent session opening starts a new session -> MUST receive a new key2 !== key1
+    // 7. Subsequent session opening starts a new session -> MUST receive key3 (!== key2, !== key1)
     const cfg3 = await config("owner");
-    const key2 = cfg3.document.key;
-    expect(key2).toBeTruthy();
-    expect(key2).not.toBe(key1);
+    const key3 = cfg3.document.key;
+    expect(key3).toBeTruthy();
+    expect(key3).not.toBe(key2);
+    expect(key3).not.toBe(key1);
   });
 
   it("deduplicates repeated status 6 saves with identical content without creating duplicate versions", async () => {

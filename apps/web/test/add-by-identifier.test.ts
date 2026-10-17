@@ -266,4 +266,34 @@ describe("AddByIdentifier Component", () => {
     expect(onCiteItem).toHaveBeenCalledTimes(1);
     expect(onCiteItem.mock.calls[0]?.[0]?.title).toContain("atherosclerosis");
   });
+
+  it("allows switching to File/Text import mode and renders ImportReferences", async () => {
+    act(() => {
+      root.render(createElement(AddByIdentifier, {}));
+    });
+
+    const modeTabImport = container.querySelector(
+      "[data-testid='mode-tab-import']",
+    ) as HTMLButtonElement;
+    expect(modeTabImport).not.toBeNull();
+    expect(modeTabImport.textContent).toContain("Dosya veya Metinden Aktar");
+
+    await act(async () => {
+      modeTabImport.click();
+    });
+
+    // Form should switch to ImportReferences panel
+    expect(container.querySelector("[data-testid='import-references-panel']")).not.toBeNull();
+    expect(container.querySelector("[data-testid='identifier-form']")).toBeNull();
+
+    // Switch back to identifier mode
+    const modeTabId = container.querySelector(
+      "[data-testid='mode-tab-identifier']",
+    ) as HTMLButtonElement;
+    await act(async () => {
+      modeTabId.click();
+    });
+
+    expect(container.querySelector("[data-testid='identifier-form']")).not.toBeNull();
+  });
 });

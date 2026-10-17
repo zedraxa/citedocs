@@ -1927,3 +1927,75 @@ Paralel çalışan geliştiricilerin ve iş kollarının güvenliği için aşa�
 - **`pnpm typecheck`:** 0 hata (`tsc -b` temiz).
 - **Kurallara Uyum:** `apps/`, `packages/`, `deploy/`, Caddyfile veya compose dosyalarına dokunulmadı; yalnızca `docs/` ve `e2e/` çalışıldı. Üretime push/deploy/SSH yapılmadı.
 
+---
+
+## Zotero Dosya ve Metinden Kaynak İçe Aktarma (BibTeX / RIS / CSL-JSON) — Kayıt #036
+
+> **Kayıt No:** #036 (dalda #034 olarak açıldı; main dalında en yüksek kayıt #035 olduğu için birleştirmede sıralı devamlılık amacıyla #036 olarak güncellendi)  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-bib-import`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Zotero eksik ekleme yöntemi: Öğrencilerin herhangi bir harici masaüstü yazılımı kurmadan, tarayıcı üzerinden dosya yükleyerek (.bib, .ris, .json, .xml, .rdf) veya metin yapıştırarak Zotero kütüphanelerine kaynak aktarabilmesi. translation-server mikroservisi ve mevcut kullanıcı Zotero yazma yolu üzerinden 50'şerli paketleme (batching) ile kayıt oluşturma, Türkçe önizleme/özet, 2 MB dosya ve 500 kaynak sınırları, bağlı olmayan kullanıcılar için satır içi "Zotero'yu bağla" akışı ve OAuth dönüşünde bekleyen içe aktarmanın otomatik tamamlanması.
+
+### 1. Yapılan Geliştirmeler ve Mimari Çözümler
+
+1. **Sunucu Taraflı İçe Aktarma ve Toplu Yazma Servisi (`apps/server/src/zotero/importService.ts`):**
+   - Desteklenen formatlar: BibTeX (`.bib`), RIS (`.ris`), CSL-JSON (`.json`), EndNote XML (`.xml`) ve Zotero RDF (`.rdf`).
+   - Format ve MIME tespiti: `detectFormatAndContentType()` fonksiyonu ile dosya uzantısı veya içerik yapısından (`@article`, `TY  -`, JSON dizi/nesne, `<?xml`, `<rdf:RDF`) otomatik format tanıma.
+   - Sınırlar ve Doğrulama: Maksimum 2 MB (`MAX_IMPORT_BYTES = 2 * 1024 * 1024`) yük sınırı (413 Payload Too Large) ve maksimum 500 kaynak (`MAX_IMPORT_ITEMS = 500`) sınırı (400 Bad Request).
+   - `translation-server` Entegrasyonu: `POST /import` uç noktasına kaynak verisi iletilerek Zotero item dizisine dönüştürülmesi sağlandı. Hata durumları (502 Bad Gateway) açıklayıcı Türkçe mesajlarla ele alındı.
+   - 50'şerli Paketleme (Batching): Zotero Web API v3 limitine (`ZOTERO_BATCH_SIZE = 50`) tam uyumlu parçalama. Her parça `POST /users/:userId/items` uç noktasına Zotero API anahtarı ve `If-None-Match` başlığı ile gönderilir.
+   - Kısmi Başarısızlık ve Detaylı Rapor: Zotero API'sinden dönen `failed` ve `unchanged` kayıtlar ayıklanarak `failedItems` listesinde Türkçe nedenleriyle (`Zotero şeması geçersiz veya eksik alan`, `400 Geçersiz veri formatı`, vb.) raporlanır.
+   - Bağlı Olmayan Öğrenci Koruması: Zotero hesabı bağlı olmayan kullanıcılar için kaynaklar çözümlenir ve HTTP 409 (`ImportZoteroUnlinkedError`) ile bulunan kaynakların önizleme verisiyle birlikte istemciye iletilir.
+   - REST Rota Kaydı (`apps/server/src/zotero/routes.ts`): `POST /api/zotero/import` rotası `requireAuth` korumalı olarak eklendi.
+
+2. **İstemci Web API ve Bileşen Katmanı (`apps/web`):**
+   - `apps/web/src/zotero/api.ts`: `importZoteroReferences()` API çağrısı, tip tanımları (`ImportReferencesRequest`, `ImportReferencesResponse`, `ItemPreviewData`, `FailedItemData`).
+   - `apps/web/src/components/ImportReferences.tsx`:
+     - Tamamen Türkçe, temiz ve kullanıcı dostu arayüz.
+     - Sekmeli görünüm: "Dosya Yükle" (sürükle-bırak dropzone, dosya boyutu göstergesi) ve "Metin Yapıştır" (kod editör stili textarea).
+     - Format seçici açılır kutusu: Otomatik Algıla, BibTeX, RIS, CSL-JSON, EndNote XML, Zotero RDF.
+     - İki aşamalı eylem: "Önizle" (yalnızca çözümler ve kartları listeler) ve "Kütüphaneme Aktar" (doğrudan Zotero kütüphanesine kaydeder).
+     - İstemci tarafı dosya boyutu kontrolü: 2 MB üzeri dosyalarda Türkçe uyarı ("Dosya boyutu 2 MB sınırını aşıyor...").
+     - Zotero Bağlı Değil Uyarısı: 409 durumunda satır içi `Zotero Hesabı Bağlı Değil` kartı ve `Zotero'yu bağla` butonu; `sessionStorage` (`citedocs.pendingZoteroImport`) ile bekleyen aktarım saklanır.
+     - OAuth Dönüşünde Otomatik Kurtarma: Öğrenci Zotero hesabını bağlayıp döndüğünde bekleyen kaynaklar otomatik olarak kütüphanesine aktarılır.
+     - Başarı ve Hata Bildirimleri: Başarıyla eklenen kaynak sayısı, ONLYOFFICE atıf ipucu, başarısız olanların gerekçeli listesi.
+   - `apps/web/src/components/AddByIdentifier.tsx`:
+     - Üst bölüme sekme kontrolleri eklendi: "Tanımlayıcı (DOI / ISBN / URL)" ve "Dosya veya Metinden Aktar".
+     - TipTap editör modalı ve Collabora editöründe de dosya/metin içe aktarma doğrudan erişilebilir kılındı.
+   - `apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx`:
+     - Sağ taraftaki "Kaynak & Atıf Paneli" (`oo-cite-panel`) içerisine minimal kablolama satırıyla `ImportReferences` bileşeni eklendi.
+     - İçe aktarılan kaynaklar anında "Bu Oturumda Eklenen Kaynaklar" listesine ve editör başarı bildirimine yansıtılır.
+     - Eşzamanlı çalışan diğer işçinin (cd-style-picker) ve ana ajanın alanlarına (top bar, deploy, compose) kesinlikle dokunulmadı.
+
+3. **Otomasyon Testleri:**
+   - Sunucu Testleri (`apps/server/test/zotero-import.test.ts`): 18 kapsamlı senaryo (BibTeX parsing, RIS parsing, CSL-JSON parsing, 50'li batching, 2 MB sınır aşımı (413), 500 kaynak sınır aşımı (400), kısmi Zotero yazma hataları, translation-server 502 hatası, bağlı olmayan kullanıcı 409 yanıtı, save=false önizleme modu).
+   - İstemci Bileşen Testleri (`apps/web/test/import-references.test.tsx`): 9 birim ve entegrasyon testi (Türkçe etiketler ve dropzone, metin yapıştırma sekmesi, önizleme akışı, Zotero'ya doğrudan kayıt, bağlı olmayan kullanıcı 409 ve satır içi Zotero'yu bağla butonu, 2 MB sınır denetimi, kısmi hata raporlaması, sessionStorage OAuth kurtarma, temizleme butonu).
+   - Tanımlayıcı Bileşeni Testleri (`apps/web/test/add-by-identifier.test.ts`): Mevcut 7 teste ek olarak mod değiştirme ve ImportReferences render testi (8/8 başarılı).
+   - E2E Testi (`e2e/oo-zotero-import.spec.ts`): Editör yan panelinde bileşenin varlığı ve canlı Zotero hesabı gerektiren testin `test.fixme` ile işaretlenmesi.
+
+### 2. Nasıl Kullanılır (How to Use)
+
+1. **ONLYOFFICE Editöründe:**
+   - Belgeyi açın, sağ taraftaki "Kaynak & Atıf Paneli"ni açın (`oo-cite-panel`).
+   - "Dosya veya Metinden Kaynak İçe Aktar" alanında ister `.bib`, `.ris`, `.json` dosyasını sürükleyip bırakın, ister BibTeX / RIS metnini yapıştırın.
+   - "Önizle" butonuna basarak bulunan kaynakları inceleyin veya "Kütüphaneme Aktar" butonuna basarak doğrudan Zotero hesabınıza ekleyin.
+   - Kaynaklar eklendiğinde ONLYOFFICE eklentisinden anında aratıp belgenize atıf ekleyebilirsiniz.
+2. **Bağlı Olmayan Kullanıcı Deneyimi:**
+   - Eğer Zotero hesabınız henüz bağlı değilse kaynaklar çözümlenir, "Zotero Hesabı Bağlı Değil" uyarısı ve "Zotero'yu bağla" butonu gösterilir.
+   - Butona tıklandığında OAuth akışı tamamlanır ve editöre geri dönüldüğünde kaynaklar otomatik olarak kütüphanenize kaydedilir.
+
+### 3. Doğrulama Durumu
+
+- `pnpm lint`: 0 hata, 0 uyarı.
+- `pnpm typecheck`: 0 hata (`tsc -b` temiz).
+- `pnpm test`: 61 test dosyası, tüm testler başarılı.
+- Web import testleri: 9/9 başarılı.
+- AddByIdentifier testleri: 8/8 başarılı.
+- Server import testleri: 18/18 başarılı.
+
+### 4. Açık Kalan Konular (Open Issues)
+
+- Canlı zotero.org hesabı ile uçtan uca doğrulama `e2e/oo-zotero-import.spec.ts` içinde `test.fixme` olarak işaretlenmiştir; CI/CD çevrimdışı çalışmaktadır.
+- ONLYOFFICE Document Server ve AWS dağıtımları ana ajanın kontrolündedir.
+

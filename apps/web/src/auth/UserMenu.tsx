@@ -28,7 +28,7 @@ export function UserMenu({ currentUser }: UserMenuProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const displayName = user?.displayName || user?.email?.split("@")[0] || currentUser?.name || "Student";
+  const displayName = user?.displayName || user?.email?.split("@")[0] || currentUser?.name || "Öğrenci";
   const email = user?.email || "";
   const avatarColor = currentUser?.color || "#2563eb";
 
@@ -37,7 +37,7 @@ export function UserMenu({ currentUser }: UserMenuProps) {
     .map((n) => n[0])
     .slice(0, 2)
     .join("")
-    .toUpperCase() || "U";
+    .toUpperCase() || "Ö";
 
   const toggleLang = () => {
     setLang(lang === "tr" ? "en" : "tr");

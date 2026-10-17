@@ -70,7 +70,7 @@ export function StyleSelector({
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`${apiUrl}/api/csl/styles?q=${encodeURIComponent(searchQuery.trim())}`);
-        if (!res.ok) throw new Error("Search failed");
+        if (!res.ok) throw new Error("Arama başarısız oldu");
         const data = (await res.json()) as CslStyleSearchResult[];
         if (active) {
           setSearchResults(Array.isArray(data) ? data : []);

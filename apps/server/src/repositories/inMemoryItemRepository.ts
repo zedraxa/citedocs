@@ -83,7 +83,7 @@ export class InMemoryItemRepository extends ItemRepository {
       zoteroKey: data.zoteroKey ?? null,
       version: data.version ?? 0,
       itemType: data.itemType ?? "journalArticle",
-      title: data.title ?? "Untitled",
+      title: data.title ?? "Adsız",
       parsedDate: data.parsedDate ?? null,
       publicationTitle: data.publicationTitle ?? null,
       doi: data.doi ?? null,

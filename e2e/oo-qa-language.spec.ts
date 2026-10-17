@@ -116,9 +116,7 @@ test.describe("Requirement 2: Turkish Language Consistency QA Suite (oo-qa-langu
     expect(loginLeaks).toEqual([]);
   });
 
-  test("1b. /login authentication error notices are in Turkish (Bug: leaks 'Invalid email or password')", async ({ page }) => {
-    test.fixme(true, "Bug: POST /api/auth/login returns English 'Invalid email or password' which is rendered directly in auth-error-banner");
-
+  test("1b. /login authentication error notices are in Turkish", async ({ page }) => {
     await page.goto("/login");
     await page.getByTestId("login-email-input").fill("nonexistent_student_9999@example.com");
     await page.getByTestId("login-password-input").fill("WrongPassword123!");
@@ -174,13 +172,9 @@ test.describe("Requirement 2: Turkish Language Consistency QA Suite (oo-qa-langu
     // Close user menu
     await page.locator("body").click({ position: { x: 10, y: 10 } });
 
-    // Audit header and storage text
-    // Note: Bug detection for hardcoded "Cloud" badge in header
-    const cloudBadge = page.locator('header span:has-text("Cloud")');
-    const hasCloudBadge = (await cloudBadge.count()) > 0;
-    if (hasCloudBadge) {
-      console.warn("[QA Language Bug Found] Header storage badge is hardcoded in English as 'Cloud' instead of Turkish 'Bulut'.");
-    }
+    // Audit header and storage text: verify storage badge is in Turkish ("Bulut"), not English ("Cloud")
+    await expect(page.locator('header span:has-text("Cloud")')).toHaveCount(0);
+    await expect(page.locator('header span:has-text("Bulut")')).toBeVisible();
   });
 
   test("3. Share and Rename dialogs Turkish localization", async ({ page }) => {
@@ -225,9 +219,7 @@ test.describe("Requirement 2: Turkish Language Consistency QA Suite (oo-qa-langu
     expect(renameText).toContain("İptal");
 
     const renameLeaks = findEnglishLeaks(renameText);
-    // Remove "untitled" and "document" if it's the current document's title
-    const filteredRenameLeaks = renameLeaks.filter((w) => w !== "untitled" && w !== "document");
-    expect(filteredRenameLeaks).toEqual([]);
+    expect(renameLeaks).toEqual([]);
 
     await page.getByTestId("rename-cancel-btn").click();
     await expect(renameBackdrop).not.toBeVisible();
@@ -247,8 +239,7 @@ test.describe("Requirement 2: Turkish Language Consistency QA Suite (oo-qa-langu
     expect(shareText).toContain("Düzenleyici (Düzenleyebilir)");
 
     const shareLeaks = findEnglishLeaks(shareText);
-    const filteredShareLeaks = shareLeaks.filter((w) => w !== "untitled" && w !== "document");
-    expect(filteredShareLeaks).toEqual([]);
+    expect(shareLeaks).toEqual([]);
 
     await page.getByTestId("share-close-btn").click();
     await expect(shareDialog).not.toBeVisible();
@@ -258,7 +249,7 @@ test.describe("Requirement 2: Turkish Language Consistency QA Suite (oo-qa-langu
     await page.getByTestId(`delete-doc-${docId}`).click();
   });
 
-  test("4. Audit default new document title language (flag 'Untitled Document')", async ({ page }) => {
+  test("4. Audit default new document title language (assert 'Adsız Belge')", async ({ page }) => {
     const timestamp = Date.now();
     const studentEmail = `qa+title_${timestamp}@example.com`;
     const password = "Password123!";
@@ -286,9 +277,7 @@ test.describe("Requirement 2: Turkish Language Consistency QA Suite (oo-qa-langu
     }, docId);
 
     console.log(`[QA Language] Created document title: "${meta?.title}"`);
-    if (meta?.title === "Untitled Document") {
-      console.warn("[QA Language Bug Found] Default new document title is created in English ('Untitled Document') instead of Turkish ('Adsız Belge').");
-    }
+    expect(meta?.title).toBe("Adsız Belge");
 
     // Clean up
     await page.getByTestId("oo-back").click();

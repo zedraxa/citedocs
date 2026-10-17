@@ -203,7 +203,7 @@ export class InMemoryDocumentRepository implements IDocumentRepository {
     const doc: DocumentRecord = {
       id,
       ownerUserId: userId,
-      title: data.title || "Untitled Document",
+      title: data.title || "Adsız Belge",
       s3ObjectKey: data.s3ObjectKey || `users/${userId}/documents/${id}.docx`,
       fileSize: data.fileSize ?? 0,
       mimeType:

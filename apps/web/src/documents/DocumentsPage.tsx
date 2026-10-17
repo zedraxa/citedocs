@@ -31,6 +31,7 @@ import {
   docTranslations,
   getDocumentLanguage,
   formatBytes,
+  formatDocumentDate,
   type DocumentLanguage,
 } from "./i18n.js";
 import { ShareDialog } from "./ShareDialog.js";
@@ -90,7 +91,7 @@ export function DocumentsPage({
         setSharedDocs(res.documents || []);
       }
     } catch (err: unknown) {
-      setError((err as Error).message || "Failed to load documents");
+      setError((err as Error).message || "Belgeler yüklenemedi");
     } finally {
       setLoading(false);
     }
@@ -114,7 +115,7 @@ export function DocumentsPage({
       // Automatically open in the configured editor
       handleOpen(res.document);
     } catch (err: unknown) {
-      setError((err as Error).message || "Failed to create document");
+      setError((err as Error).message || "Belge oluşturulamadı");
     }
   };
 
@@ -132,7 +133,7 @@ export function DocumentsPage({
         percentage: Math.min(100, Math.round(((prev.used + res.document.fileSize) / prev.total) * 10000) / 100),
       }));
     } catch (err: unknown) {
-      setError((err as Error).message || "Failed to upload document");
+      setError((err as Error).message || "Belge yüklenemedi");
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -155,7 +156,7 @@ export function DocumentsPage({
         }));
       }
     } catch (err: unknown) {
-      setError((err as Error).message || "Failed to delete document");
+      setError((err as Error).message || "Belge silinemedi");
     }
   };
 
@@ -178,7 +179,7 @@ export function DocumentsPage({
       const filename = doc.title.toLowerCase().endsWith(ext) ? doc.title : `${doc.title}${ext}`;
       await downloadDocument(doc.id, filename);
     } catch (err: unknown) {
-      setError((err as Error).message || "Download failed");
+      setError((err as Error).message || "Belge indirilemedi");
     }
   };
 
@@ -245,7 +246,7 @@ export function DocumentsPage({
                   CiteDocs
                 </span>
                 <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
-                  Cloud
+                  {t.cloud}
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
@@ -526,10 +527,7 @@ export function DocumentsPage({
                             <span>{formatBytes(doc.fileSize)}</span>
                             <span>&bull;</span>
                             <span>
-                              {new Date(doc.updatedAt).toLocaleDateString(
-                                lang === "tr" ? "tr-TR" : "en-US",
-                                { month: "short", day: "numeric" }
-                              )}
+                              {formatDocumentDate(doc.updatedAt, lang)}
                             </span>
                           </div>
                         </div>

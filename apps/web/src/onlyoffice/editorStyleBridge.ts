@@ -67,9 +67,10 @@ export async function applyStyleInOnlyoffice(
   editorInstance?: unknown,
   styleId = DEFAULT_STYLE_ID,
   locale = DEFAULT_LOCALE,
+  overrideFormat?: string,
 ): Promise<ApplyStyleResult> {
   const cleanId = normalizeStyleId(styleId || DEFAULT_STYLE_ID);
-  const format = getStyleCitationFormat(cleanId);
+  const format = overrideFormat || getStyleCitationFormat(cleanId);
   const prefXml = buildZoteroPrefXml({
     styleId: cleanId,
     locale,
@@ -272,12 +273,12 @@ export async function applyStyleInOnlyoffice(
           );
           pluginRefreshed = true;
         }
-      } catch {
-        /* cross-origin or plugin unmounted */
+      } catch (err) {
+        console.error("[CiteDocs] Error applying style in plugin frame:", err);
       }
     }
-  } catch {
-    /* ignore DOM errors */
+  } catch (err) {
+    console.error("[CiteDocs] Error applying style in Onlyoffice editor:", err);
   }
 
   return { inEditorApplied, pluginRefreshed, chunks, prefXml };

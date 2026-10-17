@@ -134,15 +134,15 @@
             }
           }
 
+          // Ensure Asc.scope.bibStyle is never undefined
+          try {
+            win.Asc = win.Asc || {};
+            win.Asc.scope = win.Asc.scope || {};
+            win.Asc.scope.bibStyle = win.Asc.scope.bibStyle || {};
+          } catch (_) {}
+
           const targetFormat = cleanFormat || (styleMgr && styleMgr.getLastUsedFormat ? styleMgr.getLastUsedFormat() : defaultFormat);
           const notesStyle = (styleMgr && styleMgr.getLastUsedNotesStyle && styleMgr.getLastUsedNotesStyle()) || "footnotes";
-
-          const oldState = win.__zoteroSettings._stateSettings ? { ...win.__zoteroSettings._stateSettings } : {
-            style: styleMgr ? styleMgr.getLastUsedStyleId() || "apa" : "apa",
-            notesStyle: notesStyle,
-            styleFormat: targetFormat,
-            language: locMgr ? locMgr.getLastUsedLanguage() || cleanLocale : cleanLocale,
-          };
 
           const newState = {
             language: cleanLocale,
@@ -157,31 +157,26 @@
             win.__zoteroSettings._stateSettings = newState;
           }
 
-          let updated = false;
-          if (typeof win.__zoteroSettings._onChangeState === "function") {
-            try {
-              await win.__zoteroSettings._onChangeState(newState, oldState);
-              updated = true;
-            } catch (e) {
-              console.warn("[CiteDocs] _onChangeState error, falling back to direct citationService:", e);
-            }
+          const isNote = targetFormat === "note";
+          if (isNote && typeof win.__zoteroCitationService.updateCslItemsInNotes === "function") {
+            await win.__zoteroCitationService.updateCslItemsInNotes(notesStyle);
+          } else if (typeof win.__zoteroCitationService.updateCslItems === "function") {
+            await win.__zoteroCitationService.updateCslItems(true);
           }
 
-          if (!updated) {
-            const isNote = targetFormat === "note";
-            if (isNote && typeof win.__zoteroCitationService.updateCslItemsInNotes === "function") {
-              await win.__zoteroCitationService.updateCslItemsInNotes(notesStyle);
-            } else if (typeof win.__zoteroCitationService.updateCslItems === "function") {
-              await win.__zoteroCitationService.updateCslItems(true);
-            }
-          }
           return true;
         } catch (err) {
-          console.error("[CiteDocs] Error applying style via Zotero plugin service:", err);
+          const topCons = (win.top && win.top.console) || (win.parent && win.parent.console) || win.console;
+          try {
+            topCons.error("[CiteDocs] Error applying style via Zotero plugin service:", err);
+          } catch (_) {
+            console.error(err);
+          }
+          throw err;
         }
       }
 
-      // B. Fallback: Trigger refresh button in DOM ONLY if direct service was not available
+      // B. Fallback: Trigger refresh button in DOM ONLY if direct service was not available at all
       const refreshBtn = document.getElementById("refreshBtn") || document.querySelector("button#refreshBtn, .btn-refresh");
       if (refreshBtn && typeof refreshBtn.click === "function") {
         refreshBtn.click();

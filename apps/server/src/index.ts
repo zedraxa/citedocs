@@ -62,6 +62,7 @@ export * from "./auth/index.js";
 export * from "./pdf/index.js";
 export * from "./documents/index.js";
 export * from "./onlyoffice/index.js";
+export * from "./storage/s3Client.js";
 export { createItemRoutes, itemRoutes };
 
 export interface BuildAppOptions {
@@ -159,9 +160,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     options.documentRepo ||
     (process.env.DATABASE_URL ? new DocumentRepository() : new InMemoryDocumentRepository());
 
+  const isS3Configured = Boolean(
+    process.env.S3_ENDPOINT ||
+    process.env.S3_BUCKET ||
+    process.env.S3_DOCUMENTS_BUCKET ||
+    process.env.S3_ATTACHMENTS_BUCKET
+  );
+
   const wopiStorage =
     options.wopiStorage ||
-    (process.env.NODE_ENV === "test" || !process.env.S3_ENDPOINT
+    (process.env.NODE_ENV === "test" || !isS3Configured
       ? new InMemoryWopiStorage()
       : new S3WopiStorage());
 
@@ -203,7 +211,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       : new AnnotationRepository());
   const attachmentStorage =
     options.attachmentStorage ||
-    (process.env.NODE_ENV === "test" || !process.env.S3_ENDPOINT
+    (process.env.NODE_ENV === "test" || !isS3Configured
       ? new InMemoryAttachmentStorage()
       : new S3AttachmentStorage());
 
@@ -229,6 +237,28 @@ async function start() {
       console.warn("Database auto-migration warning:", e);
     }
   }
+
+  // Ensure every S3/MinIO bucket the server uses exists on startup
+  const isS3Configured = Boolean(
+    process.env.S3_ENDPOINT ||
+    process.env.S3_BUCKET ||
+    process.env.S3_DOCUMENTS_BUCKET ||
+    process.env.S3_ATTACHMENTS_BUCKET
+  );
+  if (isS3Configured) {
+    try {
+      const { ensureAllStorageBuckets } = await import("./storage/s3Client.js");
+      await ensureAllStorageBuckets({
+        logger: {
+          info: (msg) => console.log(`[Storage Init] ${msg}`),
+          warn: (msg, err) => console.warn(`[Storage Init Warning] ${msg}`, err ?? ""),
+        },
+      });
+    } catch (e) {
+      console.warn("Storage auto-bucket creation warning:", e);
+    }
+  }
+
   const app = await buildApp();
   const apiPort = parseInt(process.env.PORT || "3000", 10);
   const collabPort = parseInt(process.env.COLLAB_PORT || "1234", 10);

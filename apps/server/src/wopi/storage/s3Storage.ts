@@ -3,82 +3,43 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   HeadObjectCommand,
-  CreateBucketCommand,
-  HeadBucketCommand,
-  type S3ClientConfig,
 } from "@aws-sdk/client-s3";
 import type { WopiFileMetadata, WopiStorage } from "../types.js";
 import { WopiFileNotFoundError } from "./inMemoryStorage.js";
+import {
+  createS3Client,
+  ensureBucket as ensureBucketHelper,
+  type S3StorageOptions,
+} from "../../storage/s3Client.js";
 
-export interface S3WopiStorageOptions {
-  bucket?: string;
-  endpoint?: string;
-  region?: string;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  forcePathStyle?: boolean;
-  prefix?: string;
-  client?: S3Client;
-}
+export type S3WopiStorageOptions = S3StorageOptions;
 
 export class S3WopiStorage implements WopiStorage {
   private client: S3Client;
   private bucket: string;
   private prefix: string;
+  private region: string;
   private bucketChecked = false;
 
-  private async ensureBucket(): Promise<void> {
+  public async ensureBucket(): Promise<void> {
     if (this.bucketChecked) return;
-    try {
-      await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
-      this.bucketChecked = true;
-    } catch (err: unknown) {
-      const error = err as { name?: string; $metadata?: { httpStatusCode?: number } };
-      if (
-        error.name === "NotFound" ||
-        error.name === "NoSuchBucket" ||
-        error.$metadata?.httpStatusCode === 404
-      ) {
-        try {
-          await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }));
-          this.bucketChecked = true;
-        } catch {
-          this.bucketChecked = true;
-        }
-      }
-    }
+    await ensureBucketHelper(this.client, this.bucket, this.region);
+    this.bucketChecked = true;
   }
 
   constructor(options: S3WopiStorageOptions = {}) {
-    this.bucket = options.bucket || process.env.S3_BUCKET || "citedocs-attachments";
+    this.bucket =
+      options.bucket ||
+      process.env.S3_DOCUMENTS_BUCKET ||
+      process.env.S3_BUCKET ||
+      "citedocs-attachments";
     this.prefix = options.prefix ?? "wopi-files/";
 
+    const { client, region } = createS3Client(options);
+    this.client = client;
+    this.region = region;
     if (options.client) {
-      this.client = options.client;
       this.bucketChecked = true;
-    } else {
-      const endpoint = options.endpoint || process.env.S3_ENDPOINT || "http://localhost:9000";
-      const region = options.region || process.env.S3_REGION || "us-east-1";
-      const accessKeyId =
-        options.accessKeyId || process.env.S3_ACCESS_KEY || process.env.MINIO_ROOT_USER || "citedocs_minio";
-      const secretAccessKey =
-        options.secretAccessKey ||
-        process.env.S3_SECRET_KEY ||
-        process.env.MINIO_ROOT_PASSWORD ||
-        "citedocs_minio_password";
-      const forcePathStyle = options.forcePathStyle ?? true;
-
-      const clientConfig: S3ClientConfig = {
-        endpoint,
-        region,
-        forcePathStyle,
-        credentials: {
-          accessKeyId,
-          secretAccessKey,
-        },
-      };
-
-      this.client = new S3Client(clientConfig);
     }
   }
 

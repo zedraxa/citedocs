@@ -16,6 +16,7 @@ describe("Drizzle Schema & Row-Level Ownership Structure", () => {
     expect(schema.itemCreators).toBeDefined();
     expect(schema.attachments).toBeDefined();
     expect(schema.zoteroCredentials).toBeDefined();
+    expect(schema.pdfAnnotations).toBeDefined();
   });
 
   it("strictly enforces row-level ownership on every student data table", () => {
@@ -56,6 +57,10 @@ describe("Drizzle Schema & Row-Level Ownership Structure", () => {
     expect(attachmentsCols.ownerUserId).toBeDefined();
     expect(attachmentsCols.ownerUserId.notNull).toBe(true);
 
+    const pdfAnnotationsCols = getTableColumns(schema.pdfAnnotations);
+    expect(pdfAnnotationsCols.ownerUserId).toBeDefined();
+    expect(pdfAnnotationsCols.ownerUserId.notNull).toBe(true);
+
     const zoteroCredCols = getTableColumns(schema.zoteroCredentials);
     expect(zoteroCredCols.userId).toBeDefined();
     expect(zoteroCredCols.userId.notNull).toBe(true);
@@ -94,6 +99,7 @@ describe("Drizzle Schema & Row-Level Ownership Structure", () => {
       schema.itemCreators,
       schema.attachments,
       schema.zoteroCredentials,
+      schema.pdfAnnotations,
     ];
 
     for (const table of tables) {

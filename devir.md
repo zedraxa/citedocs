@@ -1617,3 +1617,17 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - **Regresyon kapsamı:** Türkçe iki başlık ve varsayılan POST yolu; ASCII metadata, oluşturma/kaydetme/okuma, legacy ve bozuk `%`, çift kodlamama; eşzamanlı editörler, forcesave sonrası katılım, aynı içerikle kapanış, status 4 ve bellekte oturum olmadan gelen callback. Autosave E2E dosyasında anahtar rotasyonu beklentisi yoktu.
 - **Commitler:** `42aade9` S3 metadata; `1bdca4b` ONLYOFFICE oturum anahtarı.
 - **Açık kontrol:** Gerçek S3/ONLYOFFICE ile canlı tarayıcı kontrolü dağıtım sonrası yapılmalı; bu çalışmada üretime erişilmedi, push/deploy yapılmadı. Web, compose, Caddy ve container yapılandırmaları değiştirilmedi.
+||||||| f722528
+
+## Kapasite Planı ve Operasyon Araçları — Kayıt #028
+
+> **Kayıt No:** #028 (#027 başka dal için ayrılmıştır)
+> **Tarih:** 2026-10-17
+> **Dal:** `cd-ops-capacity` (taban `f722528`)
+
+- `docs/CAPACITY.md`: 20/50/100 öğrenci için Türkçe disk, RAM, swap, CPU ve CE bağlantı planı; repo kanıtları ile tahminler ayrıldı. 20 × 5 GiB kota mevcut 100 GB diske güvenle sığmaz; 11 tam yedek + staging ile zirve yaklaşık `30 + 14D GiB`. 4 GiB RAM dar; 8 GiB RAM ve S3/yerel yedek stratejisi değişikliği önerildi.
+- `deploy/ops/`: POSIX kapasite denetimi, 5 dakikalık systemd timer, JSON log rotasyonu örneği ve varsayılan dry-run temizlik. Disk/inode %80/%90, kullanılabilir RAM 768/384 MiB, swap %25/%50, cache 5/10 GiB; isteğe bağlı webhook. Cleanup aktif belge servisleri durmadan silmez; forgotten için ayrıca kurtarma doğrulaması gerekir.
+- 9 sahte girdili Vitest testi: eşikler, Docker ölçüm hatası, webhook hatası, dry-run, bakım koruması, yeni dosya ve symlink koruması. Shell sözdizimi `sh -n` ile doğrulandı; ShellCheck yerelde kurulu değil.
+- Üretime SSH, push, deploy veya ücretli işlem yapılmadı; konteyner oluşturulmadı. Compose, Caddy, `deploy/onlyoffice*` ve uygulama kaynakları değiştirilmedi. Yerelde çalışan CiteDocs/ONLYOFFICE yok; başka projelerin kaynak kullanımı kapasite kanıtı sayılmadı.
+- Açık işler: operatörün alarmı kurup teslimini denemesi, üretim ölçümü ve staging yük testi, 21. bağlantı davranışı, CPU/kredi/bağlantı metrikleri, büyük yedeklerde alan kontrolü ve staging/retention iyileştirmesi. Bunlar üretimde uygulanmış gibi raporlanmadı.
+- Commitler: `947e570` araçlar ve testler; `2c12343` kapasite planı; bu devir kaydı son commit'tedir.

@@ -35,7 +35,7 @@ export function ForgotPasswordPage({
       const res = await forgotPassword(trimmedEmail);
       setSentMessage(res.message || t("successResetSent"));
     } catch (err: unknown) {
-      setLocalError((err as Error).message || "Request failed");
+      setLocalError((err as Error).message || "İstek başarısız oldu");
     } finally {
       setSubmitting(false);
     }

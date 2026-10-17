@@ -134,10 +134,8 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
           documentType: EDIT_TYPES[ext] || "word",
           editorConfig: {
             mode,
-            lang:
-              (req.headers["accept-language"] || "tr").toString().slice(0, 2) === "en"
-                ? "en"
-                : "tr",
+            lang: "tr",
+            region: "tr-TR",
             callbackUrl: `${internalApi}/api/onlyoffice/callback/${encodeURIComponent(fileId)}?${callbackQuery}`,
             user: { id: userId, name: userName },
             customization: {
@@ -147,6 +145,7 @@ export const createOnlyofficeRoutes = (options: OnlyofficeRoutesOptions): Fastif
               plugins: true,
               hideRightMenu: false,
               leftMenu: true,
+              spellcheck: true,
               goback: { url: "/documents", text: "Belgelerim", blank: false },
             },
             // The deployment installs this pinned plugin locally; its inside mode opens the left panel.

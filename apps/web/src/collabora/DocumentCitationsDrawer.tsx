@@ -56,13 +56,13 @@ export function DocumentCitationsDrawer({
           </div>
           <div>
             <div className="flex items-center gap-1.5">
-              <h2 className="text-sm font-bold text-slate-800">Citations & Bibliography</h2>
+              <h2 className="text-sm font-bold text-slate-800">Atıflar ve Kaynakça</h2>
               <span className="px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
                 {citations.length}
               </span>
             </div>
             <p className="text-[11px] text-slate-400">
-              Style: <span className="font-semibold text-slate-600 uppercase">{activeStyleId}</span>
+              Stil: <span className="font-semibold text-slate-600 uppercase">{activeStyleId}</span>
             </p>
           </div>
         </div>
@@ -82,18 +82,18 @@ export function DocumentCitationsDrawer({
           type="button"
           onClick={onInsertBibliography}
           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-2xs transition-colors cursor-pointer"
-          title="Insert or update bibliography at cursor in Collabora editor"
+          title="Collabora editöründe imlecin bulunduğu yere kaynakça ekleyin veya güncelleyin"
           data-testid="insert-bibliography-btn"
         >
           <ListPlus className="w-3.5 h-3.5" />
-          <span>{hasBibliography ? "Update Bibliography" : "Insert Bibliography"}</span>
+          <span>{hasBibliography ? "Kaynakçayı Güncelle" : "Kaynakça Ekle"}</span>
         </button>
 
         <button
           type="button"
           onClick={onRefreshAll}
           className="p-1.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer"
-          title="Refresh and re-format all citations with active style"
+          title="Tüm atıfları aktif stille yeniden biçimlendirin ve yenileyin"
           data-testid="refresh-citations-btn"
         >
           <RefreshCw className="w-4 h-4" />
@@ -106,16 +106,16 @@ export function DocumentCitationsDrawer({
         <div>
           <div className="flex items-center justify-between mb-2.5">
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Document Citations ({citations.length})
+              Belge Atıfları ({citations.length})
             </span>
           </div>
 
           {citations.length === 0 ? (
             <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
               <Sparkles className="w-6 h-6 text-slate-300 mx-auto mb-2" />
-              <p className="text-xs font-semibold text-slate-600">No citations in document yet</p>
+              <p className="text-xs font-semibold text-slate-600">Belgede henüz atıf bulunmuyor</p>
               <p className="text-[11px] text-slate-400 mt-1">
-                Insert citations from the Zotero Library, Add by DOI, or the PDF Reader.
+                Zotero Kütüphanesinden, DOI ile ekleme alanından veya PDF Okuyucudan atıf ekleyin.
               </p>
             </div>
           ) : (
@@ -148,7 +148,7 @@ export function DocumentCitationsDrawer({
                           type="button"
                           onClick={() => onEditCitation(c)}
                           className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
-                          title="Edit citation items, locators, prefix/suffix"
+                          title="Atıf öğelerini, konumları, ön ek/son eki düzenleyin"
                           data-testid={`edit-citation-btn-${idx}`}
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -157,7 +157,7 @@ export function DocumentCitationsDrawer({
                           type="button"
                           onClick={() => onDeleteCitation(c.markName)}
                           className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors cursor-pointer"
-                          title="Delete this citation"
+                          title="Bu atfı sil"
                           data-testid={`delete-citation-btn-${idx}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -174,12 +174,12 @@ export function DocumentCitationsDrawer({
                     <div className="flex flex-wrap items-center gap-1 mt-2 text-[10px]">
                       {itemsCount > 1 && (
                         <span className="px-1.5 py-0.2 bg-blue-50 text-blue-700 rounded-md font-medium border border-blue-200/60">
-                          {itemsCount} sources
+                          {itemsCount} kaynak
                         </span>
                       )}
                       {firstItem?.locator && (
                         <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded-md">
-                          {firstItem.label || "p."} {firstItem.locator}
+                          {firstItem.label || "s."} {firstItem.locator}
                         </span>
                       )}
                       {firstItem?.prefix && (
@@ -189,7 +189,7 @@ export function DocumentCitationsDrawer({
                       )}
                       {(firstItem?.suppressAuthor || firstItem?.["suppress-author"]) && (
                         <span className="px-1.5 py-0.2 bg-amber-50 text-amber-700 rounded-md border border-amber-200/60">
-                          Author suppressed
+                          Yazar gizlendi
                         </span>
                       )}
                     </div>
@@ -204,7 +204,7 @@ export function DocumentCitationsDrawer({
         <div className="pt-2 border-t border-slate-100">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              Bibliography Entries ({bibliographyEntries.length})
+              Kaynakça Maddeleri ({bibliographyEntries.length})
             </span>
             <span
               className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
@@ -213,13 +213,13 @@ export function DocumentCitationsDrawer({
                   : "bg-slate-100 text-slate-500"
               }`}
             >
-              {hasBibliography ? "In Document" : "Not Placed"}
+              {hasBibliography ? "Belgeye Eklendi" : "Henüz Eklenmedi"}
             </span>
           </div>
 
           {bibliographyEntries.length === 0 ? (
             <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
-              Insert citations to generate the bibliography automatically.
+              Otomatik kaynakça oluşturmak için atıf ekleyin.
             </div>
           ) : (
             <div className="bg-slate-50/80 border border-slate-200 rounded-xl p-3 space-y-2.5 max-h-56 overflow-y-auto">

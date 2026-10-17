@@ -56,7 +56,7 @@ describe("Zotero Web Library Sidebar & Account Linking UI (apps/web)", () => {
     expect(iframe.getAttribute("src")).toBe("/zotero-weblib/index.html");
 
     const accountPill = screen.getByTestId("zotero-account-pill");
-    expect(accountPill.textContent).toContain("Link Zotero");
+    expect(accountPill.textContent).toContain("Zotero'yu Bağla");
   });
 
   it("does not render sidebar when isOpen is false", () => {
@@ -182,7 +182,7 @@ describe("Zotero Web Library Sidebar & Account Linking UI (apps/web)", () => {
       );
     });
 
-    expect(screen.getByTestId("account-modal-success").textContent).toContain("successfully linked");
+    expect(screen.getByTestId("account-modal-success").textContent).toContain("başarıyla bağlandı");
   });
 
   it("displays connected state and disconnect button when already linked", async () => {
@@ -217,7 +217,7 @@ describe("Zotero Web Library Sidebar & Account Linking UI (apps/web)", () => {
       />
     );
 
-    expect(screen.getByText("Account Connected to Zotero.org")).toBeDefined();
+    expect(screen.getByText("Hesap Zotero.org'a Bağlandı")).toBeDefined();
     expect(screen.getByText("7654321")).toBeDefined();
     expect(screen.getByText("abcd••••••••efgh")).toBeDefined();
 

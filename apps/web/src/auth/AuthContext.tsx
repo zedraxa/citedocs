@@ -82,7 +82,7 @@ export function AuthProvider({
     if (typeof navigator !== "undefined" && navigator.language?.startsWith("tr")) {
       return "tr";
     }
-    return "en";
+    return "tr";
   });
 
   const setLang = useCallback((newLang: AuthLanguage) => {

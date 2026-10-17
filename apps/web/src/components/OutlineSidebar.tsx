@@ -43,12 +43,12 @@ export function OutlineSidebar({ editor }: { editor: Editor | null }) {
 
   return (
     <aside
-      aria-label="Document Outline"
+      aria-label="Belge Taslağı"
       id="document-outline"
       className="w-64 bg-white border-r border-gray-200 p-4 overflow-y-auto flex-shrink-0"
     >
       <h2 className="mb-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-        Document Outline
+        Belge Taslağı
       </h2>
       {headings.length ? (
         <ul className="space-y-1 text-sm">
@@ -57,7 +57,7 @@ export function OutlineSidebar({ editor }: { editor: Editor | null }) {
               <button
                 type="button"
                 aria-current={activePos === heading.pos ? "location" : undefined}
-                title={heading.text || "Untitled heading"}
+                title={heading.text || "Başlıksız başlık"}
                 style={{ paddingLeft: `${(heading.level - 1) * 12 + 8}px` }}
                 className={`w-full rounded py-1 pr-2 text-left truncate hover:bg-blue-50 focus-visible:outline-blue-600 ${activePos === heading.pos ? "bg-blue-50 text-blue-700 font-semibold" : "text-gray-700"}`}
                 onClick={() =>
@@ -69,13 +69,13 @@ export function OutlineSidebar({ editor }: { editor: Editor | null }) {
                     .run()
                 }
               >
-                {heading.text || "Untitled heading"}
+                {heading.text || "Başlıksız başlık"}
               </button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-xs text-gray-400 italic">No headings yet. Add headings to outline.</p>
+        <p className="text-xs text-gray-400 italic">Henüz başlık eklenmedi. Taslak oluşturmak için başlıklar ekleyin.</p>
       )}
     </aside>
   );

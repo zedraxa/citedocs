@@ -16,7 +16,7 @@ export function RenameDialog({
   isOpen,
   onClose,
   onRename,
-  lang = "en",
+  lang = "tr",
 }: RenameDialogProps) {
   const t = docTranslations[lang] || docTranslations.en;
   const [title, setTitle] = useState(document.title);

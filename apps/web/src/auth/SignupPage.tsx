@@ -53,7 +53,7 @@ export function SignupPage({
       });
       onSuccess?.(user);
     } catch (err: unknown) {
-      setLocalError((err as Error).message || "Signup failed");
+      setLocalError((err as Error).message || "Kayıt başarısız oldu");
     } finally {
       setSubmitting(false);
     }

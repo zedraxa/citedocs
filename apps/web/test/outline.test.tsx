@@ -29,7 +29,7 @@ async function setup(content: string) {
   });
   return {
     editor,
-    outline: within(screen.getByRole("complementary", { name: "Document Outline" })),
+    outline: within(screen.getByRole("complementary", { name: "Belge Taslağı" })),
   };
 }
 
@@ -85,7 +85,7 @@ describe("App document outline", () => {
       editor.commands.clearContent();
     });
     expect(outline.queryAllByRole("button")).toHaveLength(0);
-    expect(outline.getByText("No headings yet. Add headings to outline.")).toBeTruthy();
+    expect(outline.getByText("Henüz başlık eklenmedi. Taslak oluşturmak için başlıklar ekleyin.")).toBeTruthy();
   });
 
   it("tracks cursor movement into section body paragraphs", async () => {
@@ -114,23 +114,23 @@ describe("App document outline", () => {
 
   it("handles an empty document and unnamed headings", async () => {
     const { editor, outline } = await setup("<p></p>");
-    expect(outline.getByText("No headings yet. Add headings to outline.")).toBeTruthy();
+    expect(outline.getByText("Henüz başlık eklenmedi. Taslak oluşturmak için başlıklar ekleyin.")).toBeTruthy();
     act(() => {
       editor.commands.setContent("<h1></h1>");
     });
-    expect(outline.getByRole("button", { name: "Untitled heading" })).toBeTruthy();
+    expect(outline.getByRole("button", { name: "Başlıksız başlık" })).toBeTruthy();
   });
 
   it("reopens the sidebar with the latest document", async () => {
     const { editor } = await setup("<h1>Before</h1>");
-    fireEvent.click(screen.getByTitle("Toggle Document Outline"));
-    expect(screen.queryByRole("complementary", { name: "Document Outline" })).toBeNull();
+    fireEvent.click(screen.getByTitle("Belge Taslağını Aç/Kapat"));
+    expect(screen.queryByRole("complementary", { name: "Belge Taslağı" })).toBeNull();
     act(() => {
       editor.commands.setContent("<h2>After</h2>");
     });
-    fireEvent.click(screen.getByTitle("Toggle Document Outline"));
+    fireEvent.click(screen.getByTitle("Belge Taslağını Aç/Kapat"));
     expect(
-      within(screen.getByRole("complementary", { name: "Document Outline" })).getByRole("button", {
+      within(screen.getByRole("complementary", { name: "Belge Taslağı" })).getByRole("button", {
         name: "After",
       }),
     ).toBeTruthy();

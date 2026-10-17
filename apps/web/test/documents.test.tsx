@@ -485,7 +485,7 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
       const quotaIndicator = container.querySelector("[data-testid='storage-quota-indicator']");
       expect(quotaIndicator).not.toBeNull();
       expect(quotaIndicator?.textContent).toContain("5 GB");
-      expect(quotaIndicator?.textContent).toContain("100% Free Academic Storage");
+      expect(quotaIndicator?.textContent).toContain("%100 Ücretsiz Bulut Alanı");
 
       // Document titles
       expect(container.textContent).toContain("Quantum Physics Paper.docx");
@@ -519,7 +519,7 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
 
       expect(container.textContent).toContain("Collaborative Study Group.docx");
       expect(container.textContent).toContain("Dr. Teacher");
-      expect(container.textContent).toContain("Viewer");
+      expect(container.textContent).toContain("Görüntüleyici");
     });
 
     it("filters documents when searching in search input", async () => {
@@ -558,6 +558,10 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
         await new Promise((r) => setTimeout(r, 20));
       });
 
+      // Default is Turkish
+      expect(container.textContent).toContain("Belgelerim");
+      expect(container.textContent).toContain("Benimle Paylaşılanlar");
+
       const langToggle = container.querySelector("[data-testid='doc-lang-toggle']") as HTMLButtonElement;
       expect(langToggle).not.toBeNull();
 
@@ -565,7 +569,15 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
         fireEvent.click(langToggle);
       });
 
-      // Turkish strings
+      // Toggled to English
+      expect(container.textContent).toContain("My Documents");
+      expect(container.textContent).toContain("Shared with Me");
+
+      // Toggle back to Turkish
+      await act(async () => {
+        fireEvent.click(langToggle);
+      });
+
       expect(container.textContent).toContain("Belgelerim");
       expect(container.textContent).toContain("Benimle Paylaşılanlar");
     });

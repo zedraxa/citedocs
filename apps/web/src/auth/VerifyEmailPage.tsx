@@ -44,7 +44,7 @@ export function VerifyEmailPage({
   const handleVerify = async (verifyTokenStr: string) => {
     const trimmed = verifyTokenStr.trim();
     if (!trimmed) {
-      setLocalError(t("verificationToken") + " is required");
+      setLocalError(t("verificationToken") + " zorunludur");
       return;
     }
 
@@ -58,7 +58,7 @@ export function VerifyEmailPage({
       setSuccess(true);
       onSuccess?.();
     } catch (err: unknown) {
-      setLocalError((err as Error).message || "Verification failed");
+      setLocalError((err as Error).message || "Doğrulama başarısız oldu");
     } finally {
       setSubmitting(false);
     }
@@ -77,7 +77,7 @@ export function VerifyEmailPage({
       await resendVerification();
       setResendStatus(t("resendSuccess"));
     } catch (err: unknown) {
-      setLocalError((err as Error).message || "Resending failed");
+      setLocalError((err as Error).message || "Yeniden gönderme başarısız oldu");
     } finally {
       setResending(false);
     }

@@ -52,6 +52,10 @@ export const docTranslations = {
     language: "Language",
     sharedBy: "Shared by",
     dropFilesHere: "Drop files here to upload (.docx, .odt, .pdf)",
+    loadingDocuments: "Loading documents...",
+    docTypeDocx: "Microsoft Word",
+    docTypeOdt: "LibreOffice Writer",
+    docTypePdf: "PDF Document",
   },
   tr: {
     myDocuments: "Belgelerim",
@@ -104,6 +108,10 @@ export const docTranslations = {
     language: "Dil",
     sharedBy: "Paylaşan",
     dropFilesHere: "Yüklemek için dosyaları buraya bırakın (.docx, .odt, .pdf)",
+    loadingDocuments: "Belgeler yükleniyor...",
+    docTypeDocx: "Word Belgesi",
+    docTypeOdt: "LibreOffice Belgesi",
+    docTypePdf: "PDF Belgesi",
   },
 };
 
@@ -113,7 +121,7 @@ export function getDocumentLanguage(): DocumentLanguage {
     if (saved === "tr" || saved === "en") return saved;
     if (navigator.language.startsWith("tr")) return "tr";
   }
-  return "en";
+  return "tr";
 }
 
 export function formatBytes(bytes: number): string {

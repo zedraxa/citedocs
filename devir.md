@@ -1659,3 +1659,58 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - `pnpm lint` (0 hata, 0 uyarı), `pnpm typecheck` (0 hata) ve `pnpm test` (58 test dosyası, 546 başarılı test) tam yeşildir.
 
 ||||||| b252b0b
+||||||| 09bdb9c
+
+---
+
+## 30. Yedekleme Güçlendirmesi ve Disk Alanı Koruması — Kayıt #030
+
+> **Kayıt No:** #030 (birleştirmede #029 çakışması nedeniyle yeniden numaralandı)  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-backup-space` (taban `09bdb9c` / `main`)  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** CiteDocs üretim sunucusunda (100 GB disk, t3.medium) yedeklemenin diski doldurmasını kesin olarak engelleyen güçlendirmenin yapılması: staging öncesi ön alan tahmini ($S + A + \%20$ disk rezervi, `MIN_FREE_DISK_MB` taban kontrolü), sınırlı (bounded) staging ve sinyal tuzakları (trap), başlangıçta eski/yarım staging ve bozuk arşivlerin temizlenmesi, esnek yerel saklama ve `KEEP_LOCAL_AFTER_UPLOAD`, arşiv boyutu ve süresinin loglanması, dokümantasyon (`docs/BACKUP.md`, `docs/CAPACITY.md`) ve uçtan uca sahte girdili Vitest testleri.
+
+### 29.1 Yapılan Çalışmalar ve Mimari Çözümler
+
+1. **Staging Öncesi Alan Tahmini ve Çift Dosya Sistemi Desteği (`deploy/backup/citedocs-backup.sh`):**
+   - Staging alanı oluşturulmadan önce canlı MinIO/S3 nesneleri (`aws s3 ls --summarize` veya `mc`) ve PostgreSQL veritabanı boyutu (`SELECT pg_database_size`) taranarak $S$ (staging) ve $A$ (arşiv, $A \approx S$) boyutları hesaplanır.
+   - Dosya sisteminde en az $S + A + \text{Disk Rezervi}$ ($\%20$, yapılandırılabilir `--disk-reserve-percent` / `DISK_RESERVE_PERCENT`) boş alan bulunması şart koşulur.
+   - `MIN_FREE_DISK_MB=2048` taban eşiği (floor) olarak korunur; gereken alan bu değerin altına düşemez.
+   - Staging (`BACKUP_STAGING_DIR`) ve arşiv (`BACKUP_DIR`) farklı bağlama noktalarındaysa (mounts), her iki dosya sistemi de ayrı ayrı kontrol edilir.
+   - Yetersiz alanda net bir hata mesajı basılarak sıfır olmayan çıkış koduyla işlem güvenle iptal edilir (abort).
+
+2. **Sınırlı (Bounded) Staging ve Sinyal/Hata Tuzakları (Trap):**
+   - Staging dizini, arşiv sıkıştırması (`tar -czf`) ve doğrulaması (`tar -tzf`) tamamlanır tamamlanmaz derhal silinerek $S$ kadar alan anında serbest bırakılır.
+   - Başarısızlık veya sinyallerde (`EXIT`, `INT`, `TERM`, `HUP`, `QUIT`) trap mekanizması geçici staging dizinini ve tamamlanmamış/bozuk arşiv dosyalarını diskten temizler.
+   - Betik başlangıcında önceki çökmüş/kesilmiş işlemlerden kalan `.staging_*` dizinleri, `*.tmp` / `*.part` dosyaları ve bozuk tar arşivleri yalnız yedekleme dizinleri (`BACKUP_DIR`, `BACKUP_STAGING_DIR`) sınırında taranarak otomatik temizlenir.
+
+3. **Esnek Yerel Saklama ve `KEEP_LOCAL_AFTER_UPLOAD`:**
+   - Standart saklama politikası (7 günlük + 4 haftalık = en fazla 11 arşiv) korunur.
+   - `BACKUP_S3_URI` üzerinden uzak S3 yüklemesi başarılı olduğunda, isteğe bağlı `KEEP_LOCAL_AFTER_UPLOAD` (örn. `1` veya `2`) ayarıyla yerelde yalnızca en yeni arşivler saklanabilir.
+   - S3 yüklemesi tanımlı değilse veya başarısız olursa varsayılan güvenli saklama (11 arşiv) otomatik olarak korunur; öğrenci verisi riske atılmaz.
+
+4. **Gözlemlenebilirlik (Boyut ve Süre Takibi):**
+   - Her çalıştırmada arşivin insan tarafından okunabilir boyutu (`245M`), ham bayt boyutu ve toplam yedekleme süresi (`14s`) loglanır; disk büyüme eğilimi takip edilebilir hale getirilir.
+
+5. **Kapsamlı Test Altyapısı (`apps/server/test/backup-restore.test.ts`):**
+   - Yetersiz alanda yedeklemenin abort etmesi ve hata mesajı dökümü.
+   - Başlangıçta eski staging ve kısmi/bozuk arşivlerin temizlenmesi, geçerli arşivlerin korunması.
+   - Hata durumunda exit trap ile staging ve kısmi arşivlerin silinmesi.
+   - Başarılı yedekleme, arşiv boyutu ve süre loglarının doğrulanması.
+   - Üretilen arşiv üzerinde `citedocs-restore.sh --dry-run` çalıştırılması ve sağlama toplamı doğrulaması.
+   - `KEEP_LOCAL_AFTER_UPLOAD` ile S3 yüklemesi sonrası yerel arşiv sayısının hedeflenen sayıya düşürülmesi.
+   - ShellCheck denetimi 0 hata ve 0 uyarı ile geçmektedir.
+
+### 29.2 Doğrulama Durumu
+
+- `pnpm lint`: 0 hata, 0 uyarı.
+- `pnpm typecheck`: 0 hata (`tsc -b` temiz).
+- `pnpm test`: 60 test dosyası, 588 test başarılı, 1 atlanan test (toplam 589 test).
+- `bash -n` ve `shellcheck`: 0 hata, 0 uyarı.
+
+### 29.3 Açık Kalan Konular (Open Issues)
+
+- Üretim sunucusunda (`/opt/citedocs/.env`) operatör isteğe bağlı olarak `KEEP_LOCAL_AFTER_UPLOAD=1` veya `2` ve `DISK_RESERVE_PERCENT=20` ayarlarını etkinleştirebilir.
+- Canlı sunucuya dağıtım, ONLYOFFICE yapılandırması ve compose değişiklikleri ilgili sorumlu ajanların kapsamındadır; bu çalışmada üretime dokunulmamış, AWS çağrısı yapılmamıştır.
+

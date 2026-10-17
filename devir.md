@@ -1365,4 +1365,64 @@ pnpm build
 - **Production Compose S3 Bucket Değişkenleri:** Sunucu tarafında `S3_DOCUMENTS_BUCKET` ve `S3_ATTACHMENTS_BUCKET` ayrımı desteklendi. `deploy/docker-compose.prod.yml` içinde tek kova yerine ayrı kova kullanılmak istenirse `deploy` dosyasını yöneten ajan tarafından bu ortam değişkenleri compose servisine aktarılmalıdır.
 - **Translation Server Çoklu Mimari (arm64/amd64) Dockerfile:** `cd-infra-hardening` dalında `docker/translation-server/Dockerfile` içinde multi-arch Node 20 tabanlı bir imaj tanımlanmıştı. Prod compose'un bunu kullanabilmesi için deploy sorumlusu ajan tarafından `deploy/` altında incelenmesi ve prod compose'a entegrasyonu değerlendirilmelidir.
 
+## 22. Üretim Seviyesi Yedekleme ve Kurtarma Araçları (cd-ops-backup) — Kayıt #023
+
+> **Kayıt No:** #023 (Not: #022 başka bir dal için rezerve edilmiştir)  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-ops-backup`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** CiteDocs üretim sunucusunda (docs.sifirdanbire.com.tr) yaklaşık 20 öğrencinin tez ve akademik belgelerinin sunucu veya disk çökmesi durumunda dahi asla kaybolmamasını sağlayacak üretim seviyesinde yedekleme (`citedocs-backup.sh`), geri yükleme (`citedocs-restore.sh`), zamanlama (cron.d ve systemd timer), doğrulama (`--verify`), entegrasyon testleri ve kapsamlı Türkçe dokümantasyon (`docs/BACKUP.md`) hazırlanması.
+
+### 22.1 Yapılan Çalışmalar
+
+1. **Üretim Yedekleme Aracı (`deploy/backup/citedocs-backup.sh`):**
+   - `set -euo pipefail` ve `export LC_ALL=C` ile tam platform ve yerel dil bağımsızlığı sağlandı.
+   - Sabit şifreler yerine `/opt/citedocs/.env` veya `--env-file` üzerinden kimlik bilgileri dinamik olarak okundu.
+   - `pg_dump -F c` (PostgreSQL Custom Format) ile ilişkisel veritabanı atomik olarak döküldü.
+   - S3 ve MinIO depolama katmanı (`citedocs-documents` ve `citedocs-attachments`) kova bazında `aws s3 sync` veya `mc mirror` ile standart `.docx`/`.pdf` nesneleri olarak yedeklendi.
+   - Docker Compose ağında MinIO portu host'a kapalı olsa dahi konteyner köprü IP'si (`resolve_storage_endpoint`) üzerinden sorunsuz senkronizasyon garantilendi.
+   - Boş disk koruması eklendi (`--min-free-mb`, varsayılan 2 GB). Eşik altındaki disk alanında sistem stabilitesini korumak için işlem güvenle durdurulur.
+   - 7 günlük + 4 haftalık rotasyon politikası (`apply_retention`) ile en fazla 11 arşiv saklanarak disk taşması önlendi.
+   - `BACKUP_S3_URI` tanımlıysa uzak off-site S3 kovasına arşiv ve SHA-256 sağlama toplamı yüklendi; tanımsızsa temiz şekilde atlandı.
+   - Her arşiv için `metadata.json` ve `sha256sums.txt` kriptografik bütünlük dosyaları üretildi.
+
+2. **Üretim Geri Yükleme ve Doğrulama Aracı (`deploy/backup/citedocs-restore.sh`):**
+   - `--dry-run` modu ile hiçbir veriyi değiştirmeden arşiv içeriğini, tabloları ve nesneleri analiz eden önizleme desteği.
+   - Canlı veritabanını kazara ezmeyi önleyen etkileşimli terminal onayı ve betik otomasyonu için `--yes` / `--confirm` bayrağı.
+   - `--verify` modu: Canlı sisteme dokunmadan geçici throwaway konteynerler (`postgres:16-alpine` ve `pgsty/minio:latest`) üzerinde geri yükleme yapıp tablo ve satır sayıları (`users`, `documents`, `library_items`) ile depolama nesne sayılarını doğrulayan ve çıkışta konteynerleri temizleyen tam izolasyonlu test motoru.
+
+3. **Zamanlanmış Görev ve Servis Tanımları:**
+   - `deploy/backup/citedocs-backup.cron`: Her gün saat 03:30 Europe/Istanbul'da çalışacak `/etc/cron.d/citedocs-backup` örneği.
+   - `deploy/backup/citedocs-backup.service` ve `citedocs-backup.timer`: Modern systemd timer alternatifi (`OnCalendar=*-*-* 03:30:00 Europe/Istanbul`).
+
+4. **Kapsamlı Test Altyapısı:**
+   - `deploy/backup/test/test-backup-restore.sh`: Uçtan uca Docker Compose tabanlı entegrasyon testi. Dinamik portlarla Postgres ve MinIO konteynerleri açar, test verileri yükler, yedek alır, canlı veriyi siler, `--dry-run` test eder, `--yes` ile geri yükler ve verilerin %100 round-trip doğruluğunu kanıtlar.
+   - `apps/server/test/backup-restore.test.ts`: Vitest test paketi. ShellCheck denetimi, CLI parametre doğrulamaları, disk eşiği testi, sahte arşivle dry-run ve bozuk sağlama toplamı reddi denetimlerini çalıştırır.
+   - Tüm kabuk betikleri `shellcheck` denetiminden 0 hata ve 0 uyarı ile geçmektedir.
+
+5. **Türkçe Dokümantasyon (`docs/BACKUP.md`):**
+   - Yedeklenen verilerin anatomisi, sunucu kurulum adımları, acil durum felaket kurtarma senaryoları, `--verify` kullanımı ve ~20 öğrenci için disk/S3 maliyet projeksiyonu (aylık yaklaşık 3 TL) detaylandırıldı.
+
+### 22.2 Nasıl Doğrulanır?
+
+1. **ShellCheck ve Vitest Birim Testleri:**
+   ```bash
+   pnpm --filter @citedocs/server test test/backup-restore.test.ts
+   ```
+2. **Uçtan Uca Konteyner Entegrasyon Testi:**
+   ```bash
+   deploy/backup/test/test-backup-restore.sh
+   ```
+3. **Monorepo Genel Sağlık ve Derleme:**
+   ```bash
+   pnpm lint
+   pnpm typecheck
+   pnpm test
+   ```
+
+### 22.3 Açık Kalan Konular (Open Issues)
+
+- **Uzak S3 Kovası Yaşam Döngüsü (Lifecycle Rule):** Sunucu tarafında `BACKUP_S3_URI` üzerinden harici bir S3 kovası kullanılacaksa, AWS S3 konsolu üzerinden 30-90 gün sonrası için `Expire` veya `Glacier Flexible Retrieval` geçiş yaşam döngüsü kuralı eklenmesi tavsiye edilir.
+
+
 

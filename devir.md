@@ -2558,6 +2558,7 @@ handle_path /oo/* {
    - `docker-compose.prod.yml` dosyasına kesinlikle dokunulmadı.
    - Dağıtım (deploy) yapılmadı.
 
+<<<<<<< Updated upstream
 ---
 
 ## 52. ONLYOFFICE Gerçek Tarayıcıda Uçtan Uca Atıf ve Kaynakça Akışı Doğrulaması (Kayıt #045)
@@ -2627,4 +2628,72 @@ Bu çalışmada yerel docker ortamındaki `citedocs-onlyoffice-test:latest` kont
 - `docker-compose.prod.yml`, AWS, nginx veya canlı sunucuya (63.186.117.58) **KESİNLİKLE DOKUNULMADI.**
 - Canlı ortama dağıtım (deploy), push veya merge yapılmadı.
 - Yalnızca `cd-cite-e2e` dalında scoped ve temiz değişiklikler yapıldı.
+
+---
+
+## 52. ONLYOFFICE Editöründe Anlık Atıf Stili Değişimi (APA -> IEEE -> APA) ve Sayfa Kararması/Yeniden Yükleme Hatasının Giderilmesi (Kayıt #047)
+
+> **Kayıt No:** #047  
+> **Tarih:** 2026-10-17  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Dal:** `cd-style-switch-fix`  
+> **İlgili Görev:** Canlı ortamda ONLYOFFICE editör sayfasında üst bar Atıf Stili Seçici'den ("StylePicker") APA'dan IEEE'ye geçildiğinde Zotero panelinde "Yenileme başarısız oldu" hatası alınması, editör iframe'inin yok edilerek sayfanın kararması (blank page), ve belge yenilendiğinde atıfların APA'da kalması hatasının kök nedenlerinin bulunup kökten çözülmesi; belge içi tüm atıfların ve kaynakçanın anında yerinde (in-place) güncellenmesi, React re-mount'un engellenmesi, seçilen stilin kalıcı hale getirilmesi.
+
+---
+
+### 1. Kök Neden Tespiti ve Analiz (Root Cause Analysis)
+
+Yapılan derinlemesine inceleme ve kod takibinde sorunun 3 kritik kök nedenden kaynaklandığı tespit edilmiştir:
+
+1. **React Re-Mount ve Editörün Yok Edilmesi (Destruction of DocEditor):**
+   - `apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx` içerisinde ONLYOFFICE editörünü (`DocsAPI.DocEditor`) başlatan `useEffect` kancası bağımlılık dizisinde `[documentId, syncPluginCredentials]` tanımlıydı.
+   - `syncPluginCredentials` ise `useCallback(..., [currentStyle])` şeklinde tanımlanmıştı ve `currentStyle` bağımlılığına sahipti.
+   - Kullanıcı üst bardaki stil seçiciden IEEE'yi seçtiğinde `handleStyleChange` -> `setCurrentStyle("ieee")` tetikleniyordu. `currentStyle` değiştiğinde `syncPluginCredentials` fonksiyon referansı değişiyor, bu da ana editör `useEffect`'inin temizleme (cleanup) fonksiyonunu (`editorRef.current?.destroyEditor()`) çalıştırarak ONLYOFFICE editörünü tamamen DOM'dan siliyor ve yeni bir DocEditor örneği oluşturmaya çalışıyordu.
+   - DocService websocket oturumu aktifken editörün aniden yok edilip aynı DOM id'sine yeniden bağlanmaya çalışılması, 10-20 saniye süren sayfa kararmasına (blank screen) ve build hash değişimine yol açıyordu.
+   - **Çözüm:** `currentStyleRef = useRef(currentStyle)` mimarisine geçildi, `syncPluginCredentials` fonksiyonu kararlı referans (`[]` dependency) haline getirildi. Editör hiçbir stil değişiminde unmount edilmez veya yeniden oluşturulmaz; oturum kesintisiz devam eder.
+
+2. **Eşzamanlı Yarış Durumu (Race Condition) ve "Yenileme başarısız oldu" Hatası:**
+   - Önceki `editorStyleBridge.ts` implementasyonunda hem doğrudan JS kancası (`pWin.__citedocsSyncStyle`) çağrılıyor hem de hemen ardından `else if` olmadan `refreshBtn.click()` tetikleniyordu.
+   - `pWin.__citedocsSyncStyle` asenkron olarak yeni stilin CSL XML'ini indirirken, eşzamanlı basılan `refreshBtn.click()` Zotero eklentisinin dahili `citationService.updateCslItems(false)` metodunu tetikliyordu.
+   - Stil henüz `_cache` içine yazılmamışken `updateCslItems` çağrıldığında `citeproc` motoru (`CSL.Engine`) tanımsız stil hatası fırlatıyor ve Zotero eklentisi arayüzünde "Yenileme başarısız oldu" ("Failed to refresh") uyarısı çıkıyordu.
+   - Ayrıca `updateCslItems(false)` parametresi nedeniyle eklenti biçim değişikliğini kullanıcı manuel düzenlemesi sanıp onay modalı açmaya çalışıyordu.
+   - **Çözüm:** `zotero-sync-hook.js` içine `isSyncing` ve `pendingSync` eşzamanlılık kilidi (concurrency lock) eklendi. Stil yükleme işlemi sırasıyla yerel paket, zotero.org ve CiteDocs sunucu uç noktası (`/api/csl/styles/:id`) üzerinden garanti altına alındıktan sonra, eklentinin `_onChangeState(newState, oldState)` metodu üzerinden `updateCslItems(true)` (hard refresh) ve `onStartAction`/`onEndAction` korumasıyla tek seferde güvenle çalıştırılması sağlandı. `editorStyleBridge.ts` ise `else if` akışına geçirilerek doğrudan kanca varken `refreshBtn` tıklaması engellendi.
+
+3. **Kalıcılık (Persistence) ve Belge İçi Alan Kodları (Addin Fields):**
+   - Belge içi Zotero alan kodları (`ADDIN ZOTERO_ITEM CSL_CITATION` ve `ADDIN ZOTERO_BIBL CSL_BIBLIOGRAPHY`) korunarak `updateCslItems(true)` ile metin içi IEEE numaralandırması (`[1]`) ve numaralı kaynakça listesi dinamik olarak güncellenir; tersine APA'ya dönüldüğünde yazar-yıl formatı geri gelir.
+   - `PUT /api/documents/:id/style` çağrısı ile belgenin `docProps/custom.xml` içindeki `ZOTERO_PREF_1`... alanları sunucu tarafında atomik olarak kaydedilir. Sayfa yenilendiğinde belge `GET /api/documents/:id/citations` rotasından yeni stiliyle açılır.
+
+---
+
+### 2. Değiştirilen Dosyalar
+
+1. `apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx`:
+   - `currentStyleRef` eklendi; `syncPluginCredentials` boş bağımlılık dizisiyle (`[]`) kararlı hale getirildi.
+   - Stil değişiminde editörün yeniden yüklenmesi/yok edilmesi engellendi.
+   - `applyStyleInOnlyoffice` çağrısı `await` edilerek asenkron hata yönetimi sağlandı.
+2. `apps/web/src/onlyoffice/editorStyleBridge.ts`:
+   - `applyStyleInOnlyoffice` fonksiyonu `async` hale getirildi; doğrudan kancalar varken DOM `refreshBtn` tıklaması engellendi.
+   - PostMessage yedeği `citedocs:styleChange`, `zotero:setStyle` ve `zotero:refreshStyle` ile donatıldı.
+3. `deploy/onlyoffice/zotero-sync-hook.js`:
+   - Eşzamanlılık kilidi (`isSyncing`, `pendingSync`) eklendi.
+   - Eklenti servislerinin yüklenmesini bekleyen esnek yeniden deneme mekanizması eklendi.
+   - CSL formatı tespiti (author-date, numeric, note) ve çok katmanlı stil indirme (yerel bundle -> zotero.org -> CiteDocs backend) eklendi.
+   - `_onChangeState(newState, oldState)` ve `updateCslItems(true)` entegrasyonu tamamlandı.
+4. `apps/web/test/editor-style-bridge.test.ts`:
+   - `applyStyleInOnlyoffice` testleri `async/await` yapısına uyarlandı (12 testin tamamı yeşil).
+5. `apps/web/test/onlyoffice-editor.test.tsx`:
+   - APA -> IEEE -> APA stil geçişlerinin DocEditor'ı yok etmeden yerinde çalıştığını ve kalıcılığını doğrulayan yeni entegrasyon testi eklendi (18 testin tamamı yeşil).
+6. `e2e/oo-style-switch.spec.ts`:
+   - Yeni uçtan uca (E2E) test dosyası oluşturuldu.
+
+---
+
+### 3. Test ve Doğrulama Sonuçları
+
+- `pnpm lint`: 0 hata, 0 uyarı.
+- `pnpm typecheck`: 0 hata (`tsc -b` tüm projelerde başarıyla geçti).
+- `pnpm test`: 78 test dosyası, 742 test başarılı (0 hata).
+- `pnpm --filter @citedocs/web vitest run test/editor-style-bridge.test.ts`: 12 test başarılı.
+- `pnpm --filter @citedocs/web vitest run test/onlyoffice-editor.test.tsx`: 18 test başarılı.
+- Dağıtım yapılmadı; prod ortamına veya compose dosyalarına dokunulmadı.
 

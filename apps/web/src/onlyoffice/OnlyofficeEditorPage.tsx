@@ -137,6 +137,8 @@ export function OnlyofficeEditorPage({
   const [recentItems, setRecentItems] = useState<AddedCiteItem[]>([]);
   const [lastAdded, setLastAdded] = useState<AddedCiteItem | null>(null);
   const [currentStyle, setCurrentStyle] = useState<string>(DEFAULT_STYLE_ID);
+  const currentStyleRef = useRef<string>(currentStyle);
+  currentStyleRef.current = currentStyle;
 
   // Fetch current document style from Zotero preferences
   useEffect(() => {
@@ -150,6 +152,7 @@ export function OnlyofficeEditorPage({
           const resolvedStyle = normalizeStyleId(res.data.style || DEFAULT_STYLE_ID);
           const resolvedLocale = res.data.prefs?.locale || DEFAULT_LOCALE;
           setCurrentStyle(resolvedStyle);
+          currentStyleRef.current = resolvedStyle;
           syncZoteroPluginStorage(resolvedStyle, resolvedLocale);
         } else if (!cancelled) {
           syncZoteroPluginStorage(DEFAULT_STYLE_ID, DEFAULT_LOCALE);
@@ -172,7 +175,7 @@ export function OnlyofficeEditorPage({
         const targetStyleId = normalizeStyleId(style.id);
 
         // 1. In-editor ONLYOFFICE bridge (custom properties, plugin storage, plugin refresh)
-        applyStyleInOnlyoffice(
+        await applyStyleInOnlyoffice(
           editorContainerRef.current,
           editorRef.current,
           targetStyleId,
@@ -190,6 +193,7 @@ export function OnlyofficeEditorPage({
 
         if (r.ok) {
           setCurrentStyle(targetStyleId);
+          currentStyleRef.current = targetStyleId;
           setNotice({
             ok: true,
             text: `Atıf stili güncellendi: “${style.title}”.`,
@@ -233,13 +237,13 @@ export function OnlyofficeEditorPage({
         localStorage.removeItem(ZK_KEY);
       }
       // Ensure plugin storage defaults (APA 7, tr-TR or active document style) are in place before editor starts
-      syncZoteroPluginStorage(currentStyle || DEFAULT_STYLE_ID, DEFAULT_LOCALE);
+      syncZoteroPluginStorage(currentStyleRef.current || DEFAULT_STYLE_ID, DEFAULT_LOCALE);
     } catch {
       /* storage blocked */
     }
     setCreds({ linked: c.linked, zoteroUserId: c.zoteroUserId, oauthAvailable: c.oauthAvailable });
     return c;
-  }, [currentStyle]);
+  }, []);
 
   // Check URL query parameters for OAuth returns (e.g. ?zotero=connected / denied / error / not_configured or zotero_error)
   useEffect(() => {
@@ -319,10 +323,10 @@ export function OnlyofficeEditorPage({
               if (!cancelled) {
                 setDocumentReady(true);
                 try {
-                  applyStyleInOnlyoffice(
+                  void applyStyleInOnlyoffice(
                     editorContainerRef.current,
                     editorRef.current,
-                    currentStyle || DEFAULT_STYLE_ID,
+                    currentStyleRef.current || DEFAULT_STYLE_ID,
                     DEFAULT_LOCALE,
                   );
                 } catch {

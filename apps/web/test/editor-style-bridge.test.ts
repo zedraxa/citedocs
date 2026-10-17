@@ -110,8 +110,8 @@ describe("editorStyleBridge", () => {
   });
 
   describe("applyStyleInOnlyoffice", () => {
-    it("handles missing container gracefully and still syncs host storage", () => {
-      const result = applyStyleInOnlyoffice(null, undefined, "apa", "tr-TR");
+    it("handles missing container gracefully and still syncs host storage", async () => {
+      const result = await applyStyleInOnlyoffice(null, undefined, "apa", "tr-TR");
 
       expect(result.inEditorApplied).toBe(false);
       expect(result.pluginRefreshed).toBe(false);
@@ -120,7 +120,7 @@ describe("editorStyleBridge", () => {
       expect(localStorage.getItem(ZOTERO_PLUGIN_STORAGE_KEYS.STYLE_ID)).toBe("apa");
     });
 
-    it("calls Asc.editor.callCommand when frame window is available and populates Asc.scope", () => {
+    it("calls Asc.editor.callCommand when frame window is available and populates Asc.scope", async () => {
       const callCommand = vi.fn((cmd: () => void) => {
         try {
           cmd();
@@ -142,7 +142,7 @@ describe("editorStyleBridge", () => {
         }),
       } as unknown as HTMLElement;
 
-      const result = applyStyleInOnlyoffice(container, undefined, "ieee", "tr-TR");
+      const result = await applyStyleInOnlyoffice(container, undefined, "ieee", "tr-TR");
 
       expect(result.chunks.length).toBeGreaterThan(0);
       expect(result.chunks[0].name).toBe("ZOTERO_PREF_1");
@@ -156,7 +156,7 @@ describe("editorStyleBridge", () => {
       });
     });
 
-    it("uses connector.executeMethod when createConnector is available", () => {
+    it("uses connector.executeMethod when createConnector is available", async () => {
       const executeMethod = vi.fn();
       const mockEditor = {
         createConnector: vi.fn().mockReturnValue({ executeMethod }),
@@ -166,7 +166,7 @@ describe("editorStyleBridge", () => {
         querySelector: vi.fn().mockReturnValue(null),
       } as unknown as HTMLElement;
 
-      const result = applyStyleInOnlyoffice(container, mockEditor, "ieee", "tr-TR");
+      const result = await applyStyleInOnlyoffice(container, mockEditor, "ieee", "tr-TR");
 
       expect(mockEditor.createConnector).toHaveBeenCalledOnce();
       expect(executeMethod).toHaveBeenCalled();
@@ -177,7 +177,7 @@ describe("editorStyleBridge", () => {
       expect(result.inEditorApplied).toBe(true);
     });
 
-    it("triggers direct plugin hook __citedocsSyncStyle when available on pluginWindow", () => {
+    it("triggers direct plugin hook __citedocsSyncStyle when available on pluginWindow", async () => {
       const syncStyleFn = vi.fn();
       const mockPluginWin = {
         __citedocsSyncStyle: syncStyleFn,
@@ -211,13 +211,13 @@ describe("editorStyleBridge", () => {
         }),
       } as unknown as HTMLElement;
 
-      const result = applyStyleInOnlyoffice(container, undefined, "ieee", "tr-TR");
+      const result = await applyStyleInOnlyoffice(container, undefined, "ieee", "tr-TR");
 
       expect(syncStyleFn).toHaveBeenCalledWith("ieee", "tr-TR", "numeric");
       expect(result.pluginRefreshed).toBe(true);
     });
 
-    it("triggers __zoteroSettings and __zoteroCitationService when available", () => {
+    it("triggers __zoteroSettings and __zoteroCitationService when available", async () => {
       const loadLocale = vi.fn();
       const saveLastUsedLanguage = vi.fn();
       const getStyle = vi.fn();
@@ -257,7 +257,7 @@ describe("editorStyleBridge", () => {
         }),
       } as unknown as HTMLElement;
 
-      const result = applyStyleInOnlyoffice(container, undefined, "ieee", "tr-TR");
+      const result = await applyStyleInOnlyoffice(container, undefined, "ieee", "tr-TR");
 
       expect(loadLocale).toHaveBeenCalledWith("tr-TR");
       expect(saveLastUsedLanguage).toHaveBeenCalledWith("tr-TR");
@@ -266,7 +266,7 @@ describe("editorStyleBridge", () => {
       expect(result.pluginRefreshed).toBe(true);
     });
 
-    it("clicks DOM #refreshBtn when present in plugin frame document", () => {
+    it("clicks DOM #refreshBtn when present in plugin frame document", async () => {
       const clickFn = vi.fn();
       const mockRefreshBtn = { click: clickFn };
 
@@ -301,13 +301,13 @@ describe("editorStyleBridge", () => {
         }),
       } as unknown as HTMLElement;
 
-      const result = applyStyleInOnlyoffice(container, undefined, "ieee", "tr-TR");
+      const result = await applyStyleInOnlyoffice(container, undefined, "ieee", "tr-TR");
 
       expect(clickFn).toHaveBeenCalledOnce();
       expect(result.pluginRefreshed).toBe(true);
     });
 
-    it("sends postMessages to pluginWindow with style, locale, and format", () => {
+    it("sends postMessages to pluginWindow with style, locale, and format", async () => {
       const postMessage = vi.fn();
       const mockPluginWin = { postMessage };
 
@@ -337,7 +337,7 @@ describe("editorStyleBridge", () => {
         }),
       } as unknown as HTMLElement;
 
-      const result = applyStyleInOnlyoffice(container, undefined, "apa", "tr-TR");
+      const result = await applyStyleInOnlyoffice(container, undefined, "apa", "tr-TR");
 
       expect(postMessage).toHaveBeenCalledWith(
         { type: "zotero:refreshStyle", styleId: "apa", locale: "tr-TR", format: "author-date" },

@@ -150,7 +150,21 @@ describe("ONLYOFFICE routes", () => {
     expect(cfg.editorConfig.plugins.pluginsData).toEqual([
       "https://docs.example.org/oo/sdkjs-plugins/zotero/config.json",
     ]);
+    expect(cfg.editorConfig.lang).toBe("tr");
+    expect(cfg.editorConfig.region).toBe("tr-TR");
+    expect(cfg.editorConfig.customization.spellcheck).toBe(true);
     expect(permissionsForRole("unknown").permissions.edit).toBe(false);
+  });
+  it("always defaults ONLYOFFICE editorConfig to Turkish (lang tr, region tr-TR, spellcheck true) regardless of Accept-Language", async () => {
+    const res = await app.inject({
+      url: "/api/documents/doc/onlyoffice-config",
+      headers: { "x-user-id": "owner", "accept-language": "en-US,en;q=0.9" },
+    });
+    expect(res.statusCode).toBe(200);
+    const cfg = res.json().config;
+    expect(cfg.editorConfig.lang).toBe("tr");
+    expect(cfg.editorConfig.region).toBe("tr-TR");
+    expect(cfg.editorConfig.customization.spellcheck).toBe(true);
   });
   it("uses session identity and email shares, never an impersonating header in production", async () => {
     vi.stubEnv("NODE_ENV", "production");

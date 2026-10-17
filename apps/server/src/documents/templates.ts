@@ -50,7 +50,13 @@ export async function createBlankDocxBuffer(): Promise<Buffer> {
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
-    <w:p/>
+    <w:p>
+      <w:pPr>
+        <w:rPr>
+          <w:lang w:val="tr-TR"/>
+        </w:rPr>
+      </w:pPr>
+    </w:p>
     <w:sectPr/>
   </w:body>
 </w:document>`

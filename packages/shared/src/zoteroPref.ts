@@ -237,3 +237,52 @@ export function reassembleZoteroPref(
   list.sort((a, b) => a.idx - b.idx);
   return list.map((item) => item.val).join("");
 }
+
+/**
+ * Real storage keys read and written by the official ONLYOFFICE Zotero plugin
+ * (CslStylesManager, LocalesManager, CslStylesStorage).
+ */
+export const ZOTERO_PLUGIN_STORAGE_KEYS = {
+  STYLE_ID: "zoteroStyleId",
+  LANG: "zoteroLang",
+  FORMAT_ID: "zoteroFormatId",
+  CONTAIN_BIBLIOGRAPHY: "zoteroContainBibliography",
+  NOTES_STYLE_ID: "zoteroNotesStyleId",
+  INCLUDE_URL: "zoteroIncludeUrlForPaperArticles",
+  ABBREVIATE_JOURNAL: "zoteroAbbreviateJournalTitles",
+  // Legacy / alias keys
+  STYLE: "zoteroStyle",
+  LOCALE: "zoteroLocale",
+  STYLE_UNDERSCORE: "zotero_style",
+  LOCALE_UNDERSCORE: "zotero_locale",
+} as const;
+
+/**
+ * Determines citation format (author-date, numeric, note) for a style ID.
+ */
+export function getStyleCitationFormat(
+  styleId: string,
+): "author-date" | "numeric" | "note" {
+  const clean = normalizeStyleId(styleId).toLowerCase();
+  const pinned = PINNED_POPULAR_STYLES.find((p) => p.id === clean);
+  if (pinned) return pinned.citationFormat;
+  if (
+    clean.includes("note") ||
+    clean.includes("chicago-notes") ||
+    clean.includes("fullnote")
+  ) {
+    return "note";
+  }
+  if (
+    clean.includes("numeric") ||
+    clean.includes("ieee") ||
+    clean.includes("vancouver") ||
+    clean.includes("tubitak") ||
+    clean.includes("turkiye-bilimsel") ||
+    clean.includes("acm") ||
+    clean.includes("nature")
+  ) {
+    return "numeric";
+  }
+  return "author-date";
+}

@@ -43,6 +43,13 @@ export function normalizeSearchText(text: string): string {
 
 export class StyleIndexService {
   private cache: StyleItem[] | null = null;
+  // Derived data follows the exact catalog array: refreshed catalogs cannot reuse old text.
+  private searchIndex = new WeakMap<StyleItem[], Array<{
+    item: StyleItem;
+    normId: string;
+    normTitle: string;
+    normShort: string;
+  }>>();
   private lastFetched = 0;
   private fetchFn: typeof fetch;
   private ttlMs: number;
@@ -199,11 +206,18 @@ export class StyleIndexService {
     // Rank matching styles
     const scored: Array<{ item: StyleItem; score: number }> = [];
 
-    for (const item of all) {
-      const normId = normalizeSearchText(item.id);
-      const normTitle = normalizeSearchText(item.title);
-      const normShort = item.shortTitle ? normalizeSearchText(item.shortTitle) : "";
+    let index = this.searchIndex.get(all);
+    if (!index) {
+      index = all.map((item) => ({
+        item,
+        normId: normalizeSearchText(item.id),
+        normTitle: normalizeSearchText(item.title),
+        normShort: item.shortTitle ? normalizeSearchText(item.shortTitle) : "",
+      }));
+      this.searchIndex.set(all, index);
+    }
 
+    for (const { item, normId, normTitle, normShort } of index) {
       let score = 0;
 
       // Exact matches

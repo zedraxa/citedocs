@@ -1302,8 +1302,67 @@ pnpm build
    pnpm build
    ```
 
-### 19.3 Açık Kalan Konular / Tarayıcı Kontrolü Gerekenler
+### 20.3 Açık Kalan Konular / Tarayıcı Kontrolü Gerekenler
 
 - ONLYOFFICE Docs CE konteyneri ayağa kaldırıldığında, Dockerfile içinde eklenen Zotero Türkçe çevirisinin sol eklenti panelinde ("Kaynak Ekle", "Stil Seç", "Zotero'ya Bağlan" vb.) tarayıcı üzerinden görsel kontrolü.
 - Canlı sitede ONLYOFFICE editör menülerinin (Dosya, Giriş, Ekle, vb.) Türkçe görüntülendiğinin teyidi.
+
+## 21. Server-Side Altyapı Güçlendirme ve Taşıma (cd-infra-salvage) — Kayıt #021
+
+> **Kayıt No:** #021  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-infra-salvage`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** Eski `cd-infra-hardening` dalında (commit `e1e2278`) geliştirilen değerli sunucu taraflı altyapı çalışmalarının mevcut ana dala (`main`, 72fd910) taşınması; ONLYOFFICE Docs CE motorunun ve kaydetme yollarının korunması; Drizzle veritabanı şema ve sıfır kayma (drift) testinin eklenmesi; S3/MinIO istemci konsolidasyonu ve `ensureBucket` idempotent başlatma mekanizması; çevrimdışı ve mock'lanmış `translation-client` testleri; `.env.example` dokümantasyonu; compose/deploy ve editör dosyalarına dokunulmaması.
+
+### 21.1 Yapılan Çalışmalar
+
+1. **Drizzle 0002 Migrasyonu ve Şema Drift Testi:**
+   - `apps/server/src/db/schema.ts` içinde tanımlı eksik `pdf_annotations` tablosu için `drizzle-kit generate` çalıştırılarak `0002_fuzzy_marvex.sql`, meta snapshot (`0002_snapshot.json`) ve `_journal.json` üretildi.
+   - `apps/server/test/schema.test.ts`: `pdfAnnotations` tablosu, zorunlu `ownerUserId` satır düzeyi sahiplik ve birincil anahtar denetimleri eklendi.
+   - `apps/server/test/migrations.test.ts`: Journal bütünlüğü, şema export'larının tamamının snapshot ile uyumu ve geçici dizinde `drizzle-kit generate` çalıştırarak sıfır kayma ("No schema changes, nothing to migrate") denetimi yapan test paketi taşındı.
+
+2. **S3 / MinIO İstemci Konsolidasyonu ve İdempotent `ensureBucket`:**
+   - `apps/server/src/storage/s3Client.ts`: MinIO ve AWS S3 (us-east-1 vs diğer bölgeler için `LocationConstraint`, `BucketAlreadyOwnedByYou`/`409`, kısıtlı IAM politikaları için `403 Forbidden` toleransı) ile uyumlu, idempotent `ensureBucket`, `createS3Client`, `getStorageBuckets` ve `ensureAllStorageBuckets` yardımcıları yazıldı.
+   - `apps/server/src/pdf/attachmentStorage.ts`: İstemci kurulumu `createS3Client` ile birleştirildi; `put()` öncesi idempotent `ensureBucket()` çağrısı ve `transformToByteArray()` modern stream okuması entegre edildi.
+   - `apps/server/src/wopi/storage/s3Storage.ts`: Konsolide `s3Client` altyapısına geçirildi; `createFile()` ve `putFile()` öncesinde idempotent `ensureBucket()` güvenceye alındı. ONLYOFFICE callback kaydetme yolu (`storage.putFile`) ve WOPI dosya kalıcılığı kesintisiz korundu.
+   - `apps/server/src/index.ts`: Sunucu açılışında (`start()`) S3 konfigüre edilmişse (`S3_ENDPOINT`, `S3_BUCKET`, `S3_DOCUMENTS_BUCKET`, `S3_ATTACHMENTS_BUCKET`) tüm kova tanımları için `ensureAllStorageBuckets` otomatik çalıştırıldı; `export * from "./storage/s3Client.js"` eklendi.
+   - `apps/server/test/storage.buckets.test.ts`: HeadBucket, CreateBucket, 404, 403, 409 ve MinIO vs AWS path-style senaryolarını mock'larla çevrimdışı test eden 10 testlik paket taşındı.
+
+3. **Çevrimdışı Zotero Translation Client Testleri:**
+   - `apps/server/test/translation-client.test.ts`: `TranslationClient`, `normalizeIdentifier`, DOI/ISBN/PMID çözümleme, 502 hata yönetimi ve Fastify route entegrasyonunu (`/api/items/from-identifier`, `/api/zotero/translate`) mock'lanmış `fetchFn` ile çevrimdışı doğrulayan 9 testlik paket taşındı.
+
+4. **Çevre Değişkenleri Dokümantasyonu (.env.example):**
+   - `.env.example`: Mevcut değişkenler (Zotero, ONLYOFFICE) korunarak yeni eklenen `S3_DOCUMENTS_BUCKET`, `S3_ATTACHMENTS_BUCKET` ve `S3_FORCE_PATH_STYLE` değişkenleri açıklamalarıyla belgelendi.
+
+5. **Dokunulmayan Alanlar ve İzolasyon:**
+   - Root `docker-compose.prod.yml` eklenmedi; `deploy/`, `docker-compose.yml`, `apps/web/src/onlyoffice/` ve `apps/server/src/onlyoffice/routes.ts` callback mantığına kesinlikle dokunulmadı; Collabora'ya özgü hiçbir dosya veya ayar prod ortamına zorlanmadı.
+
+### 21.2 Nasıl Doğrulanır?
+
+1. **Drizzle Migrasyon ve Drift Doğrulaması:**
+   ```bash
+   pnpm --filter @citedocs/server test test/migrations.test.ts test/schema.test.ts
+   ```
+2. **Storage ve ONLYOFFICE Doğrulaması:**
+   ```bash
+   pnpm --filter @citedocs/server test test/storage.buckets.test.ts test/wopi.storage.test.ts test/onlyoffice.test.ts
+   ```
+3. **Translation Client Doğrulaması:**
+   ```bash
+   pnpm --filter @citedocs/server test test/translation-client.test.ts
+   ```
+4. **Monorepo Genel Sağlık ve Derleme:**
+   ```bash
+   pnpm lint
+   pnpm typecheck
+   pnpm build
+   pnpm test
+   ```
+
+### 21.3 Açık Kalan Konular (Open Issues)
+
+- **Production Compose S3 Bucket Değişkenleri:** Sunucu tarafında `S3_DOCUMENTS_BUCKET` ve `S3_ATTACHMENTS_BUCKET` ayrımı desteklendi. `deploy/docker-compose.prod.yml` içinde tek kova yerine ayrı kova kullanılmak istenirse `deploy` dosyasını yöneten ajan tarafından bu ortam değişkenleri compose servisine aktarılmalıdır.
+- **Translation Server Çoklu Mimari (arm64/amd64) Dockerfile:** `cd-infra-hardening` dalında `docker/translation-server/Dockerfile` içinde multi-arch Node 20 tabanlı bir imaj tanımlanmıştı. Prod compose'un bunu kullanabilmesi için deploy sorumlusu ajan tarafından `deploy/` altında incelenmesi ve prod compose'a entegrasyonu değerlendirilmelidir.
+
 

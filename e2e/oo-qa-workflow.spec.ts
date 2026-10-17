@@ -117,7 +117,7 @@ test.describe("Requirement 3: One-Screen Editor & Zotero Workflow QA Suite (oo-q
     await page.getByTestId(`delete-doc-${docId}`).click();
   });
 
-  test("3. Unlinked student guard notice when attempting to add source without connected Zotero", async ({ page }) => {
+  test("3. Unlinked student sees inline Zotero connection beside the identifier", async ({ page }) => {
     const timestamp = Date.now();
     const studentEmail = `qa+wf_guard_${timestamp}@example.com`;
     const password = "Password123!";
@@ -141,17 +141,9 @@ test.describe("Requirement 3: One-Screen Editor & Zotero Workflow QA Suite (oo-q
     // Enter a DOI in top bar
     const addInput = page.getByTestId("oo-add-input");
     await addInput.fill("10.1038/nature14539");
-    await page.getByTestId("oo-add-submit").click();
-
-    // Notice banner appears informing student to connect Zotero first
-    const notice = page.getByTestId("oo-notice");
-    await expect(notice).toBeVisible({ timeout: 5000 });
-    await expect(notice).toContainText("Önce Zotero hesabını bağla");
-
-    // Citation panel opens automatically to prompt connection
-    const citePanel = page.getByTestId("oo-cite-panel");
-    await expect(citePanel).toBeVisible();
-    await expect(page.getByTestId("oo-panel-unlinked-card")).toBeVisible();
+    const connect = page.getByTestId("oo-add-form").getByRole("button", { name: "Zotero'yu bağla" });
+    await expect(connect).toBeVisible();
+    await expect(addInput).toHaveValue("10.1038/nature14539");
 
     // Clean up
     await page.getByTestId("oo-back").click();
@@ -162,7 +154,7 @@ test.describe("Requirement 3: One-Screen Editor & Zotero Workflow QA Suite (oo-q
   test("4. Add source by DOI (10.1038/nature14539), ISBN (9780262033848), and URL from top bar and see success notices", async ({ page }) => {
     test.fixme(
       true,
-      "Blocked: Adding sources by DOI/ISBN/URL requires an active linked Zotero account with write credentials. Headless test students have no pre-authenticated Zotero OAuth session, and unlinked requests are rejected with 'Önce Zotero hesabını bağla' / HTTP 409 Conflict."
+      "Blocked: Adding sources by DOI/ISBN/URL requires an active linked Zotero account with write credentials. Headless test students have no pre-authenticated Zotero OAuth session, and students must use the inline Zotero connect button before adding sources."
     );
 
     const timestamp = Date.now();

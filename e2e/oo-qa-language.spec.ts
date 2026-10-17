@@ -341,16 +341,10 @@ test.describe("Requirement 2: Turkish Language Consistency QA Suite (oo-qa-langu
     expect(panelText).toContain("Zotero Hesabı Bağlı Değil");
     expect(panelText).toContain("Zotero ile Bağlan (Otomatik OAuth)");
 
-    // Test add-by-identifier warning notice when unlinked
     await page.getByTestId("oo-add-input").fill("10.1038/nature14539");
-    await page.getByTestId("oo-add-submit").click();
-
-    const noticeBanner = page.getByTestId("oo-notice");
-    await expect(noticeBanner).toBeVisible({ timeout: 5000 });
-    const noticeText = (await noticeBanner.textContent()) || "";
-    console.log(`[QA Language] Notice banner text: "${noticeText}"`);
-    expect(noticeText).toContain("Önce Zotero hesabını bağla");
-    expect(findEnglishLeaks(noticeText)).toEqual([]);
+    const connect = page.getByTestId("oo-add-form").getByRole("button", { name: "Zotero'yu bağla" });
+    await expect(connect).toBeVisible();
+    expect(findEnglishLeaks((await connect.textContent()) || "")).toEqual([]);
 
     // Clean up
     await page.getByTestId("oo-back").click();

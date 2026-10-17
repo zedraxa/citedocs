@@ -3,9 +3,7 @@ import {
   GetObjectCommand,
   PutObjectCommand,
   DeleteObjectCommand,
-  type S3ClientConfig,
 } from "@aws-sdk/client-s3";
-import { Readable } from "node:stream";
 
 export interface AttachmentStorage {
   put(key: string, data: Buffer | Uint8Array, contentType?: string): Promise<void>;
@@ -38,51 +36,40 @@ export class InMemoryAttachmentStorage implements AttachmentStorage {
   }
 }
 
-export interface S3AttachmentStorageOptions {
-  bucket?: string;
-  endpoint?: string;
-  region?: string;
-  accessKeyId?: string;
-  secretAccessKey?: string;
-  forcePathStyle?: boolean;
-  prefix?: string;
-  client?: S3Client;
-}
+import {
+  createS3Client,
+  ensureBucket as ensureBucketHelper,
+  type S3StorageOptions,
+} from "../storage/s3Client.js";
+
+export type S3AttachmentStorageOptions = S3StorageOptions;
 
 export class S3AttachmentStorage implements AttachmentStorage {
   private client: S3Client;
   private bucket: string;
   private prefix: string;
+  private region: string;
+  private bucketChecked = false;
+
+  public async ensureBucket(): Promise<void> {
+    if (this.bucketChecked) return;
+    await ensureBucketHelper(this.client, this.bucket, this.region);
+    this.bucketChecked = true;
+  }
 
   constructor(options: S3AttachmentStorageOptions = {}) {
-    this.bucket = options.bucket || process.env.S3_BUCKET || "citedocs-attachments";
+    this.bucket =
+      options.bucket ||
+      process.env.S3_ATTACHMENTS_BUCKET ||
+      process.env.S3_BUCKET ||
+      "citedocs-attachments";
     this.prefix = options.prefix ?? "attachments/";
 
+    const { client, region } = createS3Client(options);
+    this.client = client;
+    this.region = region;
     if (options.client) {
-      this.client = options.client;
-    } else {
-      const endpoint = options.endpoint || process.env.S3_ENDPOINT || "http://localhost:9000";
-      const region = options.region || process.env.S3_REGION || "us-east-1";
-      const accessKeyId =
-        options.accessKeyId || process.env.S3_ACCESS_KEY || process.env.MINIO_ROOT_USER || "citedocs_minio";
-      const secretAccessKey =
-        options.secretAccessKey ||
-        process.env.S3_SECRET_KEY ||
-        process.env.MINIO_ROOT_PASSWORD ||
-        "citedocs_minio_password";
-      const forcePathStyle = options.forcePathStyle ?? true;
-
-      const clientConfig: S3ClientConfig = {
-        endpoint,
-        region,
-        forcePathStyle,
-        credentials: {
-          accessKeyId,
-          secretAccessKey,
-        },
-      };
-
-      this.client = new S3Client(clientConfig);
+      this.bucketChecked = true;
     }
   }
 
@@ -91,6 +78,7 @@ export class S3AttachmentStorage implements AttachmentStorage {
   }
 
   async put(key: string, data: Buffer | Uint8Array, contentType = "application/pdf"): Promise<void> {
+    await this.ensureBucket();
     const s3Key = this.getKey(key);
     await this.client.send(
       new PutObjectCommand({
@@ -114,14 +102,9 @@ export class S3AttachmentStorage implements AttachmentStorage {
 
       if (!resp.Body) return null;
 
-      const chunks: Buffer[] = [];
-      const stream = resp.Body as Readable;
-      for await (const chunk of stream) {
-        chunks.push(Buffer.from(chunk));
-      }
-
+      const bytes = await resp.Body.transformToByteArray();
       return {
-        data: Buffer.concat(chunks),
+        data: Buffer.from(bytes),
         contentType: resp.ContentType || "application/pdf",
       };
     } catch (err: unknown) {

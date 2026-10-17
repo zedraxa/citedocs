@@ -1550,3 +1550,30 @@ Detaylı rapor `docs/qa-report-2026-10-17.md` dosyasına kaydedilmiş olup, en k
 - **Açık kontrol:** Gerçek Zotero OAuth dönüşü ve ONLYOFFICE durum çubuğunun ilk açılışta Türkçe görünmesi dağıtım sonrası tarayıcıda doğrulanmalı. Önceden oluşturulmuş belgeler dönüştürülmez.
 - **Genel doğrulama (Node v22.22.3):** `pnpm install`, `pnpm lint`, `pnpm typecheck`, `pnpm build` ve `pnpm test` başarılı. Tam pakette 56 dosya, 528 başarılı / 1 atlanan test (529 toplam). Son kod değişikliklerinden sonra lint/typecheck yeniden geçti. Vite büyük paket ve Vitest workspace kullanımdan kaldırma uyarıları engelleyici değil.
 - **Commitler:** `59ec9a7` OAuth sonrası bekleyen kaynak ekleme; `a65a0fc` Türkçe boş DOCX ve dil testleri; bu kayıt son dokümantasyon commit'inde.
+
+## Zotero Word & LibreOffice Uyumluluğu ve CSL Stil Deposu Doğrulaması — Kayıt #027
+
+> **Kayıt No:** #027  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-zotero-compat`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+
+### 1. Yapılan İncelemeler ve Bulgular
+- **Gereksinim 1 (Word DOCX & LibreOffice ODT Uyumluluğu):**
+  - **Microsoft Word (DOCX):** Canlı sistemde (`https://docs.sifirdanbire.com.tr`) ve sunucu testlerinde kanıtlandı: Word Zotero karmaşık alan kodları (`w:fldChar`, `w:instrText`, `ADDIN ZOTERO_ITEM CSL_CITATION`, `ADDIN ZOTERO_BIBL`) yükleme, ONLYOFFICE düzenleme, force-save (`status: 6` callback), oturum kapatma (`status: 2`), veritabanı/depolama ve indirme döngüsünde **tamamen korunmaktadır**.
+  - **LibreOffice (ODT):** ONLYOFFICE Document Server, ODT dışa aktarımında LibreOffice referans işaretlerini (`<text:reference-mark-start>`) süzüp kaldırmaktadır (`ZC-01`). Ayrıca CiteDocs arka ucu ODT içindeki `content.xml` dosyasını taramamaktadır (`ZC-02`). Atıflar düz metne dönüşmektedir.
+- **Gereksinim 2 (Zotero CSL Stil Deposu Erişilebilirliği):**
+  - Resmi Zotero stil deposundaki **10.865 stil** (`https://www.zotero.org/styles-files/styles.json`) ve CSL XML tanımları açık CORS ile editör tarafından doğrudan erişilebilmektedir. Eklentide ayrıca 2.864 yerel stil yer almaktadır. TÜBİTAK ve Türk üniversite stilleri mevcuttur.
+  - Ancak resmi ONLYOFFICE Zotero eklentisi stil seçiciyi API anahtarı giriş ekranının arkasına kilitlemiştir (`ZC-03`). Boş belgelerde `docProps/custom.xml` (`ZOTERO_PREF_1`) eksiktir (`ZC-04`). 10.865 stil DOM sanallaştırması olmadan listelendiğinde istemcide gecikme oluşmaktadır (`ZC-05`).
+
+### 2. Oluşturulan Testler ve Fikstürler
+- `apps/server/test/fixtures/zoteroWordDocx.ts`: Gerçek Word DOCX ve LibreOffice ODT Zotero ikili fikstür oluşturucuları.
+- `apps/server/test/zotero-compat.test.ts`: Vitest test paketi (3 başarılı, 5 todo - ZC-01..ZC-05).
+- `e2e/oo-zotero-compat.spec.ts`: Canlı sistem Playwright E2E paketi (2 başarılı, 3 skipped/fixme).
+- `docs/zotero-compat-report-2026-10-17.md`: Kapsamlı Türkçe teknik doğrulama ve hata raporu.
+
+### 3. Kural ve Kısıtlara Uyum
+- Ürün kaynak koduna (`apps/web/src`, `apps/server/src`, `deploy/`) dokunulmamış, yalnızca test, fikstür ve dokümantasyon üretilmiştir.
+- Konteyner açılmamış, harici para harcanmamış, sunucuya SSH atılmamıştır.
+- `pnpm lint` (0 hata, 0 uyarı), `pnpm typecheck` (0 hata) ve `pnpm test` (58 test dosyası, 546 başarılı test) tam yeşildir.
+

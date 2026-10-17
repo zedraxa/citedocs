@@ -102,6 +102,9 @@ services:
 
   # Main editor: ONLYOFFICE Docs Community Edition (AGPL, 20 concurrent connections).
   onlyoffice:
+    build:
+      context: ..
+      dockerfile: deploy/onlyoffice.Dockerfile
     image: onlyoffice/documentserver:latest
     container_name: citedocs-onlyoffice
     restart: unless-stopped
@@ -111,6 +114,7 @@ services:
       JWT_HEADER: Authorization
       ALLOW_PRIVATE_IP_ADDRESS: "true"
       WOPI_ENABLED: "false"
+      OO_AUTOASSEMBLY_INTERVAL: "1m"
     volumes:
       - oo_data:/var/www/onlyoffice/Data
       - oo_logs:/var/log/onlyoffice

@@ -141,4 +141,182 @@ describe("StylePicker Component", () => {
     fireEvent.click(triggerBtn);
     expect(screen.getByTestId("oo-style-picker-dropdown")).toBeDefined();
   });
+
+  it("virtualizes large style repositories (~10k styles) mounting only visible items and overscan [ZC-05]", async () => {
+    const LARGE_COUNT = 10_000;
+    const largeMockStyles: StyleItem[] = Array.from({ length: LARGE_COUNT }, (_, i) => ({
+      id: `style-item-${i}`,
+      title: `Academic Style ${i}`,
+      shortTitle: `AS ${i}`,
+      citationFormat: i % 2 === 0 ? "author-date" : "numeric",
+    }));
+
+    const fetchFn = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("/api/styles?q=academic")) {
+        return new Response(JSON.stringify({ styles: largeMockStyles, total: LARGE_COUNT }));
+      }
+      return new Response(JSON.stringify({ styles: [] }));
+    });
+    vi.stubGlobal("fetch", fetchFn);
+
+    const onSelect = vi.fn();
+    const { container } = render(
+      <StylePicker
+        documentId="doc-virt-test"
+        currentStyleId="apa"
+        onStyleSelected={onSelect}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("oo-style-picker-btn"));
+
+    const searchInput = screen.getByTestId("oo-style-search-input");
+    fireEvent.change(searchInput, { target: { value: "academic" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("oo-style-virtual-spacer")).toBeDefined();
+      expect(screen.getByTestId("oo-style-item-style-item-0")).toBeDefined();
+    });
+
+    // Verify virtual spacer height corresponds to 10k items (10,000 * 46px = 460,000px)
+    const spacer = screen.getByTestId("oo-style-virtual-spacer");
+    expect(spacer.style.height).toBe(`${LARGE_COUNT * 46}px`);
+
+    // Verify DOM node count: out of 10,000 styles, only a tiny window (<= 25 items) is mounted
+    const mountedButtons = container.querySelectorAll('[data-testid^="oo-style-item-"]');
+    expect(mountedButtons.length).toBeGreaterThan(0);
+    expect(mountedButtons.length).toBeLessThanOrEqual(25);
+
+    // Style at index 500 should NOT be mounted initially
+    expect(screen.queryByTestId("oo-style-item-style-item-500")).toBeNull();
+
+    // Scroll down by 4,600px (around index 100)
+    const scrollContainer = screen.getByTestId("oo-style-list-container");
+    fireEvent.scroll(scrollContainer, { target: { scrollTop: 4600 } });
+
+    await waitFor(() => {
+      // Style 0 should now be unmounted
+      expect(screen.queryByTestId("oo-style-item-style-item-0")).toBeNull();
+      // Style 100 should now be mounted
+      expect(screen.getByTestId("oo-style-item-style-item-100")).toBeDefined();
+    });
+
+    // Still only a small window of DOM elements mounted
+    const scrolledButtons = container.querySelectorAll('[data-testid^="oo-style-item-"]');
+    expect(scrolledButtons.length).toBeGreaterThan(0);
+    expect(scrolledButtons.length).toBeLessThanOrEqual(25);
+
+    // Clicking a virtualized row selects it and closes the dropdown
+    fireEvent.click(screen.getByTestId("oo-style-item-style-item-100"));
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "style-item-100", title: "Academic Style 100" }),
+      );
+      expect(screen.queryByTestId("oo-style-picker-dropdown")).toBeNull();
+    });
+  });
+
+  it("supports keyboard navigation with ArrowDown, ArrowUp, and Enter selection", async () => {
+    const onSelect = vi.fn();
+    render(
+      <StylePicker
+        documentId="doc-keyboard-test"
+        currentStyleId="apa"
+        onStyleSelected={onSelect}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("oo-style-picker-btn"));
+
+    const searchInput = screen.getByTestId("oo-style-search-input");
+
+    // Initial pinned active style is APA 7 (index 0). ArrowDown moves to IEEE (index 1).
+    fireEvent.keyDown(searchInput, { key: "ArrowDown" });
+    const ieeeItem = screen.getByTestId("oo-style-item-ieee");
+    expect(ieeeItem.className).toContain("ring-1 ring-blue-400");
+
+    // ArrowDown again moves to Chicago Author-Date (index 2).
+    fireEvent.keyDown(searchInput, { key: "ArrowDown" });
+    const chicagoItem = screen.getByTestId("oo-style-item-chicago-author-date");
+    expect(chicagoItem.className).toContain("ring-1 ring-blue-400");
+
+    // ArrowUp moves back to IEEE (index 1).
+    fireEvent.keyDown(searchInput, { key: "ArrowUp" });
+    expect(ieeeItem.className).toContain("ring-1 ring-blue-400");
+
+    // Enter selects IEEE
+    fireEvent.keyDown(searchInput, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(onSelect).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "ieee" }),
+      );
+      expect(screen.queryByTestId("oo-style-picker-dropdown")).toBeNull();
+    });
+  });
+
+  it("closes dropdown when Escape key is pressed", () => {
+    render(<StylePicker documentId="doc-esc-test" currentStyleId="apa" />);
+
+    fireEvent.click(screen.getByTestId("oo-style-picker-btn"));
+    expect(screen.getByTestId("oo-style-picker-dropdown")).toBeDefined();
+
+    const searchInput = screen.getByTestId("oo-style-search-input");
+    fireEvent.keyDown(searchInput, { key: "Escape" });
+
+    expect(screen.queryByTestId("oo-style-picker-dropdown")).toBeNull();
+  });
+
+  it("clears search input with clear button and restores pinned popular styles", async () => {
+    const fetchFn = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("/api/styles?q=tubitak")) {
+        return new Response(JSON.stringify({ styles: MOCK_SEARCH_RESULTS, total: 2 }));
+      }
+      return new Response(JSON.stringify({ styles: [] }));
+    });
+    vi.stubGlobal("fetch", fetchFn);
+
+    render(<StylePicker documentId="doc-clear-test" currentStyleId="apa" />);
+
+    fireEvent.click(screen.getByTestId("oo-style-picker-btn"));
+
+    const searchInput = screen.getByTestId("oo-style-search-input");
+    fireEvent.change(searchInput, { target: { value: "tubitak" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Arama Sonuçları (en fazla 50)")).toBeDefined();
+    });
+
+    // Clear search with clear button
+    const clearBtn = screen.getByTestId("oo-style-search-clear");
+    fireEvent.click(clearBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Sık Kullanılan Popüler Stiller")).toBeDefined();
+      expect(screen.getByTestId("oo-style-item-apa")).toBeDefined();
+    });
+  });
+
+  it("displays Turkish empty state message when search returns no matching styles", async () => {
+    const fetchFn = vi.fn().mockImplementation(async () => {
+      return new Response(JSON.stringify({ styles: [], total: 0 }));
+    });
+    vi.stubGlobal("fetch", fetchFn);
+
+    render(<StylePicker documentId="doc-empty-test" currentStyleId="apa" />);
+
+    fireEvent.click(screen.getByTestId("oo-style-picker-btn"));
+
+    const searchInput = screen.getByTestId("oo-style-search-input");
+    fireEvent.change(searchInput, { target: { value: "bulunamayanstilxyz" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Eşleşen atıf stili bulunamadı.")).toBeDefined();
+      expect(
+        screen.getByText(
+          "Lütfen farklı anahtar kelimeler deneyin (örn. APA, MLA, Chicago, IEEE, Harvard).",
+        ),
+      ).toBeDefined();
+    });
+  });
 });

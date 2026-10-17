@@ -74,7 +74,7 @@ describe("GET/POST /api/items route with ownership & tenant isolation", () => {
     vi.clearAllMocks();
   });
 
-  it("rejects unauthenticated requests without X-User-Id header with 401", async () => {
+  it("rejects unauthenticated requests with 401", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/api/items",
@@ -83,7 +83,7 @@ describe("GET/POST /api/items route with ownership & tenant isolation", () => {
     expect(res.statusCode).toBe(401);
     const body = JSON.parse(res.body);
     expect(body.error).toBe("Unauthorized");
-    expect(body.message).toContain("X-User-Id");
+    expect(body.message).toContain("session");
   });
 
   it("creates a library item scoped strictly to authenticated student", async () => {

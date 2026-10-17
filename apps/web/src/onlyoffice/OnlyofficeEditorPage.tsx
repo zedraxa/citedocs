@@ -4,7 +4,9 @@ import { getApiBaseUrl, getCsrfToken } from "../auth/api.js";
 
 declare global {
   interface Window {
-    DocsAPI?: { DocEditor: new (id: string, cfg: Record<string, unknown>) => { destroyEditor?: () => void } };
+    DocsAPI?: {
+      DocEditor: new (id: string, cfg: Record<string, unknown>) => { destroyEditor?: () => void };
+    };
   }
 }
 
@@ -25,7 +27,10 @@ interface PluginCreds {
 const ZK_USER = "zoteroUserId";
 const ZK_KEY = "zoteroApiKey";
 
-async function api<T>(path: string, init: RequestInit = {}): Promise<{ ok: boolean; status: number; data: T }> {
+async function api<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<{ ok: boolean; status: number; data: T }> {
   const headers = new Headers(init.headers || {});
   headers.set("Accept", "application/json");
   if (init.method && init.method !== "GET") {
@@ -33,7 +38,11 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<{ ok: boole
     if (csrf) headers.set("x-csrf-token", csrf);
     if (init.body) headers.set("Content-Type", "application/json");
   }
-  const res = await fetch(`${getApiBaseUrl()}${path}`, { ...init, headers, credentials: "include" });
+  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
   const data = (await res.json().catch(() => ({}))) as T;
   return { ok: res.ok, status: res.status, data };
 }
@@ -49,7 +58,11 @@ function loadScript(src: string): Promise<void> {
   });
 }
 
-export function OnlyofficeEditorPage({ documentId, documentTitle, onBackToDocuments }: OnlyofficeEditorPageProps) {
+export function OnlyofficeEditorPage({
+  documentId,
+  documentTitle,
+  onBackToDocuments,
+}: OnlyofficeEditorPageProps) {
   const editorRef = useRef<{ destroyEditor?: () => void } | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +74,10 @@ export function OnlyofficeEditorPage({ documentId, documentTitle, onBackToDocume
   const [reloadKey, setReloadKey] = useState(0);
 
   const syncPluginCredentials = useCallback(async () => {
-    const r = await api<PluginCreds>("/api/zotero/plugin-credentials");
+    const r = await api<PluginCreds>("/api/zotero/plugin-credentials").catch(() => ({
+      ok: false,
+      data: { linked: false } as PluginCreds,
+    }));
     const c = r.ok ? r.data : { linked: false };
     try {
       if (c.linked && c.apiKey && c.zoteroUserId) {
@@ -82,11 +98,14 @@ export function OnlyofficeEditorPage({ documentId, documentTitle, onBackToDocume
     let cancelled = false;
     (async () => {
       setStatus("loading");
+      setError(null);
       try {
         await syncPluginCredentials();
-        const r = await api<{ documentServerUrl: string; config: Record<string, unknown>; error?: string }>(
-          `/api/documents/${encodeURIComponent(documentId)}/onlyoffice-config`,
-        );
+        const r = await api<{
+          documentServerUrl: string;
+          config: Record<string, unknown>;
+          error?: string;
+        }>(`/api/documents/${encodeURIComponent(documentId)}/onlyoffice-config`);
         if (!r.ok) throw new Error(r.data.error || `HTTP ${r.status}`);
         await loadScript(`${r.data.documentServerUrl}/web-apps/apps/api/documents/api.js`);
         if (cancelled || !window.DocsAPI) return;
@@ -101,7 +120,10 @@ export function OnlyofficeEditorPage({ documentId, documentTitle, onBackToDocume
               setStatus("ready");
               (window as unknown as { __ooReady?: boolean }).__ooReady = true;
             },
-            onError: (e: { data?: { errorDescription?: string } }) => setError(e?.data?.errorDescription || "Editör hatası"),
+            onError: (e: { data?: { errorDescription?: string } }) => {
+              setStatus("error");
+              setError(e?.data?.errorDescription || "Editör hatası");
+            },
           },
         });
       } catch (e: unknown) {
@@ -156,14 +178,20 @@ export function OnlyofficeEditorPage({ documentId, documentTitle, onBackToDocume
     }
     setAdding(true);
     setNotice(null);
-    const r = await api<{ saved?: boolean; item?: { title?: string }; error?: string }>("/api/zotero/add-by-identifier", {
-      method: "POST",
-      body: JSON.stringify({ identifier: id }),
-    });
+    const r = await api<{ saved?: boolean; item?: { title?: string }; error?: string }>(
+      "/api/zotero/add-by-identifier",
+      {
+        method: "POST",
+        body: JSON.stringify({ identifier: id }),
+      },
+    );
     setAdding(false);
     if (r.ok && r.data.saved) {
       setIdentifier("");
-      setNotice({ ok: true, text: `Zotero kütüphanene eklendi: “${r.data.item?.title || id}”. Zotero panelinde aratıp atıf ekleyebilirsin.` });
+      setNotice({
+        ok: true,
+        text: `Zotero kütüphanene eklendi: “${r.data.item?.title || id}”. Zotero panelinde aratıp atıf ekleyebilirsin.`,
+      });
     } else {
       setNotice({ ok: false, text: r.data.error || "Kaynak bulunamadı" });
     }
@@ -183,7 +211,11 @@ export function OnlyofficeEditorPage({ documentId, documentTitle, onBackToDocume
         <span className="truncate font-medium text-slate-800" title={documentTitle}>
           {documentTitle}
         </span>
-        <form onSubmit={addByIdentifier} className="ml-auto flex items-center gap-1" data-testid="oo-add-form">
+        <form
+          onSubmit={addByIdentifier}
+          className="ml-auto flex items-center gap-1"
+          data-testid="oo-add-form"
+        >
           <BookPlus size={16} className="text-slate-500" />
           <input
             value={identifier}
@@ -238,18 +270,48 @@ export function OnlyofficeEditorPage({ documentId, documentTitle, onBackToDocume
         <div id="oo-editor" className="h-full w-full" />
       </div>
       {showKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="oo-key-modal">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          data-testid="oo-key-modal"
+        >
           <form onSubmit={saveKey} className="w-[420px] rounded-lg bg-white p-5 text-sm shadow-xl">
             <h2 className="mb-2 text-base font-semibold">Zotero hesabını bağla</h2>
             <p className="mb-3 text-slate-600">
-              Bir kez yapman yeterli. <a className="text-blue-600 underline" href="https://www.zotero.org/settings/keys/new" target="_blank" rel="noreferrer">zotero.org’da yeni anahtar oluştur</a>{" "}
-              (kütüphane okuma + yazma izni), buraya yapıştır. Anahtar CiteDocs hesabına şifreli kaydedilir; Zotero masaüstü gerekmez.
+              Bir kez yapman yeterli.{" "}
+              <a
+                className="text-blue-600 underline"
+                href="https://www.zotero.org/settings/keys/new"
+                target="_blank"
+                rel="noreferrer"
+              >
+                zotero.org’da yeni anahtar oluştur
+              </a>{" "}
+              (kütüphane okuma + yazma izni), buraya yapıştır. Anahtar CiteDocs hesabına şifreli
+              kaydedilir; Zotero masaüstü gerekmez.
             </p>
-            <input value={keyInput} onChange={(e) => setKeyInput(e.target.value)} placeholder="Zotero API anahtarı" className="mb-2 w-full rounded border px-2 py-1" data-testid="oo-key-input" />
+            <input
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              placeholder="Zotero API anahtarı"
+              className="mb-2 w-full rounded border px-2 py-1"
+              data-testid="oo-key-input"
+            />
             {keyError && <p className="mb-2 text-red-600">{keyError}</p>}
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowKeyModal(false)} className="rounded px-3 py-1 hover:bg-slate-100">Vazgeç</button>
-              <button type="submit" className="rounded bg-blue-600 px-3 py-1 text-white" data-testid="oo-key-save">Bağla</button>
+              <button
+                type="button"
+                onClick={() => setShowKeyModal(false)}
+                className="rounded px-3 py-1 hover:bg-slate-100"
+              >
+                Vazgeç
+              </button>
+              <button
+                type="submit"
+                className="rounded bg-blue-600 px-3 py-1 text-white"
+                data-testid="oo-key-save"
+              >
+                Bağla
+              </button>
             </div>
           </form>
         </div>

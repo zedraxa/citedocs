@@ -21,7 +21,7 @@ declare module "fastify" {
  * Resolves user identity from:
  * 1. Secure HTTP-only session cookie (`citedocs_session`)
  * 2. `Authorization: Bearer <session-token>` header
- * 3. Fallback `X-User-Id` header (for backward-compatible test fixtures)
+ * 3. Test-only `X-User-Id` header (never accepted outside NODE_ENV=test)
  *
  * Injects `request.userId`, `request.user`, and `request.session`.
  * Rejects unauthenticated requests with HTTP 401 Unauthorized.
@@ -54,7 +54,7 @@ export async function requireAuth(
 
   // 2. Fallback to X-User-Id header (preserves backward compatibility with existing tests)
   const userIdHeader = request.headers["x-user-id"];
-  if (userIdHeader && typeof userIdHeader === "string" && userIdHeader.trim() !== "") {
+  if (process.env.NODE_ENV === "test" && userIdHeader && typeof userIdHeader === "string" && userIdHeader.trim() !== "") {
     request.userId = userIdHeader.trim();
     return;
   }
@@ -62,6 +62,6 @@ export async function requireAuth(
   // 3. Unauthenticated: send 401
   reply.status(401).send({
     error: "Unauthorized",
-    message: "Missing or invalid session or X-User-Id authentication header",
+    message: "Missing or invalid session",
   });
 }

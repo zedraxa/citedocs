@@ -61,7 +61,8 @@ export async function verifyCsrfProtection(
   if (
     path.startsWith("/api/auth/oauth/google/callback") ||
     path.startsWith("/api/auth/oauth/orcid/callback") ||
-    path.startsWith("/wopi/")
+    path.startsWith("/wopi/") ||
+    /^\/api\/onlyoffice\/callback\/[^/]+$/.test(path)
   ) {
     return;
   }

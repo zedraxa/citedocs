@@ -21,6 +21,31 @@ export const EXT_BY_MIME: Record<string, string> = {
   "application/x-pdf": ".pdf",
 };
 
+export const DEFAULT_ZOTERO_PREF_XML =
+  '<data data-version="3" zotero-version="7.0">' +
+  '<style id="http://www.zotero.org/styles/apa" locale="tr-TR" hasBibliography="0" bibliographyStyleHasBeenSet="0"/>' +
+  '<prefs><pref name="fieldType" value="Field"/></prefs>' +
+  '</data>';
+
+export function buildZoteroCustomPropsXml(prefXml: string = DEFAULT_ZOTERO_PREF_XML): string {
+  const CHUNK_SIZE = 255;
+  const properties: string[] = [];
+  const count = Math.max(1, Math.ceil(prefXml.length / CHUNK_SIZE));
+  for (let i = 0; i < count; i++) {
+    const chunk = prefXml.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+    const encoded = chunk
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+    properties.push(
+      `  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="${i + 2}" name="ZOTERO_PREF_${i + 1}">\n    <vt:lpwstr>${encoded}</vt:lpwstr>\n  </property>`
+    );
+  }
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">\n${properties.join("\n")}\n</Properties>`;
+}
+
 /**
  * Creates a minimal valid blank Microsoft Word (.docx) document.
  */
@@ -36,6 +61,7 @@ export async function createBlankDocxBuffer(): Promise<Buffer> {
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
   <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
   <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/docProps/custom.xml" ContentType="application/vnd.openxmlformats-officedocument.custom-properties+xml"/>
 </Types>`
   );
 
@@ -44,8 +70,11 @@ export async function createBlankDocxBuffer(): Promise<Buffer> {
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>
 </Relationships>`
   );
+
+  zip.file("docProps/custom.xml", buildZoteroCustomPropsXml());
 
   zip.file(
     "word/document.xml",

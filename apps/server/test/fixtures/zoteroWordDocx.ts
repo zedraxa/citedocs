@@ -10,7 +10,8 @@ export interface ZoteroFixtureOptions {
   year?: number;
   title?: string;
   formattedCitation?: string;
-  styleId?: string;
+  styleId?: string | null;
+  rndSuffix?: string;
 }
 
 /**
@@ -162,18 +163,48 @@ export async function createZoteroLibreOfficeOdtBuffer(
     schema: "https://github.com/citation-style-language/schema/raw/master/csl-citation.json",
   });
 
-  const citRefName = `ZOTERO_ITEM CSL_CITATION ${citPayload}`.replace(/"/g, "&quot;");
-  const bibRefName = `ZOTERO_BIBL {"custom":[]} CSL_BIBLIOGRAPHY`.replace(/"/g, "&quot;");
+  const rnd = options.rndSuffix ? ` RND${options.rndSuffix}` : "";
+  const citRefName = `ZOTERO_ITEM CSL_CITATION ${citPayload}${rnd}`.replace(/"/g, "&quot;");
+  const bibRefName = `ZOTERO_BIBL {"custom":[]} CSL_BIBLIOGRAPHY${rnd}`.replace(/"/g, "&quot;");
 
   const zip = new JSZip();
   zip.file("mimetype", "application/vnd.oasis.opendocument.text", { compression: "STORE" });
+
+  const manifestEntries = [
+    '  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>',
+    '  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>',
+  ];
+
+  const styleId = options.styleId !== undefined ? options.styleId : "apa";
+  if (styleId) {
+    const zoteroPrefXml = `<data data-version="3"><style id="https://www.zotero.org/styles/${styleId}" hasBibliography="1"/><prefs/></data>`;
+    const encodedPref = zoteroPrefXml
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+
+    zip.file(
+      "meta.xml",
+      `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0"
+  office:version="1.3">
+  <office:meta>
+    <meta:user-defined meta:name="ZOTERO_PREF_1">${encodedPref}</meta:user-defined>
+  </office:meta>
+</office:document-meta>`,
+    );
+
+    manifestEntries.push('  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>');
+  }
 
   zip.file(
     "META-INF/manifest.xml",
     `<?xml version="1.0" encoding="UTF-8"?>
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
-  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
-  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+${manifestEntries.join("\n")}
 </manifest:manifest>`,
   );
 

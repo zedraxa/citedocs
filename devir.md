@@ -1617,7 +1617,6 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - **Regresyon kapsamı:** Türkçe iki başlık ve varsayılan POST yolu; ASCII metadata, oluşturma/kaydetme/okuma, legacy ve bozuk `%`, çift kodlamama; eşzamanlı editörler, forcesave sonrası katılım, aynı içerikle kapanış, status 4 ve bellekte oturum olmadan gelen callback. Autosave E2E dosyasında anahtar rotasyonu beklentisi yoktu.
 - **Commitler:** `42aade9` S3 metadata; `1bdca4b` ONLYOFFICE oturum anahtarı.
 - **Açık kontrol:** Gerçek S3/ONLYOFFICE ile canlı tarayıcı kontrolü dağıtım sonrası yapılmalı; bu çalışmada üretime erişilmedi, push/deploy yapılmadı. Web, compose, Caddy ve container yapılandırmaları değiştirilmedi.
-||||||| f722528
 
 ## Kapasite Planı ve Operasyon Araçları — Kayıt #028
 
@@ -1658,8 +1657,6 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - Konteyner açılmamış, harici para harcanmamış, sunucuya SSH atılmamıştır.
 - `pnpm lint` (0 hata, 0 uyarı), `pnpm typecheck` (0 hata) ve `pnpm test` (58 test dosyası, 546 başarılı test) tam yeşildir.
 
-||||||| b252b0b
-||||||| 09bdb9c
 
 ---
 
@@ -1714,3 +1711,56 @@ Canlı QA raporunda (`docs/qa-report-2026-10-17.md`) tespit edilen öğrenci ara
 - Üretim sunucusunda (`/opt/citedocs/.env`) operatör isteğe bağlı olarak `KEEP_LOCAL_AFTER_UPLOAD=1` veya `2` ve `DISK_RESERVE_PERCENT=20` ayarlarını etkinleştirebilir.
 - Canlı sunucuya dağıtım, ONLYOFFICE yapılandırması ve compose değişiklikleri ilgili sorumlu ajanların kapsamındadır; bu çalışmada üretime dokunulmamış, AWS çağrısı yapılmamıştır.
 
+---
+
+## Zotero ODT Desteği (ZC-02) ve Boş Belge Zotero Tercihleri (ZC-04) — Kayıt #033
+
+> **Kayıt No:** #033 (birleştirmede #030 çakışması nedeniyle yeniden numaralandı; #031/#032 başka dallara ayrılmıştır)  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-zotero-server`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+
+### 1. Yapılan Geliştirmeler ve Mimari Çözümler
+
+1. **ZC-02: LibreOffice ODT Zotero Referans İşaretleri ve Tercih Desteği (`apps/server/src/documents/zoteroFields.ts`):**
+   - `extractZoteroState` fonksiyonu, OpenDocument Format (.odt) arşivlerini tanıyacak şekilde genişletildi. Dosya `content.xml` içeriyorsa ODF ayrıştırıcısı devreye girer.
+   - LibreOffice Zotero eklentisinin ürettiği referans işaretleri (`<text:reference-mark-start>`, `<text:reference-mark-end>` ve tekil nokta işaretleri `<text:reference-mark>`) taranır.
+   - `text:name` özniteliğindeki `ZOTERO_ITEM CSL_CITATION {json} RND...` ve `ZOTERO_BIBL` alanları yakalanır.
+   - `extractJsonBraceBalanced` fonksiyonu ile JSON yükü dengeli ayraç takibiyle güvenle ayıklanır; JSON sonrasındaki ` RND<suffix>` veya benzeri eklentiler JSON ayrıştırmasını bozmaz.
+   - XML varlık kod çözümü (`decodeXml`) ile `&quot;`, `&apos;`, `&amp;`, `&lt;`, `&gt;`, `&#39;`, `&#34;`, `&#(\d+);` ve onaltılık `&#x([0-9a-fA-F]+);` varlıkları eksiksiz çözülür.
+   - ODF biçimlendirme etiketleri (`<text:s text:c="..."/>`, `<text:tab/>`, `<text:line-break/>`, `<text:span>`) temizlenerek atıf metin sonucu (`result`) tam doğrulukla elde edilir.
+   - Belge düzeyindeki Zotero tercihleri, `meta.xml` (veya `content.xml`) içindeki ODF kullanıcı tanımlı meta verilerden (`<meta:user-defined meta:name="ZOTERO_PREF_1">...`) parçalı (chunked) veya tekil olarak okunur ve stil kimliği (`style`) ayıklanır.
+   - Bozuk veya geçersiz JSON durumlarında hata fırlatılmaz; `payload: null` dönülerek sistem savunmacı (defensive) kılınır.
+   - `GET /api/documents/:id/citations` uç noktası artık ODT belgeleri için de Word DOCX ile birebir aynı biçimde atıf, kaynakça ve stil durumunu sunar.
+
+2. **ZC-04: Yeni Boş DOCX Belgelerinde Varsayılan Zotero Tercihleri (`apps/server/src/documents/templates.ts` & `deploy/office/blank.docx`):**
+   - CiteDocs sunucusunda yeni belge oluşturulurken (`createBlankDocxBuffer`) üretilen DOCX arşivine `docProps/custom.xml` parçası eklendi.
+   - Microsoft Word'ün 255 karakterlik özel özellik sınırına uygun olarak parçalanan `ZOTERO_PREF_1..n` meta verisi üretildi (`buildZoteroCustomPropsXml`).
+   - Varsayılan tercih olarak APA 7. baskı (`http://www.zotero.org/styles/apa`) ve Türkçe yerel ayar (`locale="tr-TR"`) tanımlandı.
+   - `[Content_Types].xml` dosyasına `/docProps/custom.xml` için `application/vnd.openxmlformats-officedocument.custom-properties+xml` geçersiz kılma (override) kaydı eklendi.
+   - `_rels/.rels` dosyasına `docProps/custom.xml` için `rId2` ilişki tanımı eklendi.
+   - BUG-07 kapsamında tanımlanmış Türkçe denetim dili (`styles.xml`, `document.xml` ve `settings.xml` içindeki `tr-TR`) eksiksiz korundu.
+   - `deploy/office/blank.docx` ikili şablonu yeni `createBlankDocxBuffer()` çıktısı ile güncellendi.
+   - Böylece Microsoft Word'de açılan boş bir CiteDocs belgesine Zotero ile ilk atıf eklendiğinde kullanıcıya zorunlu stil seçim penceresi açılmaz; doğrudan APA 7 (tr-TR) devreye girer.
+
+### 2. Test ve Doğrulama Durumu
+
+- `apps/server/test/fixtures/zoteroWordDocx.ts`: `createZoteroLibreOfficeOdtBuffer` fonksiyonuna `styleId` (meta.xml üretimi) ve `rndSuffix` desteği eklendi.
+- `apps/server/test/document-templates.test.ts`: Hem üretilen (`generated`) hem de ikili varlık (`asset`) için `docProps/custom.xml`, paket ilişkileri, içerik türleri ve `extractZoteroState` doğrulamaları eklendi (2/2 başarılı).
+- `apps/server/test/zotero-compat.test.ts`:
+  - `it.todo("ZC-02")` yerine ODT atıf, kaynakça ve stil ayıklama testi ile savunmacı sınır durumları (nokta işaretleri, RND eki, XML varlık çözümü, bozuk JSON, parçalı meta) testleri yazıldı.
+  - ODT yükleme ve `GET /api/documents/:id/citations` HTTP entegrasyon testi eklendi.
+  - `it.todo("ZC-04")` yerine `createBlankDocxBuffer` ve `deploy/office/blank.docx` Zotero APA 7 (tr-TR) tercih doğrulamaları yazıldı.
+  - `ZC-01`, `ZC-03`, `ZC-05` todo testleri dokunulmadan korundu (8 başarılı, 3 todo).
+- `pnpm --filter @citedocs/server test`: 28 test dosyası, 310 başarılı, 3 todo (0 hata).
+- `pnpm lint`: 0 hata, 0 uyarı.
+- `pnpm typecheck`: 0 hata.
+- `pnpm build`: Tüm paketler hatasız derlendi.
+
+### 3. Kural ve Kısıtlara Uyum
+
+- `apps/web` (istemci/editör sayfaları) koduna dokunulmadı.
+- `deploy/` compose dosyaları, Caddyfile'lar veya ONLYOFFICE konteyner yapılandırmaları değiştirilmedi.
+- `ZC-01`, `ZC-03`, `ZC-05` maddelerine dokunulmadı.
+- `tsconfig.tsbuildinfo` gürültüsü temizlendi.
+- Doğrudan main'e birleştirme yapılmadı; commit'ler `cd-zotero-server` dalında tutuldu.

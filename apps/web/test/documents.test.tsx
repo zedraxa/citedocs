@@ -547,7 +547,7 @@ describe("Web Documents & Cloud Storage Layer (@citedocs/web)", () => {
 
       await act(async () => {
         fireEvent.change(searchInput, { target: { value: "Quantum" } });
-        await new Promise((r) => setTimeout(r, 20));
+        await new Promise((r) => setTimeout(r, 300));
       });
 
       expect(container.textContent).toContain("Quantum Physics Paper.docx");

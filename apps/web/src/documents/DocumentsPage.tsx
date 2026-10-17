@@ -74,27 +74,36 @@ export function DocumentsPage({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const loadData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (activeTab === "my") {
-        const res = await fetchMyDocuments(searchQuery);
-        setMyDocs(res.documents || []);
-        if (res.quota) setQuota(res.quota);
-      } else {
-        const res = await fetchSharedDocuments(searchQuery);
-        setSharedDocs(res.documents || []);
-      }
-    } catch (err: unknown) {
-      setError((err as Error).message || "Belgeler yüklenemedi");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadData();
+    let cancelled = false;
+    const loadData = async () => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
+      try {
+        if (activeTab === "my") {
+          const res = await fetchMyDocuments(searchQuery);
+          if (cancelled) return;
+          setMyDocs(res.documents || []);
+          if (res.quota) setQuota(res.quota);
+        } else {
+          const res = await fetchSharedDocuments(searchQuery);
+          if (cancelled) return;
+          setSharedDocs(res.documents || []);
+        }
+      } catch (err: unknown) {
+        if (!cancelled) setError((err as Error).message || "Belgeler yüklenemedi");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    // Coalesce typing and StrictMode's effect replay without caching user data.
+    const timer = searchQuery ? window.setTimeout(loadData, 250) : undefined;
+    if (!searchQuery) void Promise.resolve().then(loadData);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [activeTab, searchQuery]);
 
   const handleCreateBlank = async (format: "docx" | "odt") => {

@@ -1,8 +1,11 @@
 // Run from repository root: pnpm --filter @citedocs/server exec tsx scripts/api-bench/run.mjs
 import assert from "node:assert/strict";
+import process from "node:process";
+import { Buffer } from "node:buffer";
+import console from "node:console";
 import { setTimeout as delay } from "node:timers/promises";
 import { performance } from "node:perf_hooks";
-import {
+const {
   buildApp,
   ZoteroAccountService,
   ZoteroProxyService,
@@ -10,7 +13,7 @@ import {
   InMemoryDocumentRepository,
   InMemoryWopiStorage,
   InMemoryZoteroCredentialRepository,
-} from "../../src/index.ts";
+} = await import(process.env.BENCH_SERVER_ENTRY || "../../src/index.ts");
 import { CSLEngine } from "@citedocs/csl-engine";
 
 process.env.NODE_ENV = "test";
@@ -55,13 +58,13 @@ const app = await buildApp({
   zoteroCredentialRepo: credentials,
   enableCsrf: false,
   enableRateLimit: false,
-  styleFetchFn: async () => Response.json(styles),
+  styleFetchFn: async () => globalThis.Response.json(styles),
   zoteroProxyService: new ZoteroProxyService({
     accountService: new ZoteroAccountService({ credentialRepo: credentials }),
     fetchFn: async () => {
       counts.upstream = (counts.upstream || 0) + 1;
       await delay(25);
-      return Response.json([{ key: "ITEM1", data: { title: "Science" } }]);
+      return globalThis.Response.json([{ key: "ITEM1", data: { title: "Science" } }]);
     },
   }),
 });
@@ -123,12 +126,22 @@ try {
   await measure("session", () => request("/api/auth/session"));
   await measure("documents", () => request("/api/documents"));
   await measure("documents-search", () => request("/api/documents?search=Science%209"));
+  await measure("document-open", () => request(`/api/documents/${doc.id}`));
   await measure("onlyoffice-config", () => request(`/api/documents/${doc.id}/onlyoffice-config`));
   await measure("zotero-library", () => request("/api/zotero/proxy/users/42/items"));
   await measure("zotero-search", () => request("/api/zotero/proxy/users/42/items?q=science"));
   await measure("styles-list", () => request("/api/styles"));
   await measure("styles-search", () => request("/api/styles?q=journal"));
   await measure("csl-lookup", () => request("/api/csl/styles/apa"));
+  const cslResponse = await request("/api/csl/styles/apa");
+  const conditionalHeaders = {
+    ...headers,
+    "if-none-match": cslResponse.headers.etag || '"baseline-no-etag"',
+  };
+  await measure("csl-conditional", async () => {
+    const res = await app.inject({ url: "/api/csl/styles/apa", headers: conditionalHeaders });
+    assert.ok([200, 304].includes(res.statusCode));
+  });
   // There is no citation-formatting API in apps/server; measure the shared engine separately.
   await measure("citation-engine-local-NOT-API", () => {
     const engine = new CSLEngine("apa", "tr-TR", [
@@ -156,6 +169,10 @@ try {
         samples,
         fakeRepositoryDelayMs: ioMs,
         fakeZoteroDelayMs: 25,
+        cslBodyBytes: Buffer.byteLength(cslResponse.body),
+        cslConditionalBytes: Buffer.byteLength(
+          (await app.inject({ url: "/api/csl/styles/apa", headers: conditionalHeaders })).body,
+        ),
         documents: 100,
         styles: 10800,
         results,

@@ -2318,3 +2318,75 @@ Açık konular:
 - **`pnpm test` (Tam Test Paketi):**
   - **74 test dosyası** çalıştırıldı.
   - **714 test başarılı**, 1 atlanan, 3 todo (0 başarısız).
+
+## ONLYOFFICE Zotero Eklentisi Script Etiketi ve Citeproc Yükleme Onarımı — Kayıt #043
+
+> **Kayıt No:** #043  
+> **Tarih:** 2026-10-17  
+> **Dal:** `cd-cite-insert-fix`  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Görev:** ONLYOFFICE Docs CE Zotero eklentisinde ("Atıf Ekle/Düzenle") ortaya çıkan prod regresyonunun hızlı ve kökten çözülmesi. Eklenti penceresinde "Atıf eklenemedi" uyarısı ve tarayıcı konsolunda `ReferenceError: CSL is not defined` hatasına sebep olan `deploy/onlyoffice.Dockerfile` içerisindeki kaçış/escaping hatasının giderilmesi; satır içi Python betiği yerine `deploy/onlyoffice/patch-zotero-plugin.py` ayrık betiğinin kullanılması; `index.html` içine enjekte edilen `<script src="zotero-sync-hook.js"></script>` etiketinin tertemiz üretilmesi ve citeproc script etiketinin yutulmasının önlenmesi; derleme anı iddialarının güçlendirilmesi; Happy-DOM/parse5 ve kabuk tabanlı testlerin eklenmesi; yerel Docker imajının derlenerek konteyner içi doğrulamasının yapılması.
+
+### 1. Kök Neden Tespiti ve Yapılan Çalışmalar
+
+1. **Kök Neden Analizi:**
+   - Canlı sistemde ONLYOFFICE Zotero eklentisinde "Atıf Ekle/Düzenle" butonuna tıklandığında `ReferenceError: CSL is not defined` hatası alınıyor ve atıf eklenemiyordu.
+   - Hatanın kök nedeni: `deploy/onlyoffice.Dockerfile` içerisindeki satır içi `RUN python3 -c 'exec("\n".join([...]))'` betiğinde string kaçışları (`\"` ve `\\>`) nedeniyle `sdkjs-plugins/zotero/index.html` dosyasına `<script src="zotero-sync-hook.js"\></script\>` yazılmasıydı.
+   - HTML ayrıştırıcıları geçersiz `</script\>` kapanış etiketini metin olarak yutup ardından gelen `<script src="vendor/citeproc/citeproc_commonjs.js"></script>` etiketini çalıştırmadığı için `window.CSL` nesnesi tanımsız kalıyordu.
+   - Ayrıca eski Dockerfile'daki assertion da aynı kaçış karmaşası nedeniyle bozukluğu yakalayamıyordu.
+
+2. **Ayrık ve Güvenli Yama Betiği (`deploy/onlyoffice/patch-zotero-plugin.py`):**
+   - Satır içi kırılgan bash/dockerfile string birleştirmesi yerine bağımsız ve test edilebilir `deploy/onlyoffice/patch-zotero-plugin.py` oluşturuldu.
+   - `deploy/onlyoffice.Dockerfile` içine `COPY deploy/onlyoffice/patch-zotero-plugin.py /tmp/patch-zotero-plugin.py` ve `RUN python3 /tmp/patch-zotero-plugin.py && rm -f /tmp/patch-zotero-plugin.py` adımı eklendi.
+   - Yama adımları eksiksiz korundu:
+     - `tr-TR.json` dosyası `tr.json` olarak kopyalandı.
+     - `langs.json` içerisine `tr-TR` dili eklendi.
+     - `config.json` içine Türkçe yerelleştirmeler yazıldı.
+     - `index.html` içine tam olarak `<script src="zotero-sync-hook.js"></script>` etiketi citeproc öncesine enjekte edildi (hiçbir ters bölü veya kaçış karakteri olmadan).
+     - `dist/bundle.modern.js` üzerinde `window.__zoteroSettings` ve `window.__zoteroCitationService` kancaları korundu.
+     - Tüm değiştirilen dosyalar için `gzip_static` uyumlu `.gz` dosyaları (`compresslevel=9`) yeniden üretildi.
+     - Dosya izinleri (`0o644`) ve sahiplikleri korundu.
+
+3. **Güçlendirilmiş Derleme Anı ve Doğrulama İddiaları:**
+   - `patch-zotero-plugin.py` içerisinde hem Docker derleme anında hem de testlerde çalışan sıkı kontroller:
+     - `assert '<script src="zotero-sync-hook.js"></script>' in idx_check`
+     - `assert '<script src="vendor/citeproc/citeproc_commonjs.js"></script>' in idx_check`
+     - `assert "\\>" not in idx_check`
+     - `assert idx_gz == idx_check` (açılan `.gz` içeriğinin ham HTML ile birebir eşitliği)
+     - `bundle.modern.js`, `langs.json`, `tr-TR.json`, `tr.json` ve `zotero-sync-hook.js` için de `.gz` sıkıştırma bütünlüğü doğrulandı.
+
+4. **Kapsamlı Test Paketi ve Kabuk Doğrulaması:**
+   - **`packages/shared/test/zotero-plugin-injection.test.ts`:**
+     - Upstream `index.html` şablonu üzerinde `patch-zotero-plugin.py` betiğinin çalıştırılması, tertemiz script etiketlerinin üretilmesi ve `.gz` ile eşitliğinin doğrulanması.
+     - Happy-DOM (ve varsa parse5) ile DOM ayrıştırması yapılarak `zotero-sync-hook.js` ve `vendor/citeproc/citeproc_commonjs.js` script elemanlarının sırası ve varlığının kontrolü.
+     - Bozuk `</script\>` etiketinin citeproc'u yuttuğunun negatif test ile kanıtlanması.
+     - `CSL.Engine` ile APA 7. baskı ve `tr-TR` yerelinde atıf formatlama motorunun uçtan uca doğrulanması.
+   - **`deploy/test/test-patch-zotero-plugin.sh`:**
+     - Bağımsız çalıştırılabilir kabuk testi eklenerek sahte eklenti dizininde çalıştırma, ters bölü yokluğu, gzip karşılaştırması ve idempotentlik doğrulandı.
+   - **`apps/server/test/zotero-translation.test.ts`:**
+     - Hem Dockerfile statik kontrolü hem de Python mock dizin testleri `patch-zotero-plugin.py` ile uyumlu hale getirildi.
+
+5. **Yerel Docker İmajı Derleme ve Konteyner İçi Doğrulama:**
+   - Yerel ortamda `docker build -f deploy/onlyoffice.Dockerfile -t citedocs-onlyoffice-test .` komutu çalıştırıldı ve başarıyla tamamlandı.
+   - Konteyner içinde `/var/www/onlyoffice/documentserver/sdkjs-plugins/zotero/index.html` incelendi:
+     - `<script src="zotero-sync-hook.js"></script>` ve `<script src="vendor/citeproc/citeproc_commonjs.js"></script>` etiketlerinin kusursuz bulunduğu doğrulandı.
+     - Dosyada hiçbir `\>` karakterinin bulunmadığı teyit edildi.
+     - `zcat index.html.gz` çıktısı ile `index.html` dosyasının `cmp` ile birebir aynı olduğu kanıtlandı.
+
+### 2. Kural ve Kısıtlamalara Tam Uyum
+
+- `docker-compose.prod.yml` dosyasına kesinlikle dokunulmamıştır.
+- Canlı ortama doğrudan dağıtım (deploy) veya push yapılmamıştır.
+- `tsconfig.tsbuildinfo` dosyaları temiz bırakılmıştır.
+- Tüm kontroller (`pnpm lint`, `pnpm typecheck`, `pnpm test`) eksiksiz yeşildir.
+
+### 3. Doğrulama ve Test Sonuçları
+
+- **`pnpm lint`:** 0 hata, 0 uyarı (temiz).
+- **`pnpm typecheck`:** 0 hata (tüm monorepo TypeScript derlemesi başarılı).
+- **`deploy/test/test-patch-zotero-plugin.sh`:** Başarılı (2 kez çalıştırıldı, idempotent).
+- **`Docker Build` (`citedocs-onlyoffice-test:latest`):** Başarılı, konteyner içi doğrulama tamam.
+- **`pnpm test` (Tam Test Paketi):**
+  - **76 test dosyası** çalıştırıldı.
+  - **722 test başarılı**, 1 atlanan, 3 todo (0 başarısız).
+

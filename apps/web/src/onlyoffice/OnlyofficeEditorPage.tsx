@@ -180,6 +180,7 @@ export function OnlyofficeEditorPage({
           editorRef.current,
           targetStyleId,
           DEFAULT_LOCALE,
+          style.citationFormat,
         );
 
         // 2. Server-side update for docProps/custom.xml
@@ -204,10 +205,11 @@ export function OnlyofficeEditorPage({
             text: `Atıf stili sunucuda güncellenemedi: ${r.data.error || "Bilinmeyen hata"}.`,
           });
         }
-      } catch {
+      } catch (err) {
+        console.error("[CiteDocs] handleStyleChange error:", err);
         setNotice({
           ok: false,
-          text: "Atıf stili güncellenirken bir hata oluştu.",
+          text: `Atıf stili güncellenirken bir hata oluştu: ${err instanceof Error ? err.message : String(err)}`,
         });
       }
     },

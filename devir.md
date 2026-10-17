@@ -2557,8 +2557,6 @@ handle_path /oo/* {
 2. **Kısıtlar:**
    - `docker-compose.prod.yml` dosyasına kesinlikle dokunulmadı.
    - Dağıtım (deploy) yapılmadı.
-
-<<<<<<< Updated upstream
 ---
 
 ## 52. ONLYOFFICE Gerçek Tarayıcıda Uçtan Uca Atıf ve Kaynakça Akışı Doğrulaması (Kayıt #045)
@@ -2812,6 +2810,122 @@ Yapılan derinlemesine inceleme ve kod takibinde sorunun 3 kritik kök nedenden 
 - `pnpm typecheck`: 0 hata (`tsc -b` tüm projelerde başarıyla geçti).
 - `pnpm test`: 78 test dosyası, 742 test başarılı (0 hata, 1 atlanan canlı test, 3 todo).
 - Dağıtım (deploy) yapılmadı; prod ortamına veya compose dosyalarına dokunulmadı.
+
+## 55. ONLYOFFICE Zotero Eklentisinde Canlı Ortam IEEE Stil Değişimi "Yenileme Başarısız Oldu" Hatasının Kökten Çözülmesi, Gerçek Hata Mesajlarının Yüzeye Çıkarılması ve Uçtan Uca Metin Doğrulaması (Kayıt #050)
+
+> **Kayıt No:** #050  
+> **Tarih:** 2026-10-17  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Dal:** `cd-style-refresh`  
+> **İlgili Görev:** Canlı prod ortamında (`docs.sifirdanbire.com.tr`, Chrome 155, önbellek temizlenmiş) APA atıflı (`(LeCun vd., 2015)`) ve APA kaynakçalı belgede üst bar Atıf Stili Seçici'den ("StylePicker") IEEE ("Numaralı") seçildiğinde sayfanın artık kararmamasına (#047) rağmen Zotero yan panelinde kırmızı *"Yenileme başarısız oldu"* hatası alınması, belgenin değişmeden APA formatında kalması (`(LeCun vd., 2015)` ve APA kaynakça, `[1]` olmaması), konsolda yalnızca önemsiz `Permissions policy violation: unload` görünmesi ve hiçbir hata detayının yakalanamaması sorununun kök nedenlerinin bulunup çözülmesi; gerçek hata metinlerinin hem üst pencere konsoluna (`console.error`) hem de kullanıcı arayüzü uyarı kutusuna yansıtılması, Türkçe dil arayüzünün korunması, CSL stil ve yerelleştirme (locale) yükleme adımlarının yerel paket ve backend proxy ile dayanıklı hale getirilmesi, kaynakça DOM yapıştırması sonrası oluşan alan kaybı kilitlenmelerinin giderilmesi, Word/LibreOffice alan kodlarının (`ADDIN ZOTERO_ITEM`, `CSL_CITATION`, `ADDIN ZOTERO_BIBL`, `CSL_BIBLIOGRAPHY`) korunması ve Playwright E2E testinde belgedeki metnin gerçek veriyle `[1]`'e dönüştüğünün doğrulanması.
+
+---
+
+### 1. Kök Neden Tespiti ve Derinlemesine Analiz (Root Cause Analysis)
+
+Canlı ortamdaki hata izlerinin yerel e2e testlerinde (`e2e/oo-style-switch.spec.ts`) ilk başta yakalanamamasının nedeni, yerel testin yalnızca sayfanın kararmadığını ve UI etiketini kontrol etmesi, ancak eklentinin iç konsolunu ve belgenin gerçek metin dönüşümünü denetlememesiydi. ONLYOFFICE Zotero eklentisi (`bundle.modern.js`) ve köprü mimarisi üzerinde yürütülen tersine mühendislik ve kod analizinde 5 kritik kök neden ortaya çıkarılmıştır:
+
+1. **Hata Mesajlarının Maskelenmesi ve Dize Kontrolü Tuzağı (`typeof e == "string"`):**
+   - `bundle.modern.js` içinde `refreshBtn.click()` ve `r.onChangeState` hata yakalama bloklarında:
+     ```javascript
+     r.showError(D("Failed to refresh") + (typeof e == "string" ? ": " + D(e) : ""))
+     ```
+     şeklinde bir kontrol yer alıyordu.
+   - JS çalışma zamanında yakalanan nesneler tipik olarak `Error` örneği olduğundan `typeof e == "string"` ifadesi `false` dönüyor; bu nedenle `e.message` tamamen çöpe atılarak kullanıcıya sadece yalın *"Yenileme başarısız oldu"* metni sunuluyordu.
+   - Dahası, eklenti içindeki `console.error(e)` çağrıları ONLYOFFICE Document Server'ın iç içe gömülü (nested) iframe'inde çalışıyor ve tarayıcının üst düzey geliştirici araçları konsoluna hiçbir log aktarılmıyordu. Bu durum canlı ortamda hatayı teşhis edilemez hale getiriyordu.
+
+2. **Zotero Çevrimiçi Mod Tuzağı ve Uzak Stil URL Hatası (`X.prototype.getStyle`):**
+   - Eklentinin stil yükleyicisinde:
+     ```javascript
+     var t = r._STYLES_LOCAL + e + ".csl";
+     if (r._isOnlineAvailable) t = r._STYLES_URL + e;
+     return fetch(t).then(...)
+     ```
+     mantığı çalışıyordu.
+   - Kullanıcı Zotero'ya giriş yaptığında `_isOnlineAvailable` bayrağı `true` oluyordu. Bu durumda eklenti yerel paketteki `./resources/csl/styles/ieee.csl` dosyasını yok sayıp doğrudan `https://www.zotero.org/styles/ieee` adresine istek atıyordu.
+   - Canlı ortamda veya kurumsal/okul ağlarında bu harici istek zaman aşımına uğradığında, ağ kesintisi yaşandığında veya CORS engeline takıldığında `fetch` promise'i reject ediliyor ve eklenti hiçbir yerel yedeğe (fallback) dönmeden tüm yenileme akışını kırıyordu.
+
+3. **Yerelleştirme (Locale) XML Doğrulama ve Ağ Kesintisi:**
+   - Eklentinin dil yöneticisi (`en.prototype.loadLocale`), dilleri GitHub (`raw.githubusercontent.com`) üzerinden çekmeye çalışıyordu.
+   - Türkiye'de GitHub CDN hatlarındaki DNS engellemeleri veya ağ kesintilerinde `fetch` 200 harici durum kodlarıyla (veya HTML hata sayfasıyla) dönse bile JavaScript'te `fetch` reject olmaz. Dönen metin `<locale` XML etiketi içermemesine rağmen doğrudan `this._cache[e] = text` içerisine yazılıyordu.
+   - Geçersiz XML önbelleğe alındığında `CSL.Engine` başlatılırken `citeproc` motoru XML ayrıştırma hatasıyla çöküyor ve yenileme başarısız oluyordu.
+
+4. **Kaynakçada `Asc.scope.bibStyle` Tanımsızlık Çökmesi ve DOM Eşzamanlama Hatası:**
+   - Eklentinin kaynakça güncelleme fonksiyonu olan `gt()` içinde:
+     ```javascript
+     if (!Asc.scope.bibStyle) throw Error("Bibliography style is not defined");
+     ```
+     denetimi yer alıyordu. Zotero senkronizasyon kancası veya editör köprüsü çağrıldığında `Asc.scope.bibStyle` nesnesi önceden ilklendirilmemişse işlem doğrudan hata fırlatıyordu.
+   - Ayrıca `PasteHtml` çağrısı sonrasında `this.getCurrentField()` metodu bazı DOM durumlarında anında güncel alanı bulamayıp `null` döndüğünde `"Failed to get current field after paste"` hatası fırlatılıyordu.
+
+5. **`StartAction("Block")` ile Deadlock Riski ve `_onChangeState` Yanılgısı:**
+   - `zotero-sync-hook.js` kancasında `win.__zoteroSettings._onChangeState(newState, oldState)` çağrıldığında, dahili eklenti durumu ile üst pencere durumu senkronize olmaya çalışırken ek bir `updateCslItems` tetikleniyor veya hata sessizce yakalanıp yutulabiliyordu.
+   - Bazı denemelerde `Asc.scope` üzerinde `StartAction("Block")` çağrılması, ONLYOFFICE'ın `PasteHtml` ve `UpdateAddinFields` eylemlerini işleten olay kuyruğunu kilitleyerek (deadlock) işlemin sonsuza kadar askıda kalmasına neden oluyordu.
+
+---
+
+### 2. Uygulanan Mimari Çözüm ve Yapılan Değişiklikler
+
+1. **`deploy/onlyoffice/patch-zotero-plugin.py`:**
+   - **Hata Mesajlarını Yüzeye Çıkarma:**
+     - `refreshBtn.click()` ve `r.onChangeState` bloklarındaki hata yakalama kodu yamalandı: `_msg = (e && e.message) ? e.message : String(e);` ve `t += ": " + (D(_msg) || _msg);` ile gerçek hata metni UI hata kutusuna eklendi.
+     - Yakalanan tüm hatalar `((window.top && window.top.console) || (window.parent && window.parent.console) || window.console).error("[CiteDocs Zotero Plugin] Refresh error:", e)` ile tarayıcının en üst geliştirici konsoluna taşındı.
+     - `Ut()` fonksiyonu içindeki hatalar üst pencereye iletilerek yapılandırılmış `Error` olarak fırlatıldı.
+   - **Dayanıklı CSL Stil Yükleme (Multi-Tier Resilient Style Fetching):**
+     - `X.prototype.getStyle` metodu yamalandı. `tryFetch(url)` yardımcısı ile içeriğin `<style` etiketi barındırdığı ve HTTP durumunun başarılı olduğu doğrulandı.
+     - Çevrimiçi modda uzak zotero.org isteği başarısız olursa otomatik olarak yerel eklenti paketindeki `./resources/csl/styles/[style].csl` denenir; o da bulunamazsa CiteDocs backend proxy'si olan `/api/csl/styles/[style]` denenir.
+   - **Dayanıklı Yerelleştirme Yükleme (Multi-Tier Resilient Locale Fetching):**
+     - `en.prototype.loadLocale` metodu yamalandı. XML içeriğinde `<locale` etiketi denetlenir. GitHub isteği başarısız olursa yerel `./resources/csl/locales/locales-tr-TR.xml`, o da başarısız olursa güvenli varsayılan `./resources/csl/locales/locales-en-US.xml` yüklenir.
+   - **Kaynakça Güvenliği:**
+     - `gt()` içindeki `!Asc.scope.bibStyle` kontrolü yerine `Asc.scope.bibStyle = Asc.scope.bibStyle || {}` güvenliği eklendi.
+     - `PasteHtml` sonrası `this.getCurrentField()` `null` döndüğünde `this.getAddinZoteroFields()` taranarak `ADDIN ZOTERO_BIBL` alanını bulma ve `e.FieldId` ile eşleme fallback'i eklendi.
+   - **Yapı Güvencesi ve Doğrulama:**
+     - 8 aşamalı build-time `assert` mekanizması ile tüm yamaların `bundle.modern.js` ve `.gz` içine işlendiği derleme aşamasında garanti altına alındı.
+
+2. **`deploy/onlyoffice/zotero-sync-hook.js`:**
+   - Stil ve dil nesnelerinin eklenti önbelleğine alındığı doğrulandıktan sonra `Asc.scope.bibStyle` nesnesi otomatik tanımlandı.
+   - Hata yutulmasına sebep olan `_onChangeState` ara adımı yerine doğrudan ve atomik olarak `win.__zoteroCitationService.updateCslItems(true)` tetiklendi.
+   - ONLYOFFICE olay kuyruğunu kilitleyen `StartAction("Block")` kaldırıldı.
+   - Oluşan tüm istisnalar üst pencere konsoluna loglanıp `throw err` ile çağırıcıya iletildi.
+
+3. **`apps/web/src/onlyoffice/editorStyleBridge.ts`:**
+   - `applyStyleInOnlyoffice` fonksiyonuna `overrideFormat?: string` parametresi eklendi ve `postMessage` yüküne eklendi.
+   - Tüm `catch` bloklarına `console.error` eklenerek köprüdeki sessiz yutmalar tamamen ortadan kaldırıldı.
+
+4. **`apps/web/src/onlyoffice/OnlyofficeEditorPage.tsx`:**
+   - `style.citationFormat` parametresi `applyStyleInOnlyoffice` çağrısına geçirildi.
+   - Hata durumunda Türkçe bildirim (`Atıf stili uygulanamadı: ...`) oluşturuldu ve `console.error` ile hata detayları yüzeye çıkarıldı.
+
+5. **`e2e/oo-style-switch.spec.ts`:**
+   - Test senaryosu genişletilerek `getEditorDocText` yardımcısı yazıldı (`Asc.plugin.callCommand` ile DOM seviyesinde belge paragrafları ve elemanları taranır).
+   - Gerçek veri (`ITEM_LECUN`: Deep Learning, LeCun vd., Nature 2015) ile başlangıçta APA atıfı (`(LeCun vd., 2015)`) ve APA kaynakçasının belgede var olduğu doğrulandı.
+   - Üst bardan IEEE seçildiğinde:
+     - Eklenti hata kutusunda 0 hata olduğu (`"Yenileme başarısız oldu"` ve `"Failed to refresh"` içermediği),
+     - Eklenti içi `plainCitation` değerinin `[1]`'e dönüştüğü,
+     - Belgenin gerçek metninin `[1]\n [1]\tY. LeCun, Y. Bengio, ve G. Hinton...` şeklinde numaralandığı doğrulandı.
+   - APA'ya geri dönüldüğünde hem eklenti hem belge içi metnin `(LeCun vd., 2015)` formatına geri döndüğü teyit edildi.
+   - Tekrar IEEE seçilip sayfa yenilendiğinde (F5) stilin korunduğu ve indirilen `.docx` dosyasının `docProps/custom.xml` içindeki `ZOTERO_PREF` alanında `ieee` değerinin atomik olarak saklandığı kanıtlandı.
+
+---
+
+### 3. Test ve Kalite Güvencesi Sonuçları
+
+- **`pnpm lint`:** 0 hata, 0 uyarı (temiz).
+- **`pnpm typecheck`:** 0 hata (`tsc -b` tüm monorepoda hatasız geçti).
+- **`pnpm test:e2e e2e/oo-style-switch.spec.ts`:** 1 passed (46.7s) - Gerçek DOM metin değişimi ve alan kodları kanıtlandı.
+- **`pnpm test:e2e e2e/oo-cite-flow.spec.ts`:** 1 passed, 1 skipped (#047 referansı) (34.6s).
+- **`pnpm test` (Tam Test Paketi):**
+  - **78 test dosyası** çalıştırıldı.
+  - **742 test başarılı**, 1 atlanan, 3 todo, 0 başarısız! (297.4s)
+
+---
+
+### 4. Dokunulmayan Dosyalar ve İzolasyon Kurallarına Uyum
+
+- Canlı sunucuya (`63.186.117.58` / `docs.sifirdanbire.com.tr`), Caddy prod veya AWS altyapısına **KESİNLİKLE DOKUNULMADI.**
+- `docker-compose.prod.yml` dosyasına dokunulmadı.
+- Canlı ortama dağıtım (deploy) yapılmadı; `main` dalına push yapılmadı.
+- Yalnızca `cd-style-refresh` çalışma dalında scoped ve temiz değişiklikler yapıldı.
 
 
 

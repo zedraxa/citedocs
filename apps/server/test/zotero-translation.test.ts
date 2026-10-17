@@ -40,10 +40,20 @@ describe("Zotero Plugin Turkish Translation", () => {
       expect(fs.existsSync(dockerfilePath)).toBe(true);
       const dockerfile = fs.readFileSync(dockerfilePath, "utf8");
 
-      // Extract the Zotero translation install block
+      // Extract the Zotero translation install block: from the COPY line up to
+      // the end of the following RUN instruction (stop at the next top-level
+      // Dockerfile instruction or comment line after the RUN python3 block).
       const startIndex = dockerfile.indexOf("COPY deploy/onlyoffice/zotero-translations/tr-TR.json");
       expect(startIndex).toBeGreaterThan(-1);
-      const translationStep = dockerfile.slice(startIndex);
+      const afterCopy = dockerfile.slice(startIndex);
+
+      const runIndex = afterCopy.indexOf("RUN python3");
+      expect(runIndex).toBeGreaterThan(-1);
+
+      const nextStepMatch = afterCopy.slice(runIndex).match(/\n(?=[A-Z]+ |#)/);
+      const translationStep = nextStepMatch
+        ? afterCopy.slice(0, runIndex + nextStepMatch.index)
+        : afterCopy;
 
       // 1. Must use python3, never node or jq
       expect(translationStep).toContain("python3");

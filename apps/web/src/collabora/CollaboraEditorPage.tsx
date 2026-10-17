@@ -113,7 +113,7 @@ function toCSLItem(
       ({ journalArticle: "article-journal", book: "book", bookSection: "chapter", conferencePaper: "paper-conference", thesis: "thesis", webpage: "webpage", report: "report" } as Record<string, string>)[item.itemType || ""] ||
       item.itemType ||
       "article-journal",
-    title: item.title || "Untitled",
+    title: item.title || "Adsız",
     author: authorsList,
     issued: { "date-parts": [[yearNum]] },
     DOI: item.doi,

@@ -1,5 +1,6 @@
 import { useState, useId } from "react";
 import { Sparkles, Loader2, AlertCircle, Check, BookMarked } from "lucide-react";
+import { isNetworkError } from "../auth/api.js";
 
 export interface AddByIdentifierItem {
   id: string;
@@ -70,7 +71,7 @@ export function extractItemDetails(data: unknown): AddByIdentifierItem {
       item.key ||
       `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   );
-  const title = String(item.title || csl.title || "Untitled");
+  const title = String(item.title || csl.title || "Adsız");
 
   // Extract authors from Zotero creators or CSL author
   let authors = "";
@@ -191,21 +192,21 @@ export function AddByIdentifier({
       });
 
       if (!res.ok) {
-        let errorMessage = `Server error (${res.status})`;
+        let errorMessage = `Sunucu hatası (${res.status})`;
         try {
           const errorJson = (await res.json()) as Record<string, unknown>;
           if (res.status === 502) {
             errorMessage = errorJson.message
-              ? `Translation server error (502): ${String(errorJson.message)}`
-              : "Translation server error (502): Upstream service failed or unreachable";
+              ? `translation-server hatası (502): ${String(errorJson.message)}`
+              : "translation-server hatası (502): Kaynak servisine ulaşılamadı";
           } else if (errorJson.message || errorJson.error) {
             errorMessage = String(errorJson.message || errorJson.error);
           }
         } catch {
           if (res.status === 502) {
-            errorMessage = "Translation server error (502): Upstream service failed or unreachable";
+            errorMessage = "translation-server hatası (502): Kaynak servisine ulaşılamadı";
           } else {
-            errorMessage = `Server error (${res.status}): ${res.statusText || "Request failed"}`;
+            errorMessage = `Sunucu hatası (${res.status}): ${res.statusText || "İstek başarısız oldu"}`;
           }
         }
         setError(errorMessage);
@@ -222,8 +223,12 @@ export function AddByIdentifier({
         onItemAdded(parsedItem, data);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(`Failed to connect to CiteDocs API (${targetApiUrl}): ${msg}`);
+      if (isNetworkError(err)) {
+        setError("Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.");
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(`CiteDocs API bağlantı hatası: ${msg}`);
+      }
       setLoading(false);
     }
   };

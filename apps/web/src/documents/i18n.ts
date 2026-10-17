@@ -56,6 +56,7 @@ export const docTranslations = {
     docTypeDocx: "Microsoft Word",
     docTypeOdt: "LibreOffice Writer",
     docTypePdf: "PDF Document",
+    cloud: "Cloud",
   },
   tr: {
     myDocuments: "Belgelerim",
@@ -112,6 +113,7 @@ export const docTranslations = {
     docTypeDocx: "Word Belgesi",
     docTypeOdt: "LibreOffice Belgesi",
     docTypePdf: "PDF Belgesi",
+    cloud: "Bulut",
   },
 };
 
@@ -130,4 +132,19 @@ export function formatBytes(bytes: number): string {
   const sizes = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
+export function formatDocumentDate(
+  dateStr: string | number | Date,
+  lang: DocumentLanguage = "tr"
+): string {
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return String(dateStr);
+  return d.toLocaleString(lang === "tr" ? "tr-TR" : "en-US", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Istanbul",
+  });
 }

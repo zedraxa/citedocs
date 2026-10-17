@@ -1,3 +1,5 @@
+import { LANG_STORAGE_KEY } from "../auth/languageMigration.js";
+
 export type DocumentLanguage = "en" | "tr";
 
 export const docTranslations = {
@@ -119,9 +121,8 @@ export const docTranslations = {
 
 export function getDocumentLanguage(): DocumentLanguage {
   if (typeof window !== "undefined") {
-    const saved = localStorage.getItem("citedocs_lang");
+    const saved = localStorage.getItem(LANG_STORAGE_KEY);
     if (saved === "tr" || saved === "en") return saved;
-    if (navigator.language.startsWith("tr")) return "tr";
   }
   return "tr";
 }

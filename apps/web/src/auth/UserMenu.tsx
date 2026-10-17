@@ -48,20 +48,9 @@ export function UserMenu({ currentUser }: UserMenuProps) {
     await logout();
   };
 
-  if (!isAuthenticated && !user) {
+  if (!isAuthenticated && !user && !currentUser) {
     return (
       <div className="flex items-center space-x-2">
-        {/* Language switch button */}
-        <button
-          onClick={toggleLang}
-          data-testid="lang-toggle-btn"
-          className="flex items-center space-x-1 text-xs font-semibold px-2 py-1 rounded-full border border-gray-300 hover:bg-gray-100 text-gray-700 transition-colors cursor-pointer"
-          title={`Dil değiştir: şu anda ${lang.toUpperCase()}`}
-        >
-          <Globe className="w-3.5 h-3.5 text-gray-500" />
-          <span>{lang === "tr" ? "TR" : "EN"}</span>
-        </button>
-
         {/* Log In Button */}
         <button
           onClick={() => openModal("login")}
@@ -146,13 +135,18 @@ export function UserMenu({ currentUser }: UserMenuProps) {
               onClick={toggleLang}
               data-testid="dropdown-lang-toggle-btn"
               className="w-full flex items-center justify-between px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+              title={lang === "tr" ? "Dili İngilizce yap" : "Switch language to Turkish"}
+              aria-label={`${t("language")}: ${lang === "tr" ? t("languageTurkish") : t("languageEnglish")}`}
             >
               <div className="flex items-center gap-2">
                 <Globe className="w-4 h-4 text-gray-500" />
-                <span>{t("language")}</span>
+                <span data-testid="dropdown-lang-label">{t("language")}</span>
               </div>
-              <span className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]">
-                {lang === "tr" ? "Türkçe" : "English"}
+              <span
+                data-testid="dropdown-lang-active"
+                className="font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]"
+              >
+                {lang === "tr" ? t("languageTurkish") : t("languageEnglish")}
               </span>
             </button>
           </div>

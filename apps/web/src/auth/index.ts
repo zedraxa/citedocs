@@ -11,3 +11,4 @@ export * from "./VerifyEmailPage.js";
 export * from "./UserMenu.js";
 export * from "./AuthModal.js";
 export * from "./ProtectedRoute.js";
+export * from "./languageMigration.js";

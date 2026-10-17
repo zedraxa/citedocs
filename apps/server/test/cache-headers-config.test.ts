@@ -16,9 +16,13 @@ describe("Deploy cache-control header configurations", () => {
     const content = fs.readFileSync(caddyfilePath, "utf8");
 
     expect(content).toContain("handle_path /oo/*");
-    expect(content).toContain("@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero*");
-    expect(content).toContain('header >Cache-Control "no-cache"');
-    expect(content).toContain('header_down Cache-Control "no-cache"');
+    expect(content).toContain("@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero* /sdkjs-plugins/zotero/*");
+    expect(content).toContain('header >Cache-Control "no-cache, no-store, must-revalidate"');
+    expect(content).toContain('header >CDN-Cache-Control "no-store"');
+    expect(content).toContain('header >Cloudflare-CDN-Cache-Control "no-store"');
+    expect(content).toContain('header_down Cache-Control "no-cache, no-store, must-revalidate"');
+    expect(content).toContain('header_down CDN-Cache-Control "no-store"');
+    expect(content).toContain('header_down Cloudflare-CDN-Cache-Control "no-store"');
     expect(content).toContain("@versioned path_regexp ^/[0-9]+");
     expect(content).toContain("handle @versioned");
 
@@ -35,9 +39,13 @@ describe("Deploy cache-control header configurations", () => {
     const content = fs.readFileSync(caddyfileOOPath, "utf8");
 
     expect(content).toContain("handle_path /oo/*");
-    expect(content).toContain("@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero*");
-    expect(content).toContain('header >Cache-Control "no-cache"');
-    expect(content).toContain('header_down Cache-Control "no-cache"');
+    expect(content).toContain("@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero* /sdkjs-plugins/zotero/*");
+    expect(content).toContain('header >Cache-Control "no-cache, no-store, must-revalidate"');
+    expect(content).toContain('header >CDN-Cache-Control "no-store"');
+    expect(content).toContain('header >Cloudflare-CDN-Cache-Control "no-store"');
+    expect(content).toContain('header_down Cache-Control "no-cache, no-store, must-revalidate"');
+    expect(content).toContain('header_down CDN-Cache-Control "no-store"');
+    expect(content).toContain('header_down Cloudflare-CDN-Cache-Control "no-store"');
     expect(content).toContain("@versioned path_regexp ^/[0-9]+");
     expect(content).toContain("handle @versioned");
 
@@ -59,9 +67,17 @@ describe("Deploy cache-control header configurations", () => {
       const res2 = spawnSync("caddy", ["validate", "--config", caddyfileOOPath], { encoding: "utf8" });
       expect(res2.status, res2.stderr).toBe(0);
 
-      const adaptRes = spawnSync("caddy", ["adapt", "--config", caddyfilePath], { encoding: "utf8" });
-      expect(adaptRes.status, adaptRes.stderr).toBe(0);
-      expect(adaptRes.stdout).toContain('"Cache-Control":["no-cache"]');
+      const adaptRes1 = spawnSync("caddy", ["adapt", "--config", caddyfilePath], { encoding: "utf8" });
+      expect(adaptRes1.status, adaptRes1.stderr).toBe(0);
+      expect(adaptRes1.stdout).toContain('"Cache-Control":["no-cache, no-store, must-revalidate"]');
+      expect(adaptRes1.stdout).toContain('"Cdn-Cache-Control":["no-store"]');
+      expect(adaptRes1.stdout).toContain('"Cloudflare-Cdn-Cache-Control":["no-store"]');
+
+      const adaptRes2 = spawnSync("caddy", ["adapt", "--config", caddyfileOOPath], { encoding: "utf8" });
+      expect(adaptRes2.status, adaptRes2.stderr).toBe(0);
+      expect(adaptRes2.stdout).toContain('"Cache-Control":["no-cache, no-store, must-revalidate"]');
+      expect(adaptRes2.stdout).toContain('"Cdn-Cache-Control":["no-store"]');
+      expect(adaptRes2.stdout).toContain('"Cloudflare-Cdn-Cache-Control":["no-store"]');
     } else if (hasDocker) {
       const res1 = spawnSync(
         "docker",
@@ -77,13 +93,25 @@ describe("Deploy cache-control header configurations", () => {
       );
       expect(res2.status, res2.stderr).toBe(0);
 
-      const adaptRes = spawnSync(
+      const adaptRes1 = spawnSync(
         "docker",
         ["run", "--rm", "-v", `${caddyfilePath}:/etc/caddy/Caddyfile:ro`, "caddy:2-alpine", "caddy", "adapt", "--config", "/etc/caddy/Caddyfile"],
         { encoding: "utf8" },
       );
-      expect(adaptRes.status, adaptRes.stderr).toBe(0);
-      expect(adaptRes.stdout).toContain('"Cache-Control":["no-cache"]');
+      expect(adaptRes1.status, adaptRes1.stderr).toBe(0);
+      expect(adaptRes1.stdout).toContain('"Cache-Control":["no-cache, no-store, must-revalidate"]');
+      expect(adaptRes1.stdout).toContain('"Cdn-Cache-Control":["no-store"]');
+      expect(adaptRes1.stdout).toContain('"Cloudflare-Cdn-Cache-Control":["no-store"]');
+
+      const adaptRes2 = spawnSync(
+        "docker",
+        ["run", "--rm", "-v", `${caddyfileOOPath}:/etc/caddy/Caddyfile:ro`, "caddy:2-alpine", "caddy", "adapt", "--config", "/etc/caddy/Caddyfile"],
+        { encoding: "utf8" },
+      );
+      expect(adaptRes2.status, adaptRes2.stderr).toBe(0);
+      expect(adaptRes2.stdout).toContain('"Cache-Control":["no-cache, no-store, must-revalidate"]');
+      expect(adaptRes2.stdout).toContain('"Cdn-Cache-Control":["no-store"]');
+      expect(adaptRes2.stdout).toContain('"Cloudflare-Cdn-Cache-Control":["no-store"]');
     }
   });
 
@@ -128,6 +156,8 @@ describe("Deploy cache-control header configurations", () => {
     expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/index.html")).toBe("no-cache");
     expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/config.json")).toBe("no-cache");
     expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/zotero-sync-hook.js")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/scripts/code.js")).toBe("no-cache");
+    expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/resources/img/icon.png")).toBe("no-cache");
     expect(evaluateOoPath("/oo/sdkjs-plugins/zotero/translations/tr-TR.json")).toBe("no-cache");
     expect(evaluateOoPath("/oo/web-apps/apps/api/documents/api.js")).toBe("no-cache");
     expect(evaluateOoPath("/oo/api.js")).toBe("no-cache");

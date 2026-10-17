@@ -228,29 +228,18 @@ test.describe("Requirement 1: ONLYOFFICE Autosave & Force-save Verification (oo-
 
     await expect(page).toHaveURL(/.*\/editor\?doc=/, { timeout: 20_000 });
 
-    // Check if ONLYOFFICE version mismatch modal appeared in any frame
-    for (let attempt = 0; attempt < 10; attempt++) {
-      let clicked = false;
-      for (const frame of page.frames()) {
-        const modalBtn = frame.locator('text="Anladım"').first();
-        if (await modalBtn.count() > 0 && await modalBtn.isVisible()) {
-          console.log(`[QA Autosave] ONLYOFFICE 'Versiyon değiştirildi' modal detected in frame ${frame.name() || frame.url()}! Clicking 'Anladım'...`);
-          await modalBtn.click();
-          clicked = true;
-          break;
-        }
-      }
-      if (clicked) {
-        console.log("[QA Autosave] Clicked 'Anladım', waiting for ONLYOFFICE frame reload...");
-        await page.waitForTimeout(5000);
-        break;
-      }
-      await page.waitForTimeout(1000);
-    }
-
+    // Reopened document must load cleanly without any version mismatch modal
     const reopenedZoteroBtn = page.getByTestId("oo-zotero-open");
     await expect(reopenedZoteroBtn).toBeEnabled({ timeout: 60_000 });
-    console.log("[QA Autosave] Document reopened in ONLYOFFICE successfully.");
+
+    // Assert that the 'Versiyon değiştirildi' modal never appeared
+    for (const frame of page.frames()) {
+      const modalBtn = frame.locator('text="Anladım"').first();
+      await expect(modalBtn).not.toBeVisible();
+      const versionModal = frame.locator('text="Versiyon değiştirildi"').first();
+      await expect(versionModal).not.toBeVisible();
+    }
+    console.log("[QA Autosave] Document reopened cleanly in ONLYOFFICE with no version mismatch modal.");
 
     // Query paragraph text from reopened document with a timeout guard
     const retrievedText = await page.evaluate(async () => {

@@ -51,6 +51,20 @@
 
         if (locMgr && typeof locMgr.loadLocale === "function") {
           await locMgr.loadLocale(cleanLocale).catch(function () {});
+          // If not cached (e.g. offline or network blocked), fall back to local bundled locale
+          if (typeof locMgr.getLocale === "function" && !locMgr.getLocale(cleanLocale)) {
+            try {
+              const lRes = await fetch("./resources/csl/locales/locales-" + cleanLocale + ".xml");
+              if (lRes.ok) {
+                const lXml = await lRes.text();
+                if (lXml && lXml.includes("<locale") && locMgr._cache) {
+                  locMgr._cache[cleanLocale] = lXml;
+                }
+              }
+            } catch (e) {
+              /* ignore fallback error */
+            }
+          }
           if (typeof locMgr.saveLastUsedLanguage === "function") {
             locMgr.saveLastUsedLanguage(cleanLocale);
           }
@@ -58,6 +72,24 @@
 
         if (styleMgr && typeof styleMgr.getStyle === "function") {
           await styleMgr.getStyle(cleanId, true).catch(function () {});
+          // If not cached, fall back to local bundled style
+          if (typeof styleMgr.cached === "function" && !styleMgr.cached(cleanId)) {
+            try {
+              const sRes = await fetch("./resources/csl/styles/" + cleanId + ".csl");
+              if (sRes.ok) {
+                const sXml = await sRes.text();
+                if (sXml && sXml.includes("<style")) {
+                  if (typeof styleMgr._saveLastUsedStyle === "function") {
+                    styleMgr._saveLastUsedStyle(cleanId, sXml, format || "author-date");
+                  } else if (styleMgr._cache) {
+                    styleMgr._cache[cleanId] = sXml;
+                  }
+                }
+              }
+            } catch (e) {
+              /* ignore fallback error */
+            }
+          }
         }
 
         const isNote = format === "note" || (styleMgr && styleMgr.getLastUsedFormat && styleMgr.getLastUsedFormat() === "note");

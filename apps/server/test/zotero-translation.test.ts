@@ -55,6 +55,10 @@ describe("Zotero Plugin Turkish Translation", () => {
         ? afterCopy.slice(0, runIndex + nextStepMatch.index)
         : afterCopy;
 
+      const patchScriptPath = path.resolve(__dirname, "../../../deploy/onlyoffice/patch-zotero-plugin.py");
+      const patchScript = fs.existsSync(patchScriptPath) ? fs.readFileSync(patchScriptPath, "utf8") : "";
+      const scriptCode = patchScript ? `${translationStep}\n${patchScript}` : translationStep;
+
       // 1. Must use python3, never node or jq
       expect(translationStep).toContain("python3");
       expect(translationStep).not.toContain("node ");
@@ -65,24 +69,24 @@ describe("Zotero Plugin Turkish Translation", () => {
       expect(translationStep).not.toContain("2>/dev/null");
 
       // 3. Must update langs.json and config.json
-      expect(translationStep).toContain("langs.json");
-      expect(translationStep).toContain("config.json");
-      expect(translationStep).toContain("tr-TR");
-      expect(translationStep).toContain("nameLocale");
-      expect(translationStep).toContain("descriptionLocale");
+      expect(scriptCode).toContain("langs.json");
+      expect(scriptCode).toContain("config.json");
+      expect(scriptCode).toContain("tr-TR");
+      expect(scriptCode).toContain("nameLocale");
+      expect(scriptCode).toContain("descriptionLocale");
 
       // 4. Must regenerate .gz files for gzip_static
-      expect(translationStep).toContain(".gz");
-      expect(translationStep).toContain("make_gz");
-      expect(translationStep).toContain("langs.json.gz");
-      expect(translationStep).toContain("tr-TR.json.gz");
-      expect(translationStep).toContain("tr.json.gz");
-      expect(translationStep).toContain("gzip");
+      expect(scriptCode).toContain(".gz");
+      expect(scriptCode).toContain("make_gz");
+      expect(scriptCode).toContain("langs.json.gz");
+      expect(scriptCode).toContain("tr-TR.json.gz");
+      expect(scriptCode).toContain("tr.json.gz");
+      expect(scriptCode).toContain("gzip");
 
       // 5. Must include build-time assertion
-      expect(translationStep).toContain("assert");
-      expect(translationStep).toMatch(/assert.*tr-TR.*in/);
-      expect(translationStep).toMatch(/assert.*dec\s*==\s*raw_langs/);
+      expect(scriptCode).toContain("assert");
+      expect(scriptCode).toMatch(/assert.*tr-TR.*in/);
+      expect(scriptCode).toMatch(/assert.*dec\s*==\s*raw_langs/);
     });
 
     it("sanity checks that the python script executes successfully on a mock directory and is idempotent", async () => {
@@ -172,8 +176,13 @@ assert os.path.isfile(tr_tr_file + ".gz")
 assert os.path.isfile(tr_file + ".gz")
 `;
 
+        const patchScriptPath = path.resolve(__dirname, "../../../deploy/onlyoffice/patch-zotero-plugin.py");
+        const runCmd = fs.existsSync(patchScriptPath)
+          ? `python3 "${patchScriptPath}" "${tmpDir}"`
+          : `python3 -c '${pyScript.replace(/'/g, `'\\''`)}'`;
+
         // Execute once
-        expect(() => execSync(`python3 -c '${pyScript.replace(/'/g, `'\\''`)}'`, { stdio: "pipe" })).not.toThrow();
+        expect(() => execSync(runCmd, { stdio: "pipe" })).not.toThrow();
 
         // Check updated contents
         const updatedLangs = JSON.parse(fs.readFileSync(langsPath, "utf8"));
@@ -196,7 +205,7 @@ assert os.path.isfile(tr_file + ".gz")
         expect(fs.existsSync(path.join(transDir, "tr-TR.json.gz"))).toBe(true);
 
         // Run second time to verify idempotency
-        expect(() => execSync(`python3 -c '${pyScript.replace(/'/g, `'\\''`)}'`, { stdio: "pipe" })).not.toThrow();
+        expect(() => execSync(runCmd, { stdio: "pipe" })).not.toThrow();
         const secondLangs = JSON.parse(fs.readFileSync(langsPath, "utf8"));
         expect(secondLangs.filter((l: string) => l === "tr-TR").length).toBe(1);
       } finally {

@@ -2,22 +2,74 @@ import { describe, expect, it } from "vitest";
 import { OnlyofficeSessionManager } from "../src/onlyoffice/session.js";
 
 describe("OnlyofficeSessionManager", () => {
-  it("maintains the same key during an active session and generates a new key after closing", () => {
+  it("keeps key stable during an editing session for the same storage version", () => {
     const manager = new OnlyofficeSessionManager();
     const key1 = manager.getOrCreateSessionKey("doc-1", "v1", 100);
     expect(key1).toBeTruthy();
 
-    // Subsequent calls while active return the exact same key
-    const key2 = manager.getOrCreateSessionKey("doc-1", "v2", 150);
+    // Subsequent calls during the same session with identical storage version return the same key
+    const key2 = manager.getOrCreateSessionKey("doc-1", "v1", 100);
     expect(key2).toBe(key1);
+  });
 
-    // Closing the session (status 2 / 4) clears active key
+  it("shares the session key among concurrent editors for the same document", () => {
+    const manager = new OnlyofficeSessionManager();
+    // User A joins the session
+    const keyUserA = manager.getOrCreateSessionKey("doc-1", "v1", 100);
+    expect(keyUserA).toBeTruthy();
+
+    // User B joins concurrently
+    const keyUserB = manager.getOrCreateSessionKey("doc-1", "v1", 100);
+    expect(keyUserB).toBe(keyUserA);
+  });
+
+  it("changes the session key after a save callback updates the file", () => {
+    const manager = new OnlyofficeSessionManager();
+    const key1 = manager.getOrCreateSessionKey("doc-1", "v1", 100);
+    expect(key1).toBeTruthy();
+
+    // Save callback updates file to version v2, size 200
+    const newKey = manager.recordSave("doc-1", "hash-new-content", 200, "v2", key1);
+    expect(newKey).toBeTruthy();
+    expect(newKey).not.toBe(key1);
+    expect(manager.getActiveSession("doc-1")?.key).toBe(newKey);
+    expect(manager.getActiveSession("doc-1")?.version).toBe("v2");
+  });
+
+  it("reopen after save gets the new key", () => {
+    const manager = new OnlyofficeSessionManager();
+    const key1 = manager.getOrCreateSessionKey("doc-1", "v1", 100);
+
+    // Document is edited and saved (force-save or autosave)
+    const savedKey = manager.recordSave("doc-1", "hash-saved", 250, "v2", key1);
+    expect(savedKey).not.toBe(key1);
+
+    // Reopening the document with updated storage metadata (v2, 250) returns the new key
+    const reopenedKey = manager.getOrCreateSessionKey("doc-1", "v2", 250);
+    expect(reopenedKey).toBe(savedKey);
+    expect(reopenedKey).not.toBe(key1);
+  });
+
+  it("generates a new key if storage version changed externally", () => {
+    const manager = new OnlyofficeSessionManager();
+    const key1 = manager.getOrCreateSessionKey("doc-1", "v1", 100);
+
+    // Storage version updated externally to v2 without recordSave
+    const key2 = manager.getOrCreateSessionKey("doc-1", "v2", 150);
+    expect(key2).toBeTruthy();
+    expect(key2).not.toBe(key1);
+  });
+
+  it("clears active session on closeSession (status 2 / 4) and generates a fresh key next open", () => {
+    const manager = new OnlyofficeSessionManager();
+    const key1 = manager.getOrCreateSessionKey("doc-1", "v1", 100);
+
     manager.closeSession("doc-1");
+    expect(manager.getActiveSession("doc-1")).toBeUndefined();
 
-    // Next session starts with a different key
-    const key3 = manager.getOrCreateSessionKey("doc-1", "v2", 150);
-    expect(key3).toBeTruthy();
-    expect(key3).not.toBe(key1);
+    const key2 = manager.getOrCreateSessionKey("doc-1", "v1", 100);
+    expect(key2).toBeTruthy();
+    expect(key2).not.toBe(key1);
   });
 
   it("tracks content hashes and accurately detects identical content for deduplication", () => {

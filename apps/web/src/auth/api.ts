@@ -28,6 +28,47 @@ export function getApiBaseUrl(): string {
   return "http://localhost:3000";
 }
 
+import { getLocalizedAuthError } from "./i18n.js";
+
+export function isNetworkError(err: unknown): boolean {
+  if (!err) return false;
+  if (err instanceof TypeError) return true;
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes("failed to fetch") ||
+    msg.includes("fetch failed") ||
+    msg.includes("networkerror") ||
+    msg.includes("network error") ||
+    msg.includes("network request failed") ||
+    msg.includes("load failed") ||
+    msg.includes("aborterror") ||
+    msg.includes("err_")
+  );
+}
+
+export function createNetworkError(originalError?: unknown): Error {
+  const err = new Error("Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.");
+  (err as unknown as { statusCode: number; code: string; originalError?: unknown }).statusCode = 0;
+  (err as unknown as { statusCode: number; code: string; originalError?: unknown }).code = "NETWORK_ERROR";
+  (err as unknown as { statusCode: number; code: string; originalError?: unknown }).originalError = originalError;
+  return err;
+}
+
+export function createApiError(
+  status: number,
+  data: Record<string, unknown> | null,
+  fallbackMessage?: string
+): Error {
+  const rawMsg = (data?.message as string) || (data?.error as string) || fallbackMessage;
+  const code = (data?.error as string) || (data?.code as string) || String(status);
+  const localizedMsg = getLocalizedAuthError(code || status, rawMsg);
+  const error = new Error(localizedMsg);
+  (error as unknown as { statusCode: number; code?: string; data?: unknown }).statusCode = status;
+  (error as unknown as { statusCode: number; code?: string; data?: unknown }).code = code;
+  (error as unknown as { statusCode: number; code?: string; data?: unknown }).data = data;
+  return error;
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {}
@@ -50,11 +91,19 @@ async function request<T>(
     }
   }
 
-  const res = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include", // Sends session & CSRF cookies
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include", // Sends session & CSRF cookies
+    });
+  } catch (netErr: unknown) {
+    if (isNetworkError(netErr)) {
+      throw createNetworkError(netErr);
+    }
+    throw netErr;
+  }
 
   const contentType = res.headers.get("content-type") || "";
   let data: Record<string, unknown> | null = null;
@@ -72,11 +121,7 @@ async function request<T>(
   }
 
   if (!res.ok) {
-    const message = (data?.message as string) || (data?.error as string) || `Request failed with status ${res.status}`;
-    const error = new Error(message);
-    (error as unknown as { statusCode: number; data?: unknown }).statusCode = res.status;
-    (error as unknown as { data?: unknown }).data = data;
-    throw error;
+    throw createApiError(res.status, data);
   }
 
   return (data as T) ?? ({} as T);

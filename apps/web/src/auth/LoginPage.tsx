@@ -27,7 +27,7 @@ export function LoginPage({
     setLocalError(null);
 
     if (!email.trim() || !password) {
-      setLocalError(t("requiredFields" as unknown as "invalidEmail") || "Lütfen tüm alanları doldurun");
+      setLocalError(t("requiredFields"));
       return;
     }
 

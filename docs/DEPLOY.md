@@ -130,3 +130,20 @@ It should return:
 }
 ```
 
+### ONLYOFFICE Plugin & CDN Cache Control (Devir #049):
+For ONLYOFFICE Zotero plugin and hook assets (`/oo/sdkjs-plugins/zotero/*`, `/oo/*/sdkjs-plugins/zotero/*`, `/oo/*zotero-sync-hook.js`, `api.js`, etc.), Caddy emits:
+- `Cache-Control: no-cache, no-store, must-revalidate`
+- `CDN-Cache-Control: no-store`
+- `Cloudflare-CDN-Cache-Control: no-store`
+
+This prevents Cloudflare Edge from caching plugin code or rewriting the downstream Cache-Control header via Cloudflare Browser Cache TTL (e.g. `max-age=14400`).
+
+**Post-Deploy Cloudflare Cache Purge:**
+Because Cloudflare edge may have cached older plugin versions under 1-year immutable TTL before deploy, the operator should purge Cloudflare edge cache after deploying #049:
+- URL Purge: `https://docs.sifirdanbire.com.tr/oo/sdkjs-plugins/zotero/*`
+- URL Purge: `https://docs.sifirdanbire.com.tr/oo/10.0.0-x/sdkjs-plugins/zotero/*`
+- URL Purge: `https://docs.sifirdanbire.com.tr/oo/sdkjs-plugins/zotero/zotero-sync-hook.js`
+- URL Purge: `https://docs.sifirdanbire.com.tr/oo/10.0.0-x/sdkjs-plugins/zotero/zotero-sync-hook.js`
+*(or "Purge Everything" in the Cloudflare Dashboard under Caching -> Configuration).*
+
+

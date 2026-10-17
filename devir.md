@@ -2749,4 +2749,69 @@ Yapılan derinlemesine inceleme ve kod takibinde sorunun 3 kritik kök nedenden 
 - `pnpm test`: 78 test dosyası, 742 test başarılı (0 hata).
 - Dağıtım (deploy) yapılmadı; prod ortamına veya compose dosyalarına dokunulmadı.
 
+---
+
+## 54. ONLYOFFICE Zotero Eklenti/Hook Varlıklarında Cloudflare Edge & Tarayıcı Önbelleğini Devre Dışı Bırakma (Kayıt #049)
+
+> **Kayıt No:** #049  
+> **Tarih:** 2026-10-17  
+> **Ajan Modu:** Korkusuz Uzman Ajan (Cutting-Edge)  
+> **Dal:** `cd-cf-cache`  
+> **İlgili Görev:** Devir #048 dağıtımı sonrasında Cloudflare CDN'in Zotero eklenti ve kanca varlıklarını (`/oo/sdkjs-plugins/zotero/zotero-sync-hook.js` ve `/oo/10.0.0-x/sdkjs-plugins/zotero/zotero-sync-hook.js`) hala bayat/yanlış Cache-Control (`max-age=14400` veya edge'de kalan eski `immutable` HIT) ile sunması sorununun kök nedeninin çözülmesi; hem origin Caddy hem Cloudflare CDN edge seviyesinde `Cache-Control: no-cache, no-store, must-revalidate`, `CDN-Cache-Control: no-store` ve `Cloudflare-CDN-Cache-Control: no-store` başlıklarının uygulanması; sürümsüz `/oo/sdkjs-plugins/zotero/*` yollarının da `@no_cache` bloğunda yakalanmasının garanti altına alınması; testlerin genişletilmesi ve dağıtım sonrası Cloudflare purge notunun belgelenmesi.
+
+---
+
+### 1. Kök Neden Analizi (Root Cause Analysis)
+
+1. **Cloudflare Browser Cache TTL ve Varsayılan Statik Dosya Politikası:**
+   - Devir #048'de origin Caddy yalnızca `Cache-Control: no-cache` başlığı gönderiyordu.
+   - Cloudflare CDN, `.html` uzantısını varsayılan olarak önbelleklemezken (bu yüzden versioned `index.html` doğru şekilde `no-cache` dönüyordu), `.js` ve `.json` gibi statik dosya uzantılarını önbelleğe uygun (cache-eligible) kabul eder.
+   - Cloudflare dashboard'undaki "Browser Cache TTL" (veya Page Rules / Caching Rules) ayarı (varsayılan 4 saat = 14400s), origin'den `no-store` gelmediğinde istemciye dönen `Cache-Control` başlığını ezerek `max-age=14400` olarak yeniden yazar. Bu sebeple `#047` ile güncellenen stil değiştirme düzeltmeleri istemci tarayıcılarına 4 saat boyunca ulaşamamaktadır.
+   - Çözüm için RFC 9213 standardı `CDN-Cache-Control: no-store`, Cloudflare'a özel `Cloudflare-CDN-Cache-Control: no-store` ve doğrudan `Cache-Control: no-cache, no-store, must-revalidate` başlıklarının birlikte gönderilmesi gerekmektedir. Böylece Cloudflare Edge varlığı önbelleğe almaz ve Browser Cache TTL ile başlığı ezemez.
+
+2. **Cloudflare Edge'de Kalan Eski 1 Yıllık Değişmez (Immutable) Önbellek Kayıtları:**
+   - Devir #048 öncesinde sürümsüz yol olan `https://docs.sifirdanbire.com.tr/oo/sdkjs-plugins/zotero/zotero-sync-hook.js`, Document Server tarafından `public, max-age=31536000, immutable` ile sunulmuş ve Cloudflare edge tarafından önbelleklenmişti.
+   - Canlı ortamda `cf-cache-status: HIT; age ~15550` dönmesinin sebebi, Cloudflare edge'in bu nesneyi hala önbellekte tutması ve origin'e hiç gitmemesidir. Origin Caddy güncellense bile, Cloudflare edge'deki bu eski kayıtlar manuel veya API üzerinden tasfiye (purge) edilene kadar istemcilere bayat kopya sunulmaya devam eder.
+   - Ayrıca sürümsüz yolların (`/oo/sdkjs-plugins/zotero/*`), Caddy `handle_path /oo/*` altında `/sdkjs-plugins/zotero/*` olarak açıkça `@no_cache` bloğuyla eşleşmesi ve default vekile (orijinal Document Server immutable başlıklarına) düşmemesi garanti altına alınmıştır.
+
+---
+
+### 2. Yapılan Değişiklikler ve Mimari Çözüm
+
+1. **`deploy/Caddyfile` ve `deploy/Caddyfile.onlyoffice` Güncellemesi:**
+   - `@no_cache` yol eşleştiricisine `/sdkjs-plugins/zotero/*` deseni eklendi:
+     `@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero* /sdkjs-plugins/zotero/*`
+   - `handle @no_cache` bloğuna hem downstream hem upstream düzeyinde aşağıdaki başlıklar eklendi:
+     - `header >Cache-Control "no-cache, no-store, must-revalidate"`
+     - `header >CDN-Cache-Control "no-store"`
+     - `header >Cloudflare-CDN-Cache-Control "no-store"`
+     - `header_down Cache-Control "no-cache, no-store, must-revalidate"`
+     - `header_down CDN-Cache-Control "no-store"`
+     - `header_down Cloudflare-CDN-Cache-Control "no-store"`
+   - Bu sayede hem Caddy'nin downstream yanıtında hem de reverse_proxy filtrelemesinde başlıklar kesin olarak sabitlendi.
+
+2. **Test Paketi Genişletildi (`apps/server/test/cache-headers-config.test.ts`):**
+   - Hem `deploy/Caddyfile` hem `deploy/Caddyfile.onlyoffice` için `CDN-Cache-Control: no-store`, `Cloudflare-CDN-Cache-Control: no-store` ve `Cache-Control: no-cache, no-store, must-revalidate` kuralları doğrulandı.
+   - `caddy adapt` çıktısında her iki Caddyfile için de `Cache-Control`, `Cdn-Cache-Control` ve `Cloudflare-Cdn-Cache-Control` JSON bloklarının varlığı test edildi.
+   - `evaluateOoPath` simülasyonuna sürümsüz eklenti kaynakları (`/oo/sdkjs-plugins/zotero/scripts/code.js`, `/oo/sdkjs-plugins/zotero/resources/img/icon.png`) eklenerek sürümsüz yolların da eksiksiz `no-cache` aldığı kanıtlandı.
+
+3. **Operatör Dağıtım Dokümantasyonu Güncellendi (`docs/DEPLOY.md`):**
+   - ONLYOFFICE Plugin & CDN Cache Control bölümü eklendi.
+   - Dağıtım sonrasında operatörün Cloudflare önbelleğini tasfiye etmesi (Purge Cache) gereken URL kalıpları listelendi:
+     - `https://docs.sifirdanbire.com.tr/oo/sdkjs-plugins/zotero/*`
+     - `https://docs.sifirdanbire.com.tr/oo/10.0.0-x/sdkjs-plugins/zotero/*`
+     - `https://docs.sifirdanbire.com.tr/oo/sdkjs-plugins/zotero/zotero-sync-hook.js`
+     - `https://docs.sifirdanbire.com.tr/oo/10.0.0-x/sdkjs-plugins/zotero/zotero-sync-hook.js`
+
+---
+
+### 3. Test ve Doğrulama Sonuçları
+
+- `pnpm --filter @citedocs/server vitest run test/cache-headers-config.test.ts`: 5 testin tamamı başarılı (Caddy validate, Caddy adapt ve URL eşleştirme testleri yeşil).
+- `pnpm lint`: 0 hata, 0 uyarı.
+- `pnpm typecheck`: 0 hata (`tsc -b` tüm projelerde başarıyla geçti).
+- `pnpm test`: 78 test dosyası, 742 test başarılı (0 hata, 1 atlanan canlı test, 3 todo).
+- Dağıtım (deploy) yapılmadı; prod ortamına veya compose dosyalarına dokunulmadı.
+
+
 

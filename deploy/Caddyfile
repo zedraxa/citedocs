@@ -21,13 +21,17 @@ http://docs.sifirdanbire.com.tr, https://docs.sifirdanbire.com.tr {
 		reverse_proxy @office wopi:8080
 		# ONLYOFFICE Docs (main editor); X-Forwarded-Host carries the /oo prefix.
 		handle_path /oo/* {
-			@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero*
+			@no_cache path *.html *.json */translations/* /translations/* *zotero-sync-hook.js *api.js *sdkjs-plugins/zotero* /sdkjs-plugins/zotero/*
 			handle @no_cache {
-				header >Cache-Control "no-cache"
+				header >Cache-Control "no-cache, no-store, must-revalidate"
+				header >CDN-Cache-Control "no-store"
+				header >Cloudflare-CDN-Cache-Control "no-store"
 				reverse_proxy onlyoffice:80 {
 					header_up X-Forwarded-Host {host}/oo
 					header_up X-Forwarded-Proto https
-					header_down Cache-Control "no-cache"
+					header_down Cache-Control "no-cache, no-store, must-revalidate"
+					header_down CDN-Cache-Control "no-store"
+					header_down Cloudflare-CDN-Cache-Control "no-store"
 				}
 			}
 			@versioned path_regexp ^/[0-9]+

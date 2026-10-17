@@ -189,7 +189,7 @@ export const createDocumentRoutes = (
       }
 
       const fileId = crypto.randomUUID(); // documents.id is a Postgres uuid column
-      const docTitle = title?.trim() || (format === "odt" ? "Untitled Document.odt" : "Untitled Document");
+      const docTitle = title?.trim() || (format === "odt" ? "Adsız Belge.odt" : "Adsız Belge");
       const baseFileName = docTitle.toLowerCase().endsWith(ext) ? docTitle : `${docTitle}${ext}`;
       const s3Key = `users/${userId}/documents/${fileId}${ext}`;
 

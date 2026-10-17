@@ -72,7 +72,7 @@ export const zoteroRoutes: FastifyPluginAsync<ZoteroRouteOptions> = async (
         const csl = cslItems[i];
 
         const stored = await itemRepo.create(userId, {
-          title: item.title || "Untitled",
+          title: item.title || "Adsız",
           itemType: item.itemType || "journalArticle",
           publicationTitle: item.publicationTitle || null,
           parsedDate: item.date || null,

@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import JSZip from "jszip";
 import { createBlankDocxBuffer } from "../src/documents/templates.js";
+import { extractZoteroState } from "../src/documents/zoteroFields.js";
 
-describe("blank DOCX language", () => {
+describe("blank DOCX language and Zotero preferences", () => {
   it.each(["generated", "asset"])(
-    "declares Turkish defaults and registered parts in %s",
+    "declares Turkish defaults, Zotero preferences and registered parts in %s",
     async (source) => {
       const buffer =
         source === "generated"
@@ -26,6 +27,16 @@ describe("blank DOCX language", () => {
         expect(rels).toContain(`relationships/${part}" Target="${part}.xml"`);
         expect(types).toContain(`PartName="/word/${part}.xml"`);
       }
+      expect(types).toContain('PartName="/docProps/custom.xml"');
+      const rootRels = await zip.file("_rels/.rels")!.async("string");
+      expect(rootRels).toContain('Target="docProps/custom.xml"');
+      const customXml = await zip.file("docProps/custom.xml")!.async("string");
+      expect(customXml).toContain('name="ZOTERO_PREF_1"');
+
+      const state = await extractZoteroState(buffer);
+      expect(state.style).toBe("apa");
+      expect(state.prefs).toContain('locale="tr-TR"');
+      expect(state.prefs).toContain("styles/apa");
     },
   );
 });

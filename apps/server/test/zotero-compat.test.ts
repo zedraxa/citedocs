@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import crypto from "node:crypto";
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 import type { FastifyInstance } from "fastify";
@@ -9,6 +10,7 @@ import { InMemoryAuthRepository } from "../src/auth/inMemoryAuthRepository.js";
 import { AuthService } from "../src/auth/authService.js";
 import { ConsoleMailer } from "../src/auth/mailer.js";
 import { extractZoteroState } from "../src/documents/zoteroFields.js";
+import { createBlankDocxBuffer } from "../src/documents/templates.js";
 import { signJwt } from "../src/onlyoffice/jwt.js";
 import {
   createZoteroWordDocxBuffer,
@@ -471,9 +473,50 @@ describe("Zotero Compatibility & Round-Trip Verification (apps/server)", () => {
       "ZC-03: ONLYOFFICE Zotero plugin style picker is locked behind login screen until user enters Zotero API key",
     );
 
-    it.todo(
-      "ZC-04: Newly created blank DOCX documents lack docProps/custom.xml ZOTERO_PREF properties",
-    );
+    it("ZC-04: newly created blank DOCX documents include docProps/custom.xml with valid Zotero preferences (APA 7, tr-TR)", async () => {
+      const blankDocx = await createBlankDocxBuffer();
+      const state = await extractZoteroState(blankDocx);
+
+      expect(state.citations).toEqual([]);
+      expect(state.bibliography).toBeNull();
+      expect(state.prefs).toBeDefined();
+      expect(state.prefs).toContain('locale="tr-TR"');
+      expect(state.prefs).toContain("styles/apa");
+      expect(state.style).toBe("apa");
+
+      // Verify OOXML package structure
+      const zip = await JSZip.loadAsync(blankDocx);
+      const customXml = await zip.file("docProps/custom.xml")?.async("string");
+      expect(customXml).toBeDefined();
+      expect(customXml).toContain('name="ZOTERO_PREF_1"');
+      expect(customXml).toContain("vt:lpwstr");
+
+      const contentTypes = await zip.file("[Content_Types].xml")?.async("string");
+      expect(contentTypes).toContain('PartName="/docProps/custom.xml"');
+      expect(contentTypes).toContain("custom-properties+xml");
+
+      const rels = await zip.file("_rels/.rels")?.async("string");
+      expect(rels).toContain('Target="docProps/custom.xml"');
+      expect(rels).toContain("custom-properties");
+
+      // Verify Turkish proofing language defaults are preserved (BUG-07)
+      const styles = await zip.file("word/styles.xml")?.async("string");
+      expect(styles).toContain('w:lang w:val="tr-TR"');
+      const doc = await zip.file("word/document.xml")?.async("string");
+      expect(doc).toContain('w:lang w:val="tr-TR"');
+      const settings = await zip.file("word/settings.xml")?.async("string");
+      expect(settings).toContain('w:themeFontLang w:val="tr-TR"');
+    });
+
+    it("ZC-04: deploy/office/blank.docx asset includes valid Zotero APA 7th Turkish preferences", async () => {
+      const assetPath = new URL("../../../deploy/office/blank.docx", import.meta.url);
+      const assetBuffer = await fs.promises.readFile(assetPath);
+      const state = await extractZoteroState(assetBuffer);
+
+      expect(state.style).toBe("apa");
+      expect(state.prefs).toContain('locale="tr-TR"');
+      expect(state.prefs).toContain("styles/apa");
+    });
 
     it.todo(
       "ZC-05: Style picker searchable dropdown renders 10,865 DOM elements without virtualization, causing client jank",
